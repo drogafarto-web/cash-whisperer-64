@@ -15,6 +15,8 @@ export interface LisRecord {
   paymentMethod: PaymentMethod;
   unitId: string | null;
   error: string | null;
+  isDuplicate: boolean;
+  duplicateReason: string | null;
 }
 
 export interface ParseResult {
@@ -24,6 +26,7 @@ export interface ParseResult {
   totalRecords: number;
   validRecords: number;
   invalidRecords: number;
+  duplicateRecords: number;
 }
 
 // Mapeamento de códigos de unidade do LIS para IDs do sistema
@@ -253,10 +256,12 @@ export function parseLisXls(buffer: ArrayBuffer): ParseResult {
       paymentMethod,
       unitId,
       error,
+      isDuplicate: false,
+      duplicateReason: null,
     });
   }
   
-  const validRecords = records.filter(r => !r.error && r.valorPago > 0);
+  const validRecords = records.filter(r => !r.error && r.valorPago > 0 && !r.isDuplicate);
   
   return {
     records,
@@ -264,8 +269,15 @@ export function parseLisXls(buffer: ArrayBuffer): ParseResult {
     periodEnd,
     totalRecords: records.length,
     validRecords: validRecords.length,
-    invalidRecords: records.length - validRecords.length,
+    invalidRecords: records.filter(r => r.error || r.valorPago <= 0).length,
+    duplicateRecords: records.filter(r => r.isDuplicate).length,
   };
+}
+
+// Extrai o código LIS de uma descrição de transação
+export function extractLisCodeFromDescription(description: string): string | null {
+  const match = description.match(/\[LIS\s+([^\]]+)\]/);
+  return match ? match[1] : null;
 }
 
 export function getPaymentMethodIcon(method: PaymentMethod): string {
