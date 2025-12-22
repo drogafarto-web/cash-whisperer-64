@@ -75,6 +75,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     { name: 'Rel. Fechamentos', href: '/reports/cash-closings', icon: FileBarChart, adminOnly: true },
     { name: 'Rel. Transações', href: '/reports/transactions', icon: FileBarChart, adminOnly: true },
     { name: 'Cenários Tributários', href: '/reports/tax-scenarios', icon: Calculator, adminOnly: true },
+    { name: 'Real x Oficial', href: '/reports/personnel-real-vs-official', icon: Users, adminOnly: true },
     { name: 'Auditoria Fator R', href: '/settings/fator-r-audit', icon: Calculator, adminOnly: true },
     { name: 'Config. Tributária', href: '/settings/tax-config', icon: Settings, adminOnly: true },
     { name: 'Usuários', href: '/settings/users', icon: Users, adminOnly: true },
