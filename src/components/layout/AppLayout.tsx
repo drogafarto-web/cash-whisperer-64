@@ -69,6 +69,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     { name: 'Transações', href: '/transactions', icon: Receipt, adminOnly: false },
     { name: 'Fechamento de Caixa', href: '/cash-closing', icon: DollarSign, adminOnly: false },
     { name: 'Importar LIS', href: '/import/daily-movement', icon: FileUp, adminOnly: false },
+    { name: 'Importar Extrato', href: '/import/bank-statement', icon: FileUp, adminOnly: false },
     { name: 'Rel. Fechamentos', href: '/reports/cash-closings', icon: FileBarChart, adminOnly: true },
     { name: 'Rel. Transações', href: '/reports/transactions', icon: FileBarChart, adminOnly: true },
     { name: 'Usuários', href: '/settings/users', icon: Users, adminOnly: true },

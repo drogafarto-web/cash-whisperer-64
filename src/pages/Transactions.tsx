@@ -47,7 +47,8 @@ import {
   Image as ImageIcon,
   Sparkles,
   Filter,
-  RefreshCw
+  RefreshCw,
+  AlertTriangle
 } from 'lucide-react';
 
 export default function Transactions() {
@@ -84,6 +85,11 @@ export default function Transactions() {
   });
   const [file, setFile] = useState<File | null>(null);
   const [ocrData, setOcrData] = useState<OcrData | null>(null);
+  const [valueWarning, setValueWarning] = useState<{
+    expected: number;
+    actual: number;
+    difference: number;
+  } | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -374,6 +380,7 @@ export default function Transactions() {
     });
     setFile(null);
     setOcrData(null);
+    setValueWarning(null);
   };
 
   const handlePartnerChange = (partnerId: string) => {
@@ -383,6 +390,41 @@ export default function Transactions() {
       partner_id: partnerId,
       category_id: partner?.default_category_id || prev.category_id,
     }));
+    
+    // Check value divergence
+    if (partner?.expected_amount && formData.amount) {
+      const currentAmount = parseFloat(formData.amount);
+      if (!isNaN(currentAmount) && Math.abs(currentAmount - partner.expected_amount) > 0.01) {
+        setValueWarning({
+          expected: partner.expected_amount,
+          actual: currentAmount,
+          difference: currentAmount - partner.expected_amount,
+        });
+      } else {
+        setValueWarning(null);
+      }
+    } else {
+      setValueWarning(null);
+    }
+  };
+
+  const handleAmountChange = (value: string) => {
+    setFormData(prev => ({ ...prev, amount: value }));
+    
+    // Check value divergence if partner has expected_amount
+    const partner = partners.find(p => p.id === formData.partner_id);
+    if (partner?.expected_amount) {
+      const amount = parseFloat(value);
+      if (!isNaN(amount) && Math.abs(amount - partner.expected_amount) > 0.01) {
+        setValueWarning({
+          expected: partner.expected_amount,
+          actual: amount,
+          difference: amount - partner.expected_amount,
+        });
+      } else {
+        setValueWarning(null);
+      }
+    }
   };
 
   const handleTypeChange = (type: TransactionType) => {
@@ -523,11 +565,26 @@ export default function Transactions() {
                       min="0"
                       placeholder="0,00"
                       value={formData.amount}
-                      onChange={e => setFormData(prev => ({ ...prev, amount: e.target.value }))}
+                      onChange={e => handleAmountChange(e.target.value)}
                       required
                     />
                   </div>
                 </div>
+
+                {/* Value divergence warning */}
+                {valueWarning && (
+                  <div className="flex items-center gap-2 p-3 bg-warning/10 border border-warning/30 rounded-lg text-sm">
+                    <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
+                    <div>
+                      <span className="font-medium">Valor diferente do esperado!</span>
+                      <div className="text-xs text-muted-foreground">
+                        Esperado: R$ {valueWarning.expected.toFixed(2)} | 
+                        Informado: R$ {valueWarning.actual.toFixed(2)} | 
+                        Diferença: {valueWarning.difference > 0 ? '+' : ''}R$ {valueWarning.difference.toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
