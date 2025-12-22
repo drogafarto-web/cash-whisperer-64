@@ -74,11 +74,13 @@ export default function CashClosingReport() {
   const [isLoading, setIsLoading] = useState(true);
   const [cashClosings, setCashClosings] = useState<CashClosingWithRelations[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
 
   // Filters
   const [startDate, setStartDate] = useState<Date>(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState<Date>(endOfMonth(new Date()));
   const [selectedUnitId, setSelectedUnitId] = useState<string>('all');
+  const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
   const [showOnlyWithDifference, setShowOnlyWithDifference] = useState(false);
 
   useEffect(() => {
@@ -92,6 +94,7 @@ export default function CashClosingReport() {
   useEffect(() => {
     if (user && isAdmin) {
       fetchUnits();
+      fetchAccounts();
     }
   }, [user, isAdmin]);
 
@@ -99,11 +102,16 @@ export default function CashClosingReport() {
     if (user && isAdmin) {
       fetchCashClosings();
     }
-  }, [user, isAdmin, startDate, endDate, selectedUnitId, showOnlyWithDifference]);
+  }, [user, isAdmin, startDate, endDate, selectedUnitId, selectedAccountId, showOnlyWithDifference]);
 
   const fetchUnits = async () => {
     const { data } = await supabase.from('units').select('*').order('name');
     setUnits(data || []);
+  };
+
+  const fetchAccounts = async () => {
+    const { data } = await supabase.from('accounts').select('*').eq('active', true).order('name');
+    setAccounts((data || []) as Account[]);
   };
 
   const fetchCashClosings = async () => {
@@ -122,6 +130,10 @@ export default function CashClosingReport() {
 
       if (selectedUnitId !== 'all') {
         query = query.eq('unit_id', selectedUnitId);
+      }
+
+      if (selectedAccountId !== 'all') {
+        query = query.eq('account_id', selectedAccountId);
       }
 
       if (showOnlyWithDifference) {
@@ -350,6 +362,24 @@ export default function CashClosingReport() {
                     {units.map(unit => (
                       <SelectItem key={unit.id} value={unit.id}>
                         {unit.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Account Filter */}
+              <div className="space-y-2">
+                <Label>Conta</Label>
+                <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Todas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as contas</SelectItem>
+                    {accounts.map(account => (
+                      <SelectItem key={account.id} value={account.id}>
+                        {account.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
