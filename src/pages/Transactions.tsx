@@ -350,21 +350,17 @@ export default function Transactions() {
   return (
     <AppLayout>
       <div className="space-y-6 animate-fade-in">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
+        {/* Header com botão destacado à esquerda */}
+        <div className="space-y-2">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
             <h1 className="text-2xl font-bold text-foreground">Transações</h1>
-            <p className="text-muted-foreground">
-              {isAdmin ? 'Gerencie todas as transações' : 'Lance e acompanhe suas transações'}
-            </p>
-          </div>
-          
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Nova Transação
-              </Button>
-            </DialogTrigger>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="lg" className="shadow-md">
+                  <Plus className="w-5 h-5 mr-2" />
+                  Nova Transação
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Nova Transação</DialogTitle>
@@ -525,6 +521,11 @@ export default function Transactions() {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
+          {/* Texto guia contextual para secretária */}
+          <p className="text-sm text-muted-foreground">
+            Registre todas as entradas e saídas do dia aqui antes de fazer o fechamento de caixa.
+          </p>
         </div>
 
         {/* Transactions Table */}
@@ -538,14 +539,14 @@ export default function Transactions() {
                   <TableHead>Valor</TableHead>
                   <TableHead className="hidden md:table-cell">Categoria</TableHead>
                   <TableHead className="hidden md:table-cell">Conta</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                  {isAdmin && <TableHead>Status</TableHead>}
+                  <TableHead className="text-right">{isAdmin ? 'Ações' : 'Documento'}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {transactions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={isAdmin ? 7 : 6} className="text-center py-8 text-muted-foreground">
                       Nenhuma transação encontrada
                     </TableCell>
                   </TableRow>
@@ -563,7 +564,7 @@ export default function Transactions() {
                       </TableCell>
                       <TableCell className="hidden md:table-cell">{tx.category?.name}</TableCell>
                       <TableCell className="hidden md:table-cell">{tx.account?.name}</TableCell>
-                      <TableCell>{getStatusBadge(tx.status)}</TableCell>
+                      {isAdmin && <TableCell>{getStatusBadge(tx.status)}</TableCell>}
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           {tx.documents && tx.documents.length > 0 && (
