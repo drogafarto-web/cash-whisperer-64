@@ -64,6 +64,8 @@ import {
 import { FatorRAlert } from '@/components/alerts/FatorRAlert';
 import { FatorREducationalCard } from '@/components/tax/FatorREducationalCard';
 import { OptimizationTargetsCard } from '@/components/tax/OptimizationTargetsCard';
+import { FatorREvolutionChart } from '@/components/tax/FatorREvolutionChart';
+import { AlertPreferencesCard } from '@/components/tax/AlertPreferencesCard';
 
 // Tipo estendido para incluir dados de folha informal
 interface ExtendedTaxSimulationOutput extends TaxSimulationOutput {
@@ -672,6 +674,19 @@ export default function TaxScenarios() {
                 regimeAtual={taxConfig?.regime_atual || 'SIMPLES'}
               />
             )}
+
+            {/* Gráfico de Evolução do Fator R */}
+            <FatorREvolutionChart
+              monthlyData={lineChartData.map(d => ({
+                mes: format(subMonths(new Date(selectedMonth + '-01'), 11 - lineChartData.indexOf(d)), 'yyyy-MM'),
+                folha12: simulationResult.folhaOficial12,
+                rbt12: simulationResult.cenarios.find(c => c.regime === 'SIMPLES')?.detalhes.rbt12 || 0,
+              }))}
+              selectedMonth={selectedMonth}
+            />
+
+            {/* Card de Preferências de Alertas */}
+            <AlertPreferencesCard />
 
             {/* Bloco de Resumo: Folha Oficial / Informal / Total */}
             {simulationResult.folhaInformal12 > 0 && (

@@ -1,1 +1,10 @@
 project_id = "xyojxxvkednngukibadw"
+
+[functions.ocr-receipt]
+verify_jwt = true
+
+[functions.send-fator-r-alert]
+verify_jwt = false
+
+[functions.check-fator-r-alerts]
+verify_jwt = false
