@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
+import { format, subMonths, startOfMonth, endOfMonth, addMonths, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -66,6 +66,7 @@ import { FatorREducationalCard } from '@/components/tax/FatorREducationalCard';
 import { OptimizationTargetsCard } from '@/components/tax/OptimizationTargetsCard';
 import { FatorREvolutionChart } from '@/components/tax/FatorREvolutionChart';
 import { AlertPreferencesCard } from '@/components/tax/AlertPreferencesCard';
+import { SeedPayroll, SeedRevenue } from '@/hooks/useSeedData';
 
 // Tipo estendido para incluir dados de folha informal
 interface ExtendedTaxSimulationOutput extends TaxSimulationOutput {
@@ -131,6 +132,34 @@ export default function TaxScenarios() {
       } as TaxConfig;
     },
     enabled: selectedUnitId !== '',
+  });
+
+  // Buscar dados históricos de folha de pagamento (seed_payroll)
+  const { data: seedPayroll = [] } = useQuery({
+    queryKey: ['seed-payroll-evolution'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('seed_payroll')
+        .select('*')
+        .order('ano', { ascending: true })
+        .order('mes', { ascending: true });
+      if (error) throw error;
+      return data as SeedPayroll[];
+    },
+  });
+
+  // Buscar dados históricos de receita (seed_revenue)
+  const { data: seedRevenue = [] } = useQuery({
+    queryKey: ['seed-revenue-evolution'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('seed_revenue')
+        .select('*')
+        .order('ano', { ascending: true })
+        .order('mes', { ascending: true });
+      if (error) throw error;
+      return data as SeedRevenue[];
+    },
   });
 
   // Buscar transações dos últimos 12 meses com categorias
@@ -440,6 +469,90 @@ export default function TaxScenarios() {
     }).filter(d => d.receita > 0);
   }, [transactionsData, taxParameters, taxConfig, selectedMonth]);
 
+  // Calcular dados de evolução do Fator R com janela deslizante de 12 meses
+  const fatorREvolutionData = useMemo(() => {
+    // Função auxiliar para calcular total de folha de um mês
+    const calcFolhaMes = (p: SeedPayroll) => 
+      Number(p.salarios || 0) + 
+      Number(p.prolabore || 0) + 
+      Number(p.inss_patronal || 0) + 
+      Number(p.fgts || 0) + 
+      Number(p.ferias || 0) + 
+      Number(p.decimo_terceiro || 0);
+
+    // Função auxiliar para calcular total de receita de um mês
+    const calcReceitaMes = (r: SeedRevenue) => 
+      Number(r.receita_servicos || 0) + Number(r.receita_outras || 0);
+
+    // Função para comparar se um mês/ano é <= a outro
+    const isMonthBeforeOrEqual = (ano1: number, mes1: number, ano2: number, mes2: number) => {
+      if (ano1 < ano2) return true;
+      if (ano1 > ano2) return false;
+      return mes1 <= mes2;
+    };
+
+    // Função para comparar se um mês/ano é > a outro
+    const isMonthAfter = (ano1: number, mes1: number, ano2: number, mes2: number) => {
+      if (ano1 > ano2) return true;
+      if (ano1 < ano2) return false;
+      return mes1 > mes2;
+    };
+
+    // Calcular 12 meses antes de um mês de referência
+    const getMonth12Before = (ano: number, mes: number) => {
+      let targetAno = ano - 1;
+      let targetMes = mes + 1;
+      if (targetMes > 12) {
+        targetMes = 1;
+        targetAno += 1;
+      }
+      return { ano: targetAno, mes: targetMes };
+    };
+
+    // Gerar array de meses para exibição (últimos 12 meses a partir do mês selecionado)
+    const result = [];
+    const selectedDate = new Date(selectedMonth + '-01');
+    
+    for (let i = 11; i >= 0; i--) {
+      const targetDate = subMonths(selectedDate, i);
+      const targetAno = targetDate.getFullYear();
+      const targetMes = targetDate.getMonth() + 1;
+      const monthKey = format(targetDate, 'yyyy-MM');
+      
+      // Calcular o início da janela de 12 meses (11 meses antes + mês atual)
+      const windowStart = getMonth12Before(targetAno, targetMes);
+      
+      // Somar folha dos 12 meses anteriores (incluindo o mês atual)
+      const folha12 = seedPayroll
+        .filter(p => {
+          // Deve ser >= windowStart E <= targetMonth
+          const afterStart = isMonthAfter(p.ano, p.mes, windowStart.ano, windowStart.mes) || 
+                            (p.ano === windowStart.ano && p.mes === windowStart.mes);
+          const beforeEnd = isMonthBeforeOrEqual(p.ano, p.mes, targetAno, targetMes);
+          return afterStart && beforeEnd;
+        })
+        .reduce((sum, p) => sum + calcFolhaMes(p), 0);
+      
+      // Somar receita dos 12 meses anteriores (incluindo o mês atual)
+      const rbt12 = seedRevenue
+        .filter(r => {
+          const afterStart = isMonthAfter(r.ano, r.mes, windowStart.ano, windowStart.mes) || 
+                            (r.ano === windowStart.ano && r.mes === windowStart.mes);
+          const beforeEnd = isMonthBeforeOrEqual(r.ano, r.mes, targetAno, targetMes);
+          return afterStart && beforeEnd;
+        })
+        .reduce((sum, r) => sum + calcReceitaMes(r), 0);
+      
+      result.push({
+        mes: monthKey,
+        folha12,
+        rbt12,
+      });
+    }
+    
+    return result;
+  }, [seedPayroll, seedRevenue, selectedMonth]);
+
   // Gerar meses para seleção
   const monthOptions = useMemo(() => {
     const options = [];
@@ -677,11 +790,7 @@ export default function TaxScenarios() {
 
             {/* Gráfico de Evolução do Fator R */}
             <FatorREvolutionChart
-              monthlyData={lineChartData.map(d => ({
-                mes: format(subMonths(new Date(selectedMonth + '-01'), 11 - lineChartData.indexOf(d)), 'yyyy-MM'),
-                folha12: simulationResult.folhaOficial12,
-                rbt12: simulationResult.cenarios.find(c => c.regime === 'SIMPLES')?.detalhes.rbt12 || 0,
-              }))}
+              monthlyData={fatorREvolutionData}
               selectedMonth={selectedMonth}
             />
 
