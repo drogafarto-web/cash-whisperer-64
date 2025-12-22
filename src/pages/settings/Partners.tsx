@@ -255,12 +255,12 @@ export default function PartnersSettings() {
 
                 <div className="space-y-2">
                   <Label>Categoria Padrão</Label>
-                  <Select value={defaultCategoryId} onValueChange={setDefaultCategoryId}>
+                  <Select value={defaultCategoryId || 'none'} onValueChange={value => setDefaultCategoryId(value === 'none' ? '' : value)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Nenhuma</SelectItem>
+                      <SelectItem value="none">Nenhuma</SelectItem>
                       {filteredCategories.map(cat => (
                         <SelectItem key={cat.id} value={cat.id}>
                           {cat.name}
