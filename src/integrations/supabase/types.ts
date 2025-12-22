@@ -122,6 +122,7 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          tax_group: string | null
           type: string
         }
         Insert: {
@@ -130,6 +131,7 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          tax_group?: string | null
           type: string
         }
         Update: {
@@ -138,6 +140,7 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          tax_group?: string | null
           type?: string
         }
         Relationships: []
@@ -269,6 +272,8 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           category_id: string
+          competencia_ano: number | null
+          competencia_mes: number | null
           created_at: string
           created_by: string
           date: string
@@ -278,6 +283,7 @@ export type Database = {
           id: string
           payment_method: string
           rejection_reason: string | null
+          revenue_source: string | null
           status: string
           type: string
           unit_id: string | null
@@ -289,6 +295,8 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           category_id: string
+          competencia_ano?: number | null
+          competencia_mes?: number | null
           created_at?: string
           created_by: string
           date: string
@@ -298,6 +306,7 @@ export type Database = {
           id?: string
           payment_method: string
           rejection_reason?: string | null
+          revenue_source?: string | null
           status?: string
           type: string
           unit_id?: string | null
@@ -309,6 +318,8 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           category_id?: string
+          competencia_ano?: number | null
+          competencia_mes?: number | null
           created_at?: string
           created_by?: string
           date?: string
@@ -318,6 +329,7 @@ export type Database = {
           id?: string
           payment_method?: string
           rejection_reason?: string | null
+          revenue_source?: string | null
           status?: string
           type?: string
           unit_id?: string | null
