@@ -45,6 +45,18 @@ import {
   TrendingUp,
   TrendingDown,
 } from 'lucide-react';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+  Area,
+  ComposedChart,
+} from 'recharts';
 import { Category, Unit } from '@/types/database';
 import { auditFatorR, FatorRAuditResult } from '@/services/fatorRAudit';
 
@@ -340,10 +352,153 @@ export default function FatorRAudit() {
               </Alert>
             )}
 
+            {/* Gráfico de Evolução */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" />
+                  Evolução do Fator R (12 meses)
+                </CardTitle>
+                <CardDescription>
+                  Tendência do Fator R com linha de referência em 28% (limite Anexo III)
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart
+                      data={auditResult.meses.map((m) => ({
+                        mes: m.mesLabel,
+                        fatorR: m.receita > 0 ? Number((m.fatorR * 100).toFixed(1)) : null,
+                        folha: m.folhaTotal,
+                        receita: m.receita,
+                      }))}
+                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <defs>
+                        <linearGradient id="riskZone" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0.3} />
+                          <stop offset="100%" stopColor="hsl(0, 84%, 60%)" stopOpacity={0.05} />
+                        </linearGradient>
+                        <linearGradient id="safeZone" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(142, 76%, 36%)" stopOpacity={0.2} />
+                          <stop offset="100%" stopColor="hsl(142, 76%, 36%)" stopOpacity={0.05} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis
+                        dataKey="mes"
+                        tick={{ fontSize: 12 }}
+                        className="text-muted-foreground"
+                      />
+                      <YAxis
+                        domain={[0, 50]}
+                        tickFormatter={(v) => `${v}%`}
+                        tick={{ fontSize: 12 }}
+                        className="text-muted-foreground"
+                      />
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            const data = payload[0].payload;
+                            return (
+                              <div className="bg-popover border border-border rounded-lg p-3 shadow-lg">
+                                <p className="font-medium text-foreground">{data.mes}</p>
+                                <div className="mt-2 space-y-1 text-sm">
+                                  <p className={data.fatorR >= 28 ? 'text-green-600' : data.fatorR >= 25 ? 'text-yellow-600' : 'text-red-600'}>
+                                    <span className="font-semibold">Fator R:</span> {data.fatorR?.toFixed(1) || '-'}%
+                                  </p>
+                                  <p className="text-muted-foreground">
+                                    <span className="font-medium">Folha:</span> {formatCurrency(data.folha)}
+                                  </p>
+                                  <p className="text-muted-foreground">
+                                    <span className="font-medium">Receita:</span> {formatCurrency(data.receita)}
+                                  </p>
+                                </div>
+                                {data.fatorR !== null && (
+                                  <p className={`mt-2 text-xs font-medium ${data.fatorR >= 28 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {data.fatorR >= 28 ? '✓ Anexo III' : '⚠ Anexo V'}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      {/* Zona de risco (abaixo de 28%) */}
+                      <Area
+                        type="monotone"
+                        dataKey={() => 28}
+                        fill="url(#riskZone)"
+                        stroke="none"
+                        fillOpacity={1}
+                      />
+                      {/* Linha de referência 28% */}
+                      <ReferenceLine
+                        y={28}
+                        stroke="hsl(142, 76%, 36%)"
+                        strokeDasharray="5 5"
+                        strokeWidth={2}
+                        label={{
+                          value: '28% (Anexo III)',
+                          position: 'right',
+                          fill: 'hsl(142, 76%, 36%)',
+                          fontSize: 11,
+                        }}
+                      />
+                      {/* Linha do Fator R */}
+                      <Line
+                        type="monotone"
+                        dataKey="fatorR"
+                        stroke="hsl(var(--primary))"
+                        strokeWidth={3}
+                        dot={(props) => {
+                          const { cx, cy, payload } = props;
+                          if (payload.fatorR === null) return null;
+                          const color = payload.fatorR >= 28 
+                            ? 'hsl(142, 76%, 36%)' 
+                            : payload.fatorR >= 25 
+                              ? 'hsl(45, 93%, 47%)' 
+                              : 'hsl(0, 84%, 60%)';
+                          return (
+                            <circle
+                              cx={cx}
+                              cy={cy}
+                              r={6}
+                              fill={color}
+                              stroke="white"
+                              strokeWidth={2}
+                            />
+                          );
+                        }}
+                        activeDot={{ r: 8, strokeWidth: 2 }}
+                        connectNulls
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex items-center justify-center gap-6 mt-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                    <span className="text-muted-foreground">≥ 28% (Anexo III)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                    <span className="text-muted-foreground">25-28% (Margem)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                    <span className="text-muted-foreground">&lt; 25% (Anexo V)</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Tabela de Evolução Mensal */}
             <Card>
               <CardHeader>
-                <CardTitle>Evolução Mensal do Fator R</CardTitle>
+                <CardTitle>Detalhamento Mensal</CardTitle>
                 <CardDescription>
                   Composição da folha e Fator R mês a mês
                 </CardDescription>
