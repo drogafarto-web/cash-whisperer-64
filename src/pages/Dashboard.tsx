@@ -34,7 +34,6 @@ import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 import { DashboardFilters, PeriodType, ViewLevel } from '@/components/dashboard/DashboardFilters';
-import { DashboardCard } from '@/components/dashboard/DashboardCard';
 import { StatusBadge, getMarginLevel, getFatorRLevel, getCashDifferenceLevel } from '@/components/dashboard/StatusBadge';
 import { GaugeChart } from '@/components/dashboard/GaugeChart';
 import {
@@ -43,7 +42,6 @@ import {
   calculateFatorR,
   createEmptyMonthlyData,
   MonthlyFinancialData,
-  DEFAULT_TAX_PARAMETERS,
   runTaxSimulation,
 } from '@/services/taxSimulator';
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
