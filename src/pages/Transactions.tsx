@@ -30,8 +30,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { UnitSelector } from '@/components/UnitSelector';
 import { supabase } from '@/integrations/supabase/client';
-import { Transaction, Account, Category, Document, OcrData, TransactionType, PaymentMethod } from '@/types/database';
+import { Transaction, Account, Category, Document, OcrData, TransactionType, PaymentMethod, Unit } from '@/types/database';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -44,16 +45,21 @@ import {
   Eye,
   FileText,
   Image as ImageIcon,
-  Sparkles
+  Sparkles,
+  Filter
 } from 'lucide-react';
 
 export default function Transactions() {
   const navigate = useNavigate();
-  const { user, role, isAdmin, isLoading: authLoading } = useAuth();
+  const { user, role, isAdmin, unit: userUnit, isLoading: authLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
+  
+  // Filter state (for admin)
+  const [filterUnitId, setFilterUnitId] = useState<string>('all');
   
   // Dialog states
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -71,6 +77,7 @@ export default function Transactions() {
     account_id: '',
     category_id: '',
     description: '',
+    unit_id: '',
   });
   const [file, setFile] = useState<File | null>(null);
   const [ocrData, setOcrData] = useState<OcrData | null>(null);
@@ -83,41 +90,72 @@ export default function Transactions() {
 
   useEffect(() => {
     if (user) {
+      // Para secretária, define a unidade automaticamente
+      if (!isAdmin && userUnit) {
+        setFormData(prev => ({ ...prev, unit_id: userUnit.id }));
+      }
       fetchData();
     }
-  }, [user]);
+  }, [user, userUnit, isAdmin]);
+
+  // Refetch when filter changes
+  useEffect(() => {
+    if (user) {
+      fetchTransactions();
+    }
+  }, [filterUnitId]);
 
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      // Fetch transactions
-      const { data: txData } = await supabase
-        .from('transactions')
-        .select(`
-          *,
-          category:categories(*),
-          account:accounts(*),
-          documents(*)
-        `)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false });
-
-      setTransactions((txData || []) as unknown as Transaction[]);
-
-      // Fetch accounts and categories
-      const [{ data: accountData }, { data: categoryData }] = await Promise.all([
-        supabase.from('accounts').select('*').eq('active', true),
-        supabase.from('categories').select('*').eq('active', true),
+      await Promise.all([
+        fetchTransactions(),
+        fetchAccountsAndCategories(),
+        fetchUnits(),
       ]);
-
-      setAccounts((accountData || []) as Account[]);
-      setCategories((categoryData || []) as Category[]);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Erro ao carregar dados');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const fetchTransactions = async () => {
+    let query = supabase
+      .from('transactions')
+      .select(`
+        *,
+        category:categories(*),
+        account:accounts(*),
+        unit:units(*),
+        documents(*)
+      `)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+
+    // Apply filter for admin
+    if (isAdmin && filterUnitId && filterUnitId !== 'all') {
+      query = query.eq('unit_id', filterUnitId);
+    }
+
+    const { data: txData } = await query;
+    setTransactions((txData || []) as unknown as Transaction[]);
+  };
+
+  const fetchAccountsAndCategories = async () => {
+    const [{ data: accountData }, { data: categoryData }] = await Promise.all([
+      supabase.from('accounts').select('*, unit:units(*)').eq('active', true),
+      supabase.from('categories').select('*').eq('active', true),
+    ]);
+
+    setAccounts((accountData || []) as Account[]);
+    setCategories((categoryData || []) as Category[]);
+  };
+
+  const fetchUnits = async () => {
+    const { data } = await supabase.from('units').select('*').order('name');
+    setUnits((data || []) as Unit[]);
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -187,6 +225,11 @@ export default function Transactions() {
       return;
     }
 
+    if (!formData.unit_id) {
+      toast.error('Selecione a unidade');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       // Create transaction
@@ -223,7 +266,7 @@ export default function Transactions() {
       toast.success('Transação criada com sucesso!');
       setIsDialogOpen(false);
       resetForm();
-      fetchData();
+      fetchTransactions();
     } catch (error) {
       console.error('Error creating transaction:', error);
       toast.error('Erro ao criar transação');
@@ -247,7 +290,7 @@ export default function Transactions() {
 
       if (error) throw error;
       toast.success('Transação aprovada!');
-      fetchData();
+      fetchTransactions();
     } catch (error) {
       console.error('Error approving transaction:', error);
       toast.error('Erro ao aprovar transação');
@@ -270,7 +313,7 @@ export default function Transactions() {
 
       if (error) throw error;
       toast.success('Transação rejeitada');
-      fetchData();
+      fetchTransactions();
     } catch (error) {
       console.error('Error rejecting transaction:', error);
       toast.error('Erro ao rejeitar transação');
@@ -291,7 +334,7 @@ export default function Transactions() {
 
       if (error) throw error;
       toast.success('Transação removida');
-      fetchData();
+      fetchTransactions();
     } catch (error) {
       console.error('Error deleting transaction:', error);
       toast.error('Erro ao remover transação');
@@ -319,6 +362,7 @@ export default function Transactions() {
       account_id: '',
       category_id: '',
       description: '',
+      unit_id: !isAdmin && userUnit ? userUnit.id : '',
     });
     setFile(null);
     setOcrData(null);
@@ -336,6 +380,11 @@ export default function Transactions() {
   };
 
   const filteredCategories = categories.filter(c => c.type === formData.type);
+  
+  // Filter accounts by selected unit in form
+  const filteredAccounts = formData.unit_id 
+    ? accounts.filter(a => a.unit_id === formData.unit_id)
+    : accounts;
 
   if (authLoading || isLoading) {
     return (
@@ -366,6 +415,22 @@ export default function Transactions() {
                 <DialogTitle>Nova Transação</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Unit selector */}
+                <div className="space-y-2">
+                  <Label>Unidade</Label>
+                  {isAdmin ? (
+                    <UnitSelector
+                      value={formData.unit_id}
+                      onChange={value => setFormData(prev => ({ ...prev, unit_id: value, account_id: '' }))}
+                      placeholder="Selecione a unidade..."
+                    />
+                  ) : (
+                    <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
+                      <span className="text-sm font-medium">{userUnit?.name || 'Sem unidade'}</span>
+                    </div>
+                  )}
+                </div>
+
                 {/* File Upload */}
                 <div className="space-y-2">
                   <Label>Comprovante (opcional)</Label>
@@ -474,12 +539,13 @@ export default function Transactions() {
                     <Select
                       value={formData.account_id}
                       onValueChange={value => setFormData(prev => ({ ...prev, account_id: value }))}
+                      disabled={!formData.unit_id}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecione..." />
+                        <SelectValue placeholder={!formData.unit_id ? "Selecione unidade primeiro" : "Selecione..."} />
                       </SelectTrigger>
                       <SelectContent>
-                        {accounts.map(acc => (
+                        {filteredAccounts.map(acc => (
                           <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>
                         ))}
                       </SelectContent>
@@ -528,6 +594,23 @@ export default function Transactions() {
           </p>
         </div>
 
+        {/* Filters for Admin */}
+        {isAdmin && (
+          <Card className="p-4">
+            <div className="flex items-center gap-4">
+              <Filter className="w-4 h-4 text-muted-foreground" />
+              <div className="flex-1 max-w-xs">
+                <UnitSelector
+                  value={filterUnitId}
+                  onChange={setFilterUnitId}
+                  showAllOption
+                  placeholder="Filtrar por unidade..."
+                />
+              </div>
+            </div>
+          </Card>
+        )}
+
         {/* Transactions Table */}
         <Card>
           <CardContent className="p-0">
@@ -535,6 +618,7 @@ export default function Transactions() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Data</TableHead>
+                  {isAdmin && <TableHead>Unidade</TableHead>}
                   <TableHead>Tipo</TableHead>
                   <TableHead>Valor</TableHead>
                   <TableHead className="hidden md:table-cell">Categoria</TableHead>
@@ -546,7 +630,7 @@ export default function Transactions() {
               <TableBody>
                 {transactions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={isAdmin ? 7 : 6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={isAdmin ? 8 : 6} className="text-center py-8 text-muted-foreground">
                       Nenhuma transação encontrada
                     </TableCell>
                   </TableRow>
@@ -554,6 +638,7 @@ export default function Transactions() {
                   transactions.map(tx => (
                     <TableRow key={tx.id}>
                       <TableCell>{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
+                      {isAdmin && <TableCell className="text-muted-foreground">{tx.unit?.name || '—'}</TableCell>}
                       <TableCell>
                         <Badge variant={tx.type === 'ENTRADA' ? 'default' : 'secondary'}>
                           {tx.type}
