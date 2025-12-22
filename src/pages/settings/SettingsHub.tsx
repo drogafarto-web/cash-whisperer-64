@@ -23,8 +23,12 @@ import {
   Users,
   Bell,
   ChevronRight,
+  Database,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useSeedProgress } from '@/hooks/useSeedData';
+import { Progress } from '@/components/ui/progress';
 
 interface SettingsCard {
   id: string;
@@ -111,6 +115,7 @@ const settingsCards: SettingsCard[] = [
     badgeKey: 'riscoEstrategia',
     badgeVariant: 'destructive',
     links: [
+      { name: 'Povoação 2025', href: '/settings/data-2025', icon: Database },
       { name: 'Real x Oficial', href: '/reports/personnel-real-vs-official', icon: Users },
       { name: 'Auditoria Fator R', href: '/settings/fator-r-audit', icon: Calculator },
       { name: 'Alertas', href: '/settings/alerts', icon: Bell },
@@ -121,7 +126,8 @@ const settingsCards: SettingsCard[] = [
 
 export default function SettingsHub() {
   const { data: badgeCounts, isLoading } = useBadgeCounts();
-  const { role } = useAuth();
+  const { role, isAdmin, isContabilidade } = useAuth();
+  const seedProgress = useSeedProgress();
 
   // Filtrar links baseado no role do usuário
   const getFilteredLinks = (card: SettingsCard) => {
@@ -132,6 +138,7 @@ export default function SettingsHub() {
         '/reports/transactions',
         '/reports/tax-scenarios',
         '/settings/fator-r-audit',
+        '/settings/data-2025',
       ],
       gestor_unidade: [
         '/cash-closing',
@@ -173,6 +180,41 @@ export default function SettingsHub() {
             Gerencie as configurações do sistema organizadas por objetivos estratégicos
           </p>
         </div>
+
+        {/* Card de destaque para Povoação 2025 */}
+        {(isAdmin || isContabilidade) && seedProgress.totalProgress < 100 && (
+          <Card className="border-2 border-primary/20 bg-gradient-to-r from-primary/5 via-primary/10 to-violet-500/5">
+            <CardContent className="pt-6">
+              <div className="flex flex-col md:flex-row md:items-center gap-4">
+                <div className="flex items-center gap-4 flex-1">
+                  <div className="p-3 rounded-xl bg-primary/10">
+                    <Sparkles className="h-8 w-8 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-lg flex items-center gap-2">
+                      Povoação de Dados 2025
+                      <Badge variant="outline" className="text-xs">Novo</Badge>
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      A contabilidade pode fornecer dados históricos de 2025 para análises comparativas
+                    </p>
+                    <div className="mt-2 flex items-center gap-3">
+                      <Progress value={seedProgress.totalProgress} className="h-2 flex-1 max-w-[200px]" />
+                      <span className="text-xs text-muted-foreground">{seedProgress.totalProgress}% completo</span>
+                    </div>
+                  </div>
+                </div>
+                <Link to="/settings/data-2025">
+                  <Button className="gap-2">
+                    <Database className="h-4 w-4" />
+                    Iniciar Povoação
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {visibleCards.map((card) => {
