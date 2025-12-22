@@ -52,10 +52,13 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
   ResponsiveContainer,
   ReferenceLine,
   Area,
   ComposedChart,
+  BarChart,
+  Bar,
 } from 'recharts';
 import { Category, Unit } from '@/types/database';
 import { auditFatorR, FatorRAuditResult } from '@/services/fatorRAudit';
@@ -491,6 +494,107 @@ export default function FatorRAudit() {
                     <div className="w-3 h-3 rounded-full bg-red-500"></div>
                     <span className="text-muted-foreground">&lt; 25% (Anexo V)</span>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Gráfico de Barras Empilhadas - Composição da Folha */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Composição da Folha por Mês</CardTitle>
+                <CardDescription>
+                  Distribuição entre Salários, Pró-labore e Encargos
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={auditResult.meses.map((m) => ({
+                        mes: m.mesLabel,
+                        salarios: m.folhaSalarios,
+                        prolabore: m.folhaProlabore,
+                        encargos: m.folhaEncargos,
+                        total: m.folhaTotal,
+                      }))}
+                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis
+                        dataKey="mes"
+                        tick={{ fontSize: 12 }}
+                        className="text-muted-foreground"
+                      />
+                      <YAxis
+                        tickFormatter={(v) => 
+                          v >= 1000 
+                            ? `${(v / 1000).toFixed(0)}k` 
+                            : v.toString()
+                        }
+                        tick={{ fontSize: 12 }}
+                        className="text-muted-foreground"
+                      />
+                      <Tooltip
+                        content={({ active, payload, label }) => {
+                          if (active && payload && payload.length) {
+                            return (
+                              <div className="bg-popover border border-border rounded-lg p-3 shadow-lg">
+                                <p className="font-medium text-foreground">{label}</p>
+                                <div className="mt-2 space-y-1 text-sm">
+                                  <p className="text-blue-600">
+                                    <span className="font-medium">Salários:</span> {formatCurrency(payload[0]?.value as number || 0)}
+                                  </p>
+                                  <p className="text-green-600">
+                                    <span className="font-medium">Pró-labore:</span> {formatCurrency(payload[1]?.value as number || 0)}
+                                  </p>
+                                  <p className="text-orange-600">
+                                    <span className="font-medium">Encargos:</span> {formatCurrency(payload[2]?.value as number || 0)}
+                                  </p>
+                                  <hr className="my-1 border-border" />
+                                  <p className="font-semibold">
+                                    Total: {formatCurrency((payload[0]?.payload as any)?.total || 0)}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                      <Legend 
+                        wrapperStyle={{ paddingTop: 16 }}
+                        formatter={(value) => {
+                          const labels: Record<string, string> = {
+                            salarios: 'Salários',
+                            prolabore: 'Pró-labore',
+                            encargos: 'Encargos',
+                          };
+                          return <span className="text-sm">{labels[value] || value}</span>;
+                        }}
+                      />
+                      <Bar
+                        dataKey="salarios"
+                        name="salarios"
+                        stackId="folha"
+                        fill="hsl(var(--chart-1))"
+                        radius={[0, 0, 0, 0]}
+                      />
+                      <Bar
+                        dataKey="prolabore"
+                        name="prolabore"
+                        stackId="folha"
+                        fill="hsl(var(--chart-2))"
+                        radius={[0, 0, 0, 0]}
+                      />
+                      <Bar
+                        dataKey="encargos"
+                        name="encargos"
+                        stackId="folha"
+                        fill="hsl(var(--chart-3))"
+                        radius={[4, 4, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               </CardContent>
             </Card>
