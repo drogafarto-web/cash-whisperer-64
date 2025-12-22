@@ -22,6 +22,7 @@ import TaxConfigPage from "./pages/settings/TaxConfig";
 import FatorRAudit from "./pages/settings/FatorRAudit";
 import DailyMovementImport from "./pages/import/DailyMovement";
 import BankStatementImport from "./pages/import/BankStatement";
+import AlertsConfig from "./pages/settings/AlertsConfig";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,6 +48,7 @@ const App = () => (
             <Route path="/settings/partners" element={<PartnersSettings />} />
             <Route path="/settings/tax-config" element={<TaxConfigPage />} />
             <Route path="/settings/fator-r-audit" element={<FatorRAudit />} />
+            <Route path="/settings/alerts" element={<AlertsConfig />} />
             <Route path="/reports/cash-closings" element={<CashClosingReport />} />
             <Route path="/reports/transactions" element={<TransactionsReport />} />
             <Route path="/reports/tax-scenarios" element={<TaxScenarios />} />

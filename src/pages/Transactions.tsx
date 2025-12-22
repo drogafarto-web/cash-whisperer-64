@@ -144,9 +144,15 @@ export default function Transactions() {
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
-    // Apply filter for admin
-    if (isAdmin && filterUnitId && filterUnitId !== 'all') {
-      query = query.eq('unit_id', filterUnitId);
+    // Apply unit filter
+    if (isAdmin) {
+      // Admin usa filtro manual
+      if (filterUnitId && filterUnitId !== 'all') {
+        query = query.eq('unit_id', filterUnitId);
+      }
+    } else if (userUnit) {
+      // Não-admin: filtro automático pela unidade vinculada
+      query = query.eq('unit_id', userUnit.id);
     }
 
     const { data: txData } = await query;
