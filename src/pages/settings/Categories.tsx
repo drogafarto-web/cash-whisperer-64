@@ -32,9 +32,20 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
-import { Category } from '@/types/database';
+import { Category, TaxGroup } from '@/types/database';
 import { toast } from 'sonner';
 import { Plus, Loader2, Pencil } from 'lucide-react';
+
+const TAX_GROUP_OPTIONS: { value: TaxGroup; label: string }[] = [
+  { value: 'RECEITA_SERVICOS', label: 'Receita de Serviços' },
+  { value: 'RECEITA_OUTRAS', label: 'Outras Receitas' },
+  { value: 'INSUMOS', label: 'Insumos e Materiais' },
+  { value: 'PESSOAL', label: 'Pessoal e Encargos' },
+  { value: 'SERVICOS_TERCEIROS', label: 'Serviços de Terceiros' },
+  { value: 'ADMINISTRATIVAS', label: 'Despesas Administrativas' },
+  { value: 'FINANCEIRAS', label: 'Despesas Financeiras' },
+  { value: 'TRIBUTARIAS', label: 'Impostos e Tributos' },
+];
 
 export default function CategoriesSettings() {
   const navigate = useNavigate();
@@ -50,6 +61,7 @@ export default function CategoriesSettings() {
   // Form state
   const [name, setName] = useState('');
   const [type, setType] = useState<'ENTRADA' | 'SAIDA'>('SAIDA');
+  const [taxGroup, setTaxGroup] = useState<TaxGroup | ''>('');
   const [description, setDescription] = useState('');
 
   useEffect(() => {
@@ -94,6 +106,7 @@ export default function CategoriesSettings() {
           .update({
             name,
             type,
+            tax_group: taxGroup || null,
             description: description || null,
           })
           .eq('id', editingCategory.id);
@@ -104,6 +117,7 @@ export default function CategoriesSettings() {
         const { error } = await supabase.from('categories').insert({
           name,
           type,
+          tax_group: taxGroup || null,
           description: description || null,
         });
 
@@ -126,6 +140,7 @@ export default function CategoriesSettings() {
     setEditingCategory(category);
     setName(category.name);
     setType(category.type as 'ENTRADA' | 'SAIDA');
+    setTaxGroup(category.tax_group || '');
     setDescription(category.description || '');
     setIsDialogOpen(true);
   };
@@ -150,6 +165,7 @@ export default function CategoriesSettings() {
     setEditingCategory(null);
     setName('');
     setType('SAIDA');
+    setTaxGroup('');
     setDescription('');
   };
 
@@ -207,6 +223,22 @@ export default function CategoriesSettings() {
                   </Select>
                 </div>
                 <div className="space-y-2">
+                  <Label>Grupo Tributário</Label>
+                  <Select value={taxGroup} onValueChange={value => setTaxGroup(value as TaxGroup | '')}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o grupo..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Nenhum</SelectItem>
+                      {TAX_GROUP_OPTIONS.map(option => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="description">Descrição</Label>
                   <Textarea
                     id="description"
@@ -232,6 +264,7 @@ export default function CategoriesSettings() {
                 <TableRow>
                   <TableHead>Nome</TableHead>
                   <TableHead>Tipo</TableHead>
+                  <TableHead>Grupo Tributário</TableHead>
                   <TableHead>Descrição</TableHead>
                   <TableHead>Ativa</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
@@ -240,7 +273,7 @@ export default function CategoriesSettings() {
               <TableBody>
                 {categories.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       Nenhuma categoria cadastrada
                     </TableCell>
                   </TableRow>
@@ -252,6 +285,15 @@ export default function CategoriesSettings() {
                         <Badge variant={category.type === 'ENTRADA' ? 'default' : 'secondary'}>
                           {category.type}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {category.tax_group ? (
+                          <Badge variant="outline" className="text-xs">
+                            {TAX_GROUP_OPTIONS.find(o => o.value === category.tax_group)?.label || category.tax_group}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">{category.description || '—'}</TableCell>
                       <TableCell>

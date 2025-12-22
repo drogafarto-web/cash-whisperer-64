@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { parseLisXls, LisRecord, ParseResult, getPaymentMethodIcon, formatCurrency } from '@/utils/lisImport';
+import { parseLisXls, LisRecord, ParseResult, getPaymentMethodIcon, formatCurrency, extractLisCodeFromDescription } from '@/utils/lisImport';
 import {
   Table,
   TableBody,
@@ -25,6 +25,7 @@ import {
   AlertTriangle,
   Loader2,
   FileUp,
+  Copy,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -71,6 +72,42 @@ export default function DailyMovement() {
     }
   };
 
+  const checkDuplicates = async (records: LisRecord[], periodStart: string | null, periodEnd: string | null): Promise<LisRecord[]> => {
+    if (!periodStart || !periodEnd) return records;
+
+    // Buscar transações LIS existentes no período
+    const { data: existingTx } = await supabase
+      .from('transactions')
+      .select('description, date')
+      .like('description', '[LIS %')
+      .gte('date', periodStart)
+      .lte('date', periodEnd);
+
+    if (!existingTx || existingTx.length === 0) return records;
+
+    // Criar Set de chaves existentes (data + código LIS)
+    const existingKeys = new Set<string>();
+    existingTx.forEach(t => {
+      const lisCode = extractLisCodeFromDescription(t.description || '');
+      if (lisCode) {
+        existingKeys.add(`${t.date}_${lisCode}`);
+      }
+    });
+
+    // Marcar duplicatas
+    return records.map(record => {
+      const key = `${record.data}_${record.codigo}`;
+      if (existingKeys.has(key)) {
+        return {
+          ...record,
+          isDuplicate: true,
+          duplicateReason: 'Já importado anteriormente',
+        };
+      }
+      return record;
+    });
+  };
+
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -104,20 +141,32 @@ export default function DailyMovement() {
       const buffer = await file.arrayBuffer();
       const result = parseLisXls(buffer);
 
-      setParseResult(result);
+      // Verificar duplicatas
+      const recordsWithDuplicates = await checkDuplicates(result.records, result.periodStart, result.periodEnd);
+      const duplicateCount = recordsWithDuplicates.filter(r => r.isDuplicate).length;
+      
+      const updatedResult: ParseResult = {
+        ...result,
+        records: recordsWithDuplicates,
+        duplicateRecords: duplicateCount,
+        validRecords: recordsWithDuplicates.filter(r => !r.error && r.valorPago > 0 && !r.isDuplicate).length,
+      };
 
-      // Pré-selecionar apenas registros particulares válidos com valor > 0
+      setParseResult(updatedResult);
+
+      // Pré-selecionar apenas registros particulares válidos com valor > 0 e NÃO duplicatas
       const preSelected = new Set<number>();
-      result.records.forEach((record, index) => {
-        if (record.isParticular && !record.error && record.valorPago > 0) {
+      updatedResult.records.forEach((record, index) => {
+        if (record.isParticular && !record.error && record.valorPago > 0 && !record.isDuplicate) {
           preSelected.add(index);
         }
       });
       setSelectedIds(preSelected);
 
+      const duplicateMsg = duplicateCount > 0 ? ` ${duplicateCount} duplicatas detectadas.` : '';
       toast({
         title: 'Arquivo processado',
-        description: `${result.totalRecords} registros encontrados, ${result.validRecords} válidos.`,
+        description: `${result.totalRecords} registros encontrados, ${updatedResult.validRecords} válidos.${duplicateMsg}`,
       });
     } catch (error) {
       console.error('Erro ao processar arquivo:', error);
@@ -144,12 +193,13 @@ export default function DailyMovement() {
   const toggleAll = () => {
     if (!parseResult) return;
     
-    if (selectedIds.size === parseResult.records.filter(r => !r.error && r.valorPago > 0).length) {
+    const validCount = parseResult.records.filter(r => !r.error && r.valorPago > 0 && !r.isDuplicate).length;
+    if (selectedIds.size === validCount) {
       setSelectedIds(new Set());
     } else {
       const allValid = new Set<number>();
       parseResult.records.forEach((record, index) => {
-        if (!record.error && record.valorPago > 0) {
+        if (!record.error && record.valorPago > 0 && !record.isDuplicate) {
           allValid.add(index);
         }
       });
@@ -241,6 +291,7 @@ export default function DailyMovement() {
   };
 
   const getRowClassName = (record: LisRecord) => {
+    if (record.isDuplicate) return 'bg-orange-500/20 text-orange-700 dark:text-orange-300';
     if (record.error) return 'bg-destructive/10 text-destructive';
     if (record.valorPago <= 0) return 'bg-muted text-muted-foreground';
     if (!record.isParticular) return 'bg-yellow-500/10';
@@ -304,7 +355,7 @@ export default function DailyMovement() {
         {parseResult && (
           <>
             {/* Summary Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <Card>
                 <CardContent className="pt-6">
                   <div className="text-2xl font-bold">{parseResult.totalRecords}</div>
@@ -315,6 +366,12 @@ export default function DailyMovement() {
                 <CardContent className="pt-6">
                   <div className="text-2xl font-bold text-green-600">{parseResult.validRecords}</div>
                   <p className="text-xs text-muted-foreground">Válidos para importar</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-2xl font-bold text-orange-600">{parseResult.duplicateRecords}</div>
+                  <p className="text-xs text-muted-foreground">Duplicatas</p>
                 </CardContent>
               </Card>
               <Card>
@@ -335,7 +392,7 @@ export default function DailyMovement() {
             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
               <div className="flex items-center gap-2">
                 <Checkbox
-                  checked={selectedIds.size === parseResult.records.filter(r => !r.error && r.valorPago > 0).length}
+                  checked={selectedIds.size === parseResult.records.filter(r => !r.error && r.valorPago > 0 && !r.isDuplicate).length && selectedIds.size > 0}
                   onCheckedChange={toggleAll}
                 />
                 <span className="text-sm">Selecionar todos válidos</span>
@@ -363,6 +420,10 @@ export default function DailyMovement() {
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded bg-yellow-500/20 border border-yellow-500/50" />
                 <span>Convênio</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-orange-500/20 border border-orange-500/50" />
+                <span>Duplicata</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded bg-muted border" />
@@ -394,7 +455,7 @@ export default function DailyMovement() {
                     <TableBody>
                       {parseResult.records.map((record, index) => {
                         const isSelected = selectedIds.has(index);
-                        const isDisabled = !!record.error || record.valorPago <= 0;
+                        const isDisabled = !!record.error || record.valorPago <= 0 || record.isDuplicate;
 
                         return (
                           <TableRow
@@ -442,7 +503,12 @@ export default function DailyMovement() {
                               </span>
                             </TableCell>
                             <TableCell>
-                              {record.error ? (
+                              {record.isDuplicate ? (
+                                <Badge className="text-xs bg-orange-600">
+                                  <Copy className="h-3 w-3 mr-1" />
+                                  Duplicata
+                                </Badge>
+                              ) : record.error ? (
                                 <Badge variant="destructive" className="text-xs">
                                   <XCircle className="h-3 w-3 mr-1" />
                                   Erro
