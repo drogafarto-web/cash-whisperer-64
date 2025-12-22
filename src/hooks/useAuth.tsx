@@ -1,13 +1,14 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { AppRole, Profile } from '@/types/database';
+import { AppRole, Profile, Unit } from '@/types/database';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
   role: AppRole | null;
+  unit: Unit | null;
   isLoading: boolean;
   isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -22,6 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
+  const [unit, setUnit] = useState<Unit | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -39,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setProfile(null);
           setRole(null);
+          setUnit(null);
           setIsLoading(false);
         }
       }
@@ -60,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUserData = async (userId: string) => {
     try {
-      // Fetch profile
+      // Fetch profile with unit
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
@@ -68,6 +71,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single();
       
       setProfile(profileData as Profile | null);
+
+      // If profile has unit_id, fetch the unit
+      if (profileData?.unit_id) {
+        const { data: unitData } = await supabase
+          .from('units')
+          .select('*')
+          .eq('id', profileData.unit_id)
+          .single();
+        
+        setUnit(unitData as Unit | null);
+      } else {
+        setUnit(null);
+      }
 
       // Fetch role
       const { data: roleData } = await supabase
@@ -108,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setProfile(null);
     setRole(null);
+    setUnit(null);
   };
 
   return (
@@ -116,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       profile,
       role,
+      unit,
       isLoading,
       isAdmin: role === 'admin',
       signIn,

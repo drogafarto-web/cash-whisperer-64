@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Transactions from "./pages/Transactions";
 import CashClosing from "./pages/CashClosing";
 import UsersSettings from "./pages/settings/Users";
+import UnitsSettings from "./pages/settings/Units";
 import AccountsSettings from "./pages/settings/Accounts";
 import CategoriesSettings from "./pages/settings/Categories";
 import NotFound from "./pages/NotFound";
@@ -31,6 +32,7 @@ const App = () => (
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/cash-closing" element={<CashClosing />} />
             <Route path="/settings/users" element={<UsersSettings />} />
+            <Route path="/settings/units" element={<UnitsSettings />} />
             <Route path="/settings/accounts" element={<AccountsSettings />} />
             <Route path="/settings/categories" element={<CategoriesSettings />} />
             <Route path="*" element={<NotFound />} />

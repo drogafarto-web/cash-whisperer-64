@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   Receipt,
   DollarSign,
-  Settings,
   LogOut,
   Menu,
   X,
@@ -16,6 +15,7 @@ import {
   Building2,
   Tags,
   AlertCircle,
+  MapPin,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -25,7 +25,7 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  const { profile, role, signOut, isAdmin } = useAuth();
+  const { profile, role, unit, signOut, isAdmin } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -35,11 +35,18 @@ export function AppLayout({ children }: AppLayoutProps) {
   useEffect(() => {
     const checkTodayCashClosing = async () => {
       const today = format(new Date(), 'yyyy-MM-dd');
-      const { data, error } = await supabase
+      
+      let query = supabase
         .from('cash_closings')
         .select('id')
-        .eq('date', today)
-        .limit(1);
+        .eq('date', today);
+      
+      // Se não for admin e tiver unidade, filtra pela unidade
+      if (!isAdmin && unit?.id) {
+        query = query.eq('unit_id', unit.id);
+      }
+      
+      const { data, error } = await query.limit(1);
       
       if (!error) {
         setHasTodayCashClosing(data && data.length > 0);
@@ -47,7 +54,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     };
     
     checkTodayCashClosing();
-  }, [location.pathname]); // Re-check when route changes
+  }, [location.pathname, isAdmin, unit]); // Re-check when route changes or unit changes
 
   const handleSignOut = async () => {
     await signOut();
@@ -59,6 +66,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     { name: 'Transações', href: '/transactions', icon: Receipt, adminOnly: false },
     { name: 'Fechamento de Caixa', href: '/cash-closing', icon: DollarSign, adminOnly: false },
     { name: 'Usuários', href: '/settings/users', icon: Users, adminOnly: true },
+    { name: 'Unidades', href: '/settings/units', icon: MapPin, adminOnly: true },
     { name: 'Contas', href: '/settings/accounts', icon: Building2, adminOnly: true },
     { name: 'Categorias', href: '/settings/categories', icon: Tags, adminOnly: true },
   ];
@@ -92,7 +100,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               <DollarSign className="w-6 h-6 text-sidebar-primary-foreground" />
             </div>
             <div>
-              <h1 className="font-semibold text-lg">FinGest</h1>
+              <h1 className="font-semibold text-lg">Labclin</h1>
               <p className="text-xs text-sidebar-foreground/70">Gestão Financeira</p>
             </div>
           </div>
@@ -138,7 +146,15 @@ export function AppLayout({ children }: AppLayoutProps) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{profile?.name}</p>
-                <p className="text-xs text-sidebar-foreground/70 capitalize">{role}</p>
+                <div className="flex items-center gap-1 text-xs text-sidebar-foreground/70">
+                  <span className="capitalize">{role}</span>
+                  {unit && (
+                    <>
+                      <span>•</span>
+                      <span className="truncate">{unit.name}</span>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
             <Button

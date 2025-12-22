@@ -9,6 +9,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -23,11 +30,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { UnitSelector } from '@/components/UnitSelector';
 import { supabase } from '@/integrations/supabase/client';
-import { Account } from '@/types/database';
-import { format } from 'date-fns';
+import { Account, AccountType, Unit } from '@/types/database';
 import { toast } from 'sonner';
-import { Plus, Loader2, Pencil } from 'lucide-react';
+import { Plus, Loader2, Pencil, Building2 } from 'lucide-react';
 
 export default function AccountsSettings() {
   const navigate = useNavigate();
@@ -44,6 +52,8 @@ export default function AccountsSettings() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [initialBalance, setInitialBalance] = useState('');
+  const [unitId, setUnitId] = useState('');
+  const [accountType, setAccountType] = useState<AccountType>('CAIXA');
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -64,7 +74,7 @@ export default function AccountsSettings() {
     try {
       const { data } = await supabase
         .from('accounts')
-        .select('*')
+        .select('*, unit:units(*)')
         .order('name');
 
       setAccounts((data || []) as Account[]);
@@ -78,6 +88,11 @@ export default function AccountsSettings() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!unitId) {
+      toast.error('Selecione uma unidade');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       if (editingAccount) {
@@ -87,6 +102,8 @@ export default function AccountsSettings() {
             name,
             description: description || null,
             initial_balance: parseFloat(initialBalance) || 0,
+            unit_id: unitId,
+            type: accountType,
           })
           .eq('id', editingAccount.id);
 
@@ -97,6 +114,8 @@ export default function AccountsSettings() {
           name,
           description: description || null,
           initial_balance: parseFloat(initialBalance) || 0,
+          unit_id: unitId,
+          type: accountType,
         });
 
         if (error) throw error;
@@ -119,6 +138,8 @@ export default function AccountsSettings() {
     setName(account.name);
     setDescription(account.description || '');
     setInitialBalance(String(account.initial_balance));
+    setUnitId(account.unit_id || '');
+    setAccountType((account.type as AccountType) || 'CAIXA');
     setIsDialogOpen(true);
   };
 
@@ -143,6 +164,21 @@ export default function AccountsSettings() {
     setName('');
     setDescription('');
     setInitialBalance('');
+    setUnitId('');
+    setAccountType('CAIXA');
+  };
+
+  const getAccountTypeBadge = (type: string) => {
+    switch (type) {
+      case 'CAIXA':
+        return <Badge variant="default">Caixa</Badge>;
+      case 'CONTA_BANCARIA':
+        return <Badge variant="secondary">Conta Bancária</Badge>;
+      case 'OPERADORA_CARTAO':
+        return <Badge variant="outline">Operadora Cartão</Badge>;
+      default:
+        return <Badge variant="secondary">{type}</Badge>;
+    }
   };
 
   if (authLoading || isLoading) {
@@ -161,7 +197,7 @@ export default function AccountsSettings() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Contas</h1>
-            <p className="text-muted-foreground">Gerencie as contas bancárias e caixas</p>
+            <p className="text-muted-foreground">Gerencie as contas bancárias e caixas por unidade</p>
           </div>
           
           <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
@@ -177,14 +213,35 @@ export default function AccountsSettings() {
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
+                  <Label>Unidade</Label>
+                  <UnitSelector
+                    value={unitId}
+                    onChange={setUnitId}
+                    placeholder="Selecione a unidade..."
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="name">Nome</Label>
                   <Input
                     id="name"
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    placeholder="Ex: Caixa Principal"
+                    placeholder="Ex: Caixa Dinheiro"
                     required
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label>Tipo de Conta</Label>
+                  <Select value={accountType} onValueChange={v => setAccountType(v as AccountType)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CAIXA">Caixa (Dinheiro)</SelectItem>
+                      <SelectItem value="CONTA_BANCARIA">Conta Bancária</SelectItem>
+                      <SelectItem value="OPERADORA_CARTAO">Operadora de Cartão</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="description">Descrição</Label>
@@ -222,7 +279,8 @@ export default function AccountsSettings() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
-                  <TableHead>Descrição</TableHead>
+                  <TableHead>Unidade</TableHead>
+                  <TableHead>Tipo</TableHead>
                   <TableHead>Saldo Inicial</TableHead>
                   <TableHead>Ativa</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
@@ -231,15 +289,25 @@ export default function AccountsSettings() {
               <TableBody>
                 {accounts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       Nenhuma conta cadastrada
                     </TableCell>
                   </TableRow>
                 ) : (
                   accounts.map(account => (
                     <TableRow key={account.id}>
-                      <TableCell className="font-medium">{account.name}</TableCell>
-                      <TableCell className="text-muted-foreground">{account.description || '—'}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-muted-foreground" />
+                          {account.name}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {account.unit?.name || '—'}
+                      </TableCell>
+                      <TableCell>
+                        {getAccountTypeBadge(account.type || 'CAIXA')}
+                      </TableCell>
                       <TableCell>R$ {Number(account.initial_balance).toFixed(2)}</TableCell>
                       <TableCell>
                         <Switch

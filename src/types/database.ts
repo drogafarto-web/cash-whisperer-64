@@ -1,9 +1,11 @@
 export type AppRole = 'admin' | 'secretaria';
+export type AccountType = 'CAIXA' | 'CONTA_BANCARIA' | 'OPERADORA_CARTAO';
 
 export interface Profile {
   id: string;
   email: string;
   name: string;
+  unit_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -15,14 +17,25 @@ export interface UserRole {
   created_at: string;
 }
 
+export interface Unit {
+  id: string;
+  name: string;
+  code: string;
+  created_at: string;
+}
+
 export interface Account {
   id: string;
   name: string;
   description: string | null;
   initial_balance: number;
   active: boolean;
+  unit_id: string | null;
+  type: AccountType;
   created_at: string;
   updated_at: string;
+  // Joined data
+  unit?: Unit;
 }
 
 export interface Category {
@@ -46,6 +59,7 @@ export interface Transaction {
   payment_method: PaymentMethod;
   account_id: string;
   category_id: string;
+  unit_id: string | null;
   description: string | null;
   status: TransactionStatus;
   rejection_reason: string | null;
@@ -62,6 +76,7 @@ export interface Transaction {
   creator?: Profile;
   approver?: Profile;
   documents?: Document[];
+  unit?: Unit;
 }
 
 export interface Document {
@@ -87,13 +102,16 @@ export interface CashClosing {
   id: string;
   date: string;
   account_id: string;
+  unit_id: string | null;
   expected_balance: number;
   actual_balance: number;
   difference: number;
   notes: string | null;
+  envelope_id: string | null;
   closed_by: string;
   created_at: string;
   // Joined data
   account?: Account;
   closer?: Profile;
+  unit?: Unit;
 }

@@ -22,6 +22,8 @@ export type Database = {
           id: string
           initial_balance: number
           name: string
+          type: string | null
+          unit_id: string | null
           updated_at: string
         }
         Insert: {
@@ -31,6 +33,8 @@ export type Database = {
           id?: string
           initial_balance?: number
           name: string
+          type?: string | null
+          unit_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -40,9 +44,19 @@ export type Database = {
           id?: string
           initial_balance?: number
           name?: string
+          type?: string | null
+          unit_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "accounts_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       cash_closings: {
         Row: {
@@ -52,9 +66,11 @@ export type Database = {
           created_at: string
           date: string
           difference: number
+          envelope_id: string | null
           expected_balance: number
           id: string
           notes: string | null
+          unit_id: string | null
         }
         Insert: {
           account_id: string
@@ -63,9 +79,11 @@ export type Database = {
           created_at?: string
           date: string
           difference: number
+          envelope_id?: string | null
           expected_balance: number
           id?: string
           notes?: string | null
+          unit_id?: string | null
         }
         Update: {
           account_id?: string
@@ -74,9 +92,11 @@ export type Database = {
           created_at?: string
           date?: string
           difference?: number
+          envelope_id?: string | null
           expected_balance?: number
           id?: string
           notes?: string | null
+          unit_id?: string | null
         }
         Relationships: [
           {
@@ -84,6 +104,13 @@ export type Database = {
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_closings_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
             referencedColumns: ["id"]
           },
         ]
@@ -159,6 +186,7 @@ export type Database = {
           email: string
           id: string
           name: string
+          unit_id: string | null
           updated_at: string
         }
         Insert: {
@@ -166,6 +194,7 @@ export type Database = {
           email: string
           id: string
           name: string
+          unit_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -173,9 +202,18 @@ export type Database = {
           email?: string
           id?: string
           name?: string
+          unit_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       transactions: {
         Row: {
@@ -195,6 +233,7 @@ export type Database = {
           rejection_reason: string | null
           status: string
           type: string
+          unit_id: string | null
           updated_at: string
         }
         Insert: {
@@ -214,6 +253,7 @@ export type Database = {
           rejection_reason?: string | null
           status?: string
           type: string
+          unit_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -233,6 +273,7 @@ export type Database = {
           rejection_reason?: string | null
           status?: string
           type?: string
+          unit_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -250,7 +291,35 @@ export type Database = {
             referencedRelation: "categories"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "transactions_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      units: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
@@ -282,6 +351,7 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      get_user_unit: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
