@@ -40,6 +40,8 @@ import {
   DollarSign,
   ArrowUpCircle,
   ArrowDownCircle,
+  RefreshCw,
+  Zap,
 } from 'lucide-react';
 import {
   BarChart,
@@ -96,6 +98,7 @@ export default function TransactionsReport() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
   const [selectedType, setSelectedType] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('APROVADO');
+  const [selectedRecurrence, setSelectedRecurrence] = useState<string>('all');
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -187,16 +190,35 @@ export default function TransactionsReport() {
     }
   };
 
+  // Filter by recurrence locally
+  const filteredTransactions = selectedRecurrence === 'all' 
+    ? transactions 
+    : transactions.filter(t => t.category?.recurrence_type === selectedRecurrence);
+
   // Calculate summary stats
-  const totalTransactions = transactions.length;
-  const totalEntradas = transactions.filter(t => t.type === 'ENTRADA').reduce((sum, t) => sum + Number(t.amount), 0);
-  const totalSaidas = transactions.filter(t => t.type === 'SAIDA').reduce((sum, t) => sum + Number(t.amount), 0);
+  const totalTransactions = filteredTransactions.length;
+  const totalEntradas = filteredTransactions.filter(t => t.type === 'ENTRADA').reduce((sum, t) => sum + Number(t.amount), 0);
+  const totalSaidas = filteredTransactions.filter(t => t.type === 'SAIDA').reduce((sum, t) => sum + Number(t.amount), 0);
   const saldo = totalEntradas - totalSaidas;
 
-  // Group by category for chart
+  // Calculate recurrence breakdown (always from full transactions, not filtered)
+  const receitaRecorrente = transactions
+    .filter(t => t.type === 'ENTRADA' && t.category?.recurrence_type === 'RECORRENTE')
+    .reduce((sum, t) => sum + Number(t.amount), 0);
+  const receitaVariavel = transactions
+    .filter(t => t.type === 'ENTRADA' && t.category?.recurrence_type === 'NAO_RECORRENTE')
+    .reduce((sum, t) => sum + Number(t.amount), 0);
+  const despesaFixa = transactions
+    .filter(t => t.type === 'SAIDA' && t.category?.recurrence_type === 'RECORRENTE')
+    .reduce((sum, t) => sum + Number(t.amount), 0);
+  const despesaVariavel = transactions
+    .filter(t => t.type === 'SAIDA' && t.category?.recurrence_type === 'NAO_RECORRENTE')
+    .reduce((sum, t) => sum + Number(t.amount), 0);
+
+  // Group by category for chart (use filtered transactions)
   const categorySummary: CategorySummary[] = categories
     .map((cat, index) => {
-      const catTxs = transactions.filter(t => t.category_id === cat.id);
+      const catTxs = filteredTransactions.filter(t => t.category_id === cat.id);
       return {
         name: cat.name,
         total: catTxs.reduce((sum, t) => sum + Number(t.amount), 0),
@@ -237,7 +259,15 @@ export default function TransactionsReport() {
     doc.text(`Total Saídas: ${formatCurrency(totalSaidas)}`, 14, 60);
     doc.text(`Saldo: ${formatCurrency(saldo)}`, 14, 66);
 
-    let yPos = 80;
+    doc.setFontSize(12);
+    doc.text('Breakdown por Recorrência:', 14, 76);
+    doc.setFontSize(10);
+    doc.text(`Receita Recorrente: ${formatCurrency(receitaRecorrente)}`, 14, 84);
+    doc.text(`Receita Variável: ${formatCurrency(receitaVariavel)}`, 100, 84);
+    doc.text(`Despesa Fixa: ${formatCurrency(despesaFixa)}`, 14, 90);
+    doc.text(`Despesa Variável: ${formatCurrency(despesaVariavel)}`, 100, 90);
+
+    let yPos = 100;
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.text('Data', 14, yPos);
@@ -250,7 +280,7 @@ export default function TransactionsReport() {
     doc.setFont('helvetica', 'normal');
     yPos += 8;
 
-    transactions.forEach(tx => {
+    filteredTransactions.forEach(tx => {
       if (yPos > 280) {
         doc.addPage();
         yPos = 20;
@@ -268,10 +298,11 @@ export default function TransactionsReport() {
   };
 
   const exportToExcel = () => {
-    const data = transactions.map(tx => ({
+    const data = filteredTransactions.map(tx => ({
       Data: format(parseISO(tx.date), 'dd/MM/yyyy'),
       Tipo: tx.type === 'ENTRADA' ? 'Entrada' : 'Saída',
       Categoria: tx.category?.name || '—',
+      Recorrência: tx.category?.recurrence_type === 'RECORRENTE' ? 'Recorrente' : 'Não Recorrente',
       Valor: Number(tx.amount),
       Unidade: tx.unit?.name || '—',
       Conta: tx.account?.name || '—',
@@ -441,6 +472,21 @@ export default function TransactionsReport() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Recurrence Filter */}
+              <div className="space-y-2">
+                <Label>Recorrência</Label>
+                <Select value={selectedRecurrence} onValueChange={setSelectedRecurrence}>
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue placeholder="Todas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas</SelectItem>
+                    <SelectItem value="RECORRENTE">Recorrente</SelectItem>
+                    <SelectItem value="NAO_RECORRENTE">Não Recorrente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -509,6 +555,65 @@ export default function TransactionsReport() {
                   )}>
                     {formatCurrency(saldo)}
                   </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Recurrence Breakdown Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-lg bg-success/10">
+                  <RefreshCw className="w-6 h-6 text-success" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Receita Recorrente</p>
+                  <p className="text-xl font-bold text-success">{formatCurrency(receitaRecorrente)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-lg bg-emerald-500/10">
+                  <Zap className="w-6 h-6 text-emerald-500" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Receita Variável</p>
+                  <p className="text-xl font-bold text-emerald-500">{formatCurrency(receitaVariavel)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-lg bg-destructive/10">
+                  <RefreshCw className="w-6 h-6 text-destructive" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Despesa Fixa</p>
+                  <p className="text-xl font-bold text-destructive">{formatCurrency(despesaFixa)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-lg bg-orange-500/10">
+                  <Zap className="w-6 h-6 text-orange-500" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Despesa Variável</p>
+                  <p className="text-xl font-bold text-orange-500">{formatCurrency(despesaVariavel)}</p>
                 </div>
               </div>
             </CardContent>
@@ -602,14 +707,14 @@ export default function TransactionsReport() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.length === 0 ? (
+                {filteredTransactions.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       Nenhuma transação encontrada no período
                     </TableCell>
                   </TableRow>
                 ) : (
-                  transactions.map(tx => (
+                  filteredTransactions.map(tx => (
                     <TableRow key={tx.id}>
                       <TableCell className="font-medium">
                         {format(parseISO(tx.date), 'dd/MM/yyyy')}
