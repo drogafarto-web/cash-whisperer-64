@@ -25,6 +25,7 @@ import BankStatementImport from "./pages/import/BankStatement";
 import AlertsConfig from "./pages/settings/AlertsConfig";
 import SettingsHub from "./pages/settings/SettingsHub";
 import DataSeed2025 from "./pages/settings/DataSeed2025";
+import Pendencias from "./pages/Pendencias";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -59,6 +60,7 @@ const App = () => (
             <Route path="/reports/personnel-real-vs-official" element={<PersonnelRealVsOfficial />} />
             <Route path="/import/daily-movement" element={<DailyMovementImport />} />
             <Route path="/import/bank-statement" element={<BankStatementImport />} />
+            <Route path="/pendencias" element={<Pendencias />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
