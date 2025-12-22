@@ -152,7 +152,8 @@ export function parseCSV(content: string): BankStatementParseResult {
   
   // Find column indices
   const dateIdx = headers.findIndex(h => h.includes('data') || h.includes('date'));
-  const descIdx = headers.findIndex(h => h.includes('descr') || h.includes('memo') || h.includes('historic'));
+  const descIdx = headers.findIndex(h => h.includes('descr') || h.includes('memo') || h.includes('historic') || h.includes('lancamento') || h.includes('lançamento'));
+  const detailsIdx = headers.findIndex(h => h.includes('detalhe') || h.includes('details') || h.includes('observ'));
   const valueIdx = headers.findIndex(h => h.includes('valor') || h.includes('amount') || h.includes('value'));
   const creditIdx = headers.findIndex(h => h.includes('credito') || h.includes('credit'));
   const debitIdx = headers.findIndex(h => h.includes('debito') || h.includes('debit'));
@@ -172,10 +173,20 @@ export function parseCSV(content: string): BankStatementParseResult {
       date = normalizeDate(cols[dateIdx]);
     }
 
-    // Extract description
+    // Extract description (combine main description with details if available)
+    let mainDesc = '';
+    let details = '';
+    
     if (descIdx >= 0 && cols[descIdx]) {
-      description = cols[descIdx].trim();
+      mainDesc = cols[descIdx].trim();
     }
+    if (detailsIdx >= 0 && cols[detailsIdx]) {
+      details = cols[detailsIdx].trim();
+    }
+    
+    description = mainDesc && details 
+      ? `${mainDesc}: ${details}` 
+      : mainDesc || details || '';
 
     // Extract amount
     if (creditIdx >= 0 && debitIdx >= 0) {
