@@ -17,6 +17,7 @@ import PartnersSettings from "./pages/settings/Partners";
 import CashClosingReport from "./pages/reports/CashClosingReport";
 import TransactionsReport from "./pages/reports/TransactionsReport";
 import TaxScenarios from "./pages/reports/TaxScenarios";
+import TaxConfigPage from "./pages/settings/TaxConfig";
 import DailyMovementImport from "./pages/import/DailyMovement";
 import BankStatementImport from "./pages/import/BankStatement";
 import NotFound from "./pages/NotFound";
@@ -42,6 +43,7 @@ const App = () => (
             <Route path="/settings/accounts" element={<AccountsSettings />} />
             <Route path="/settings/categories" element={<CategoriesSettings />} />
             <Route path="/settings/partners" element={<PartnersSettings />} />
+            <Route path="/settings/tax-config" element={<TaxConfigPage />} />
             <Route path="/reports/cash-closings" element={<CashClosingReport />} />
             <Route path="/reports/transactions" element={<TransactionsReport />} />
             <Route path="/reports/tax-scenarios" element={<TaxScenarios />} />
