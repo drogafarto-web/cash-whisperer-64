@@ -115,7 +115,7 @@ const settingsCards: SettingsCard[] = [
     badgeKey: 'riscoEstrategia',
     badgeVariant: 'destructive',
     links: [
-      { name: 'Povoação 2025', href: '/settings/data-2025', icon: Database },
+      { name: 'Dados Históricos', href: '/settings/data-2025', icon: Database },
       { name: 'Real x Oficial', href: '/reports/personnel-real-vs-official', icon: Users },
       { name: 'Auditoria Fator R', href: '/settings/fator-r-audit', icon: Calculator },
       { name: 'Alertas', href: '/settings/alerts', icon: Bell },
@@ -181,7 +181,7 @@ export default function SettingsHub() {
           </p>
         </div>
 
-        {/* Card de destaque para Povoação 2025 */}
+        {/* Card de destaque para Dados Históricos */}
         {(isAdmin || isContabilidade) && seedProgress.totalProgress < 100 && (
           <Card className="border-2 border-primary/20 bg-gradient-to-r from-primary/5 via-primary/10 to-violet-500/5">
             <CardContent className="pt-6">
@@ -192,11 +192,11 @@ export default function SettingsHub() {
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-lg flex items-center gap-2">
-                      Povoação de Dados 2025
-                      <Badge variant="outline" className="text-xs">Novo</Badge>
+                      Dados para Prestação de Contas
+                      <Badge variant="outline" className="text-xs">Nov/2024 - Dez/2025</Badge>
                     </h3>
                     <p className="text-sm text-muted-foreground">
-                      A contabilidade pode fornecer dados históricos de 2025 para análises comparativas
+                      Registre dados históricos do período de prestação de contas ({seedProgress.totalMonths} meses)
                     </p>
                     <div className="mt-2 flex items-center gap-3">
                       <Progress value={seedProgress.totalProgress} className="h-2 flex-1 max-w-[200px]" />
@@ -207,7 +207,7 @@ export default function SettingsHub() {
                 <Link to="/settings/data-2025">
                   <Button className="gap-2">
                     <Database className="h-4 w-4" />
-                    Iniciar Povoação
+                    Preencher Dados
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </Link>

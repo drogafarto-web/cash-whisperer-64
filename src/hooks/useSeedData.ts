@@ -51,26 +51,61 @@ export interface SeedBankStatement {
   imported_at?: string;
 }
 
-const SEED_YEAR = 2025;
+// Período de dados: Nov/2024 a Dez/2025 (14 meses - início da prestação de contas)
+export interface SeedPeriod {
+  ano: number;
+  mes: number;
+  label: string;
+}
 
-// Hook para buscar dados de folha 2025
+export const SEED_PERIODS: SeedPeriod[] = [
+  { ano: 2024, mes: 11, label: 'Nov/2024' },
+  { ano: 2024, mes: 12, label: 'Dez/2024' },
+  { ano: 2025, mes: 1, label: 'Jan/2025' },
+  { ano: 2025, mes: 2, label: 'Fev/2025' },
+  { ano: 2025, mes: 3, label: 'Mar/2025' },
+  { ano: 2025, mes: 4, label: 'Abr/2025' },
+  { ano: 2025, mes: 5, label: 'Mai/2025' },
+  { ano: 2025, mes: 6, label: 'Jun/2025' },
+  { ano: 2025, mes: 7, label: 'Jul/2025' },
+  { ano: 2025, mes: 8, label: 'Ago/2025' },
+  { ano: 2025, mes: 9, label: 'Set/2025' },
+  { ano: 2025, mes: 10, label: 'Out/2025' },
+  { ano: 2025, mes: 11, label: 'Nov/2025' },
+  { ano: 2025, mes: 12, label: 'Dez/2025' },
+];
+
+export const TOTAL_SEED_MONTHS = SEED_PERIODS.length; // 14 meses
+
+// Helper para verificar se um período está no range válido
+const isValidPeriod = (ano: number, mes: number): boolean => {
+  if (ano === 2024) return mes >= 11;
+  if (ano === 2025) return mes >= 1 && mes <= 12;
+  return false;
+};
+
+// Hook para buscar dados de folha (Nov/2024 - Dez/2025)
 export function useSeedPayroll() {
   return useQuery({
-    queryKey: ['seed-payroll', SEED_YEAR],
+    queryKey: ['seed-payroll', 'historical'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('seed_payroll')
         .select('*')
-        .eq('ano', SEED_YEAR)
+        .or('ano.eq.2024,ano.eq.2025')
+        .order('ano')
         .order('mes');
       
       if (error) throw error;
-      return data as SeedPayroll[];
+      
+      // Filtrar apenas os meses válidos (Nov-Dez 2024 + Jan-Dez 2025)
+      const filtered = (data as SeedPayroll[]).filter(p => isValidPeriod(p.ano, p.mes));
+      return filtered;
     },
   });
 }
 
-// Hook para salvar/atualizar folha 2025
+// Hook para salvar/atualizar folha
 export function useSaveSeedPayroll() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -79,7 +114,6 @@ export function useSaveSeedPayroll() {
     mutationFn: async (payrollData: SeedPayroll[]) => {
       const dataWithUser = payrollData.map(item => ({
         ...item,
-        ano: SEED_YEAR,
         created_by: item.id ? undefined : user?.id,
         updated_by: user?.id,
       }));
@@ -92,7 +126,7 @@ export function useSaveSeedPayroll() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['seed-payroll'] });
-      toast.success('Folha 2025 salva com sucesso!');
+      toast.success('Dados de folha salvos com sucesso!');
     },
     onError: (error: Error) => {
       toast.error(`Erro ao salvar folha: ${error.message}`);
@@ -100,24 +134,27 @@ export function useSaveSeedPayroll() {
   });
 }
 
-// Hook para buscar dados de impostos 2025
+// Hook para buscar dados de impostos (Nov/2024 - Dez/2025)
 export function useSeedTaxes() {
   return useQuery({
-    queryKey: ['seed-taxes', SEED_YEAR],
+    queryKey: ['seed-taxes', 'historical'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('seed_taxes')
         .select('*')
-        .eq('ano', SEED_YEAR)
+        .or('ano.eq.2024,ano.eq.2025')
+        .order('ano')
         .order('mes');
       
       if (error) throw error;
-      return data as SeedTaxes[];
+      
+      const filtered = (data as SeedTaxes[]).filter(t => isValidPeriod(t.ano, t.mes));
+      return filtered;
     },
   });
 }
 
-// Hook para salvar/atualizar impostos 2025
+// Hook para salvar/atualizar impostos
 export function useSaveSeedTaxes() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -126,7 +163,6 @@ export function useSaveSeedTaxes() {
     mutationFn: async (taxesData: SeedTaxes[]) => {
       const dataWithUser = taxesData.map(item => ({
         ...item,
-        ano: SEED_YEAR,
         created_by: item.id ? undefined : user?.id,
         updated_by: user?.id,
       }));
@@ -139,7 +175,7 @@ export function useSaveSeedTaxes() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['seed-taxes'] });
-      toast.success('Impostos 2025 salvos com sucesso!');
+      toast.success('Dados de impostos salvos com sucesso!');
     },
     onError: (error: Error) => {
       toast.error(`Erro ao salvar impostos: ${error.message}`);
@@ -147,24 +183,27 @@ export function useSaveSeedTaxes() {
   });
 }
 
-// Hook para buscar dados de receita 2025
+// Hook para buscar dados de receita (Nov/2024 - Dez/2025)
 export function useSeedRevenue() {
   return useQuery({
-    queryKey: ['seed-revenue', SEED_YEAR],
+    queryKey: ['seed-revenue', 'historical'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('seed_revenue')
         .select('*')
-        .eq('ano', SEED_YEAR)
+        .or('ano.eq.2024,ano.eq.2025')
+        .order('ano')
         .order('mes');
       
       if (error) throw error;
-      return data as SeedRevenue[];
+      
+      const filtered = (data as SeedRevenue[]).filter(r => isValidPeriod(r.ano, r.mes));
+      return filtered;
     },
   });
 }
 
-// Hook para salvar/atualizar receita 2025
+// Hook para salvar/atualizar receita
 export function useSaveSeedRevenue() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -173,7 +212,6 @@ export function useSaveSeedRevenue() {
     mutationFn: async (revenueData: SeedRevenue[]) => {
       const dataWithUser = revenueData.map(item => ({
         ...item,
-        ano: SEED_YEAR,
         created_by: item.id ? undefined : user?.id,
         updated_by: user?.id,
       }));
@@ -186,7 +224,7 @@ export function useSaveSeedRevenue() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['seed-revenue'] });
-      toast.success('Receita 2025 salva com sucesso!');
+      toast.success('Dados de receita salvos com sucesso!');
     },
     onError: (error: Error) => {
       toast.error(`Erro ao salvar receita: ${error.message}`);
@@ -194,15 +232,16 @@ export function useSaveSeedRevenue() {
   });
 }
 
-// Hook para buscar extratos 2025
+// Hook para buscar extratos (Nov/2024 - Dez/2025)
 export function useSeedBankStatements(accountId?: string) {
   return useQuery({
-    queryKey: ['seed-bank-statements', SEED_YEAR, accountId],
+    queryKey: ['seed-bank-statements', 'historical', accountId],
     queryFn: async () => {
       let query = supabase
         .from('seed_bank_statements')
         .select('*')
-        .eq('ano', SEED_YEAR)
+        .or('ano.eq.2024,ano.eq.2025')
+        .order('ano')
         .order('mes');
 
       if (accountId) {
@@ -211,13 +250,15 @@ export function useSeedBankStatements(accountId?: string) {
       
       const { data, error } = await query;
       if (error) throw error;
-      return data as SeedBankStatement[];
+      
+      const filtered = (data as SeedBankStatement[]).filter(s => isValidPeriod(s.ano, s.mes));
+      return filtered;
     },
     enabled: !!accountId,
   });
 }
 
-// Hook para upload de extrato 2025
+// Hook para upload de extrato
 export function useUploadSeedStatement() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -226,15 +267,17 @@ export function useUploadSeedStatement() {
     mutationFn: async ({ 
       file, 
       accountId, 
+      ano,
       mes 
     }: { 
       file: File; 
       accountId: string; 
+      ano: number;
       mes: number;
     }) => {
       const fileExt = file.name.split('.').pop()?.toLowerCase() || 'outro';
       const fileType = ['csv', 'pdf'].includes(fileExt) ? fileExt as 'csv' | 'pdf' : 'outro';
-      const storagePath = `2025/extratos/${accountId}/${mes}/${file.name}`;
+      const storagePath = `${ano}/extratos/${accountId}/${mes}/${file.name}`;
 
       // Upload para storage
       const { error: uploadError } = await supabase.storage
@@ -247,7 +290,7 @@ export function useUploadSeedStatement() {
       const { error: insertError } = await supabase
         .from('seed_bank_statements')
         .upsert({
-          ano: SEED_YEAR,
+          ano,
           mes,
           account_id: accountId,
           file_name: file.name,
@@ -269,7 +312,7 @@ export function useUploadSeedStatement() {
   });
 }
 
-// Hook para calcular progresso geral
+// Hook para calcular progresso geral (14 meses)
 export function useSeedProgress() {
   const { data: payroll } = useSeedPayroll();
   const { data: taxes } = useSeedTaxes();
@@ -287,8 +330,9 @@ export function useSeedProgress() {
     r.receita_servicos > 0 || r.receita_outras > 0
   ).length || 0;
 
+  // Total: 14 meses × 3 categorias = 42 itens
   const totalProgress = Math.round(
-    ((payrollMonths + taxesMonths + revenueMonths) / 36) * 100
+    ((payrollMonths + taxesMonths + revenueMonths) / (TOTAL_SEED_MONTHS * 3)) * 100
   );
 
   return {
@@ -296,8 +340,9 @@ export function useSeedProgress() {
     taxesMonths,
     revenueMonths,
     totalProgress,
-    payrollComplete: payrollMonths === 12,
-    taxesComplete: taxesMonths === 12,
-    revenueComplete: revenueMonths === 12,
+    payrollComplete: payrollMonths === TOTAL_SEED_MONTHS,
+    taxesComplete: taxesMonths === TOTAL_SEED_MONTHS,
+    revenueComplete: revenueMonths === TOTAL_SEED_MONTHS,
+    totalMonths: TOTAL_SEED_MONTHS,
   };
 }
