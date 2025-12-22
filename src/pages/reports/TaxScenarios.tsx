@@ -43,7 +43,14 @@ import {
   DEFAULT_TAX_PARAMETERS,
   DEFAULT_TAX_CONFIG,
   mapTaxGroupToFinancialCategory,
+  calculateFolha12,
+  calculateRBT12,
+  calculateProlaboreAdjustment,
+  calculateAnexoSavings,
+  ProlaboreAdjustment,
+  AnexoSavings,
 } from '@/services/taxSimulator';
+import { FatorRAlert } from '@/components/alerts/FatorRAlert';
 
 export default function TaxScenarios() {
   const { isAdmin, unit } = useAuth();
@@ -360,6 +367,37 @@ export default function TaxScenarios() {
     return text.replace(/^[⚠️✅💡📊🔮]\s*/, '');
   };
 
+  // Helper component for Fator R Alert in TaxScenarios
+  const FatorRAlertCard = ({ 
+    fatorR, 
+    rbt12, 
+    receitaMensal, 
+    taxParameters 
+  }: { 
+    fatorR: number; 
+    rbt12: number; 
+    receitaMensal: number; 
+    taxParameters: TaxParameters;
+  }) => {
+    const folha12 = rbt12 * fatorR;
+    const adjustment = calculateProlaboreAdjustment(folha12, rbt12);
+    const savings = calculateAnexoSavings(receitaMensal, rbt12, taxParameters);
+
+    return (
+      <FatorRAlert
+        fatorRAtual={adjustment.fatorRAtual}
+        ajusteMensal={adjustment.ajusteMensal}
+        ajusteAnual={adjustment.ajusteNecessario}
+        status={adjustment.status}
+        economiaMensal={savings.economiaMensal}
+        economiaAnual={savings.economiaAnual}
+        aliquotaAnexo3={savings.aliquotaAnexo3}
+        aliquotaAnexo5={savings.aliquotaAnexo5}
+        showLink={false}
+      />
+    );
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -407,22 +445,34 @@ export default function TaxScenarios() {
           </div>
         </div>
 
-        {/* Fator R Badge */}
+        {/* Fator R Badge and Alert */}
         {simulationResult && (
-          <div className="flex items-center gap-4">
-            <Badge
-              variant={simulationResult.fatorR >= 0.28 ? 'default' : 'destructive'}
-              className="text-sm px-3 py-1"
-            >
-              Fator R: {(simulationResult.fatorR * 100).toFixed(1)}%
-            </Badge>
-            <Badge variant="outline" className="text-sm px-3 py-1">
-              Anexo {simulationResult.anexoSimples}
-            </Badge>
-            <Badge variant="secondary" className="text-sm px-3 py-1">
-              Receita: {formatCurrency(simulationResult.receitaTotal)}
-            </Badge>
-          </div>
+          <>
+            <div className="flex flex-wrap items-center gap-4">
+              <Badge
+                variant={simulationResult.fatorR >= 0.28 ? 'default' : 'destructive'}
+                className="text-sm px-3 py-1"
+              >
+                Fator R: {(simulationResult.fatorR * 100).toFixed(1)}%
+              </Badge>
+              <Badge variant="outline" className="text-sm px-3 py-1">
+                Anexo {simulationResult.anexoSimples}
+              </Badge>
+              <Badge variant="secondary" className="text-sm px-3 py-1">
+                Receita: {formatCurrency(simulationResult.receitaTotal)}
+              </Badge>
+            </div>
+
+            {/* Fator R Alert Card when below threshold */}
+            {simulationResult.fatorR < 0.28 && taxParameters && (
+              <FatorRAlertCard
+                fatorR={simulationResult.fatorR}
+                rbt12={simulationResult.cenarios.find(c => c.regime === 'SIMPLES')?.detalhes.rbt12 || 0}
+                receitaMensal={simulationResult.receitaTotal}
+                taxParameters={taxParameters}
+              />
+            )}
+          </>
         )}
 
         {isLoading ? (

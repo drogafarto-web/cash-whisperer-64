@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { Transaction, Account, Category } from '@/types/database';
-import { format, startOfMonth, endOfMonth } from 'date-fns';
+import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
   ArrowUpCircle, 
@@ -34,6 +34,18 @@ import {
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
+import { FatorRAlert } from '@/components/alerts/FatorRAlert';
+import {
+  calculateFolha12,
+  calculateRBT12,
+  calculateProlaboreAdjustment,
+  calculateAnexoSavings,
+  createEmptyMonthlyData,
+  MonthlyFinancialData,
+  DEFAULT_TAX_PARAMETERS,
+  ProlaboreAdjustment,
+  AnexoSavings,
+} from '@/services/taxSimulator';
 
 interface DashboardStats {
   totalEntradas: number;
@@ -71,6 +83,11 @@ export default function Dashboard() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [dateRange] = useState({ start: startOfMonth(new Date()), end: endOfMonth(new Date()) });
+  const [fatorRData, setFatorRData] = useState<{
+    adjustment: ProlaboreAdjustment;
+    savings: AnexoSavings;
+    receitaMensal: number;
+  } | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -83,8 +100,87 @@ export default function Dashboard() {
   useEffect(() => {
     if (user && role === 'admin') {
       fetchDashboardData();
+      fetchFatorRData();
     }
   }, [user, role, dateRange]);
+
+  const fetchFatorRData = async () => {
+    try {
+      // Buscar transações dos últimos 12 meses
+      const endDate = endOfMonth(new Date());
+      const startDate = startOfMonth(subMonths(endDate, 11));
+
+      const { data: txData } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          category:categories(id, name, type, tax_group)
+        `)
+        .gte('date', format(startDate, 'yyyy-MM-dd'))
+        .lte('date', format(endDate, 'yyyy-MM-dd'))
+        .eq('status', 'APROVADO')
+        .is('deleted_at', null);
+
+      if (!txData || txData.length === 0) return;
+
+      // Processar em dados mensais
+      const monthlyDataMap = new Map<string, MonthlyFinancialData>();
+      
+      for (let i = 0; i < 12; i++) {
+        const monthDate = subMonths(endDate, 11 - i);
+        const monthKey = format(monthDate, 'yyyy-MM');
+        monthlyDataMap.set(monthKey, createEmptyMonthlyData(monthKey));
+      }
+
+      txData.forEach((tx: any) => {
+        const monthKey = format(new Date(tx.date), 'yyyy-MM');
+        const data = monthlyDataMap.get(monthKey);
+        if (!data) return;
+
+        const taxGroup = tx.category?.tax_group;
+        const amount = Math.abs(Number(tx.amount));
+
+        if (tx.type === 'ENTRADA') {
+          if (taxGroup === 'RECEITA_SERVICOS') {
+            data.receita_servicos += amount;
+          } else {
+            data.receita_outras += amount;
+          }
+        } else {
+          switch (taxGroup) {
+            case 'PESSOAL':
+              const catName = tx.category?.name?.toLowerCase() || '';
+              if (catName.includes('pró-labore') || catName.includes('pro-labore')) {
+                data.folha_prolabore += amount;
+              } else if (catName.includes('inss') || catName.includes('fgts') || catName.includes('encargo')) {
+                data.folha_encargos += amount;
+              } else {
+                data.folha_salarios += amount;
+              }
+              break;
+            default:
+              break;
+          }
+        }
+      });
+
+      const monthlyDataArray = Array.from(monthlyDataMap.values());
+      const folha12 = calculateFolha12(monthlyDataArray);
+      const rbt12 = calculateRBT12(monthlyDataArray);
+
+      if (rbt12 === 0) return;
+
+      const adjustment = calculateProlaboreAdjustment(folha12, rbt12);
+      
+      // Calcular receita média mensal
+      const receitaMensal = rbt12 / 12;
+      const savings = calculateAnexoSavings(receitaMensal, rbt12, DEFAULT_TAX_PARAMETERS);
+
+      setFatorRData({ adjustment, savings, receitaMensal });
+    } catch (error) {
+      console.error('Error fetching Fator R data:', error);
+    }
+  };
 
   const fetchDashboardData = async () => {
     setIsLoading(true);
@@ -253,6 +349,21 @@ export default function Dashboard() {
             </Button>
           </div>
         </div>
+
+        {/* Fator R Alert */}
+        {fatorRData && fatorRData.adjustment.status !== 'SEGURO' && (
+          <FatorRAlert
+            fatorRAtual={fatorRData.adjustment.fatorRAtual}
+            ajusteMensal={fatorRData.adjustment.ajusteMensal}
+            ajusteAnual={fatorRData.adjustment.ajusteNecessario}
+            status={fatorRData.adjustment.status}
+            economiaMensal={fatorRData.savings.economiaMensal}
+            economiaAnual={fatorRData.savings.economiaAnual}
+            aliquotaAnexo3={fatorRData.savings.aliquotaAnexo3}
+            aliquotaAnexo5={fatorRData.savings.aliquotaAnexo5}
+            compact
+          />
+        )}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
