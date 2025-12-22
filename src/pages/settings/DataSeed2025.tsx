@@ -14,9 +14,17 @@ import {
   useSeedBankStatements,
   useUploadSeedStatement,
   useSeedProgress,
+  useSeedInitialData,
+  useSaveSeedInitialData,
+  useSaveAccountBalances,
+  useSaveCompanyData,
+  useTaxConfig,
   SeedPayroll,
   SeedTaxes,
   SeedRevenue,
+  SeedInitialData,
+  CompanyData,
+  StaffData,
   SEED_PERIODS,
   TOTAL_SEED_MONTHS,
 } from '@/hooks/useSeedData';
@@ -31,6 +39,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { 
   FileText, 
@@ -48,6 +57,9 @@ import {
   Link2,
   Calendar,
   Heart,
+  Settings2,
+  Building2,
+  Wallet,
 } from 'lucide-react';
 
 const PAYROLL_COLUMNS = [
@@ -79,6 +91,7 @@ export default function DataSeed2025() {
     folha: true,
     impostos: false,
     receita: false,
+    outras: false,
   });
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
 
@@ -101,17 +114,37 @@ export default function DataSeed2025() {
   const { data: taxesData, isLoading: taxesLoading } = useSeedTaxes();
   const { data: revenueData, isLoading: revenueLoading } = useSeedRevenue();
   const { data: statementsData } = useSeedBankStatements(selectedAccountId);
+  const { data: initialData } = useSeedInitialData();
+  const { data: taxConfig } = useTaxConfig();
   const progress = useSeedProgress();
 
   const savePayroll = useSaveSeedPayroll();
   const saveTaxes = useSaveSeedTaxes();
   const saveRevenue = useSaveSeedRevenue();
   const uploadStatement = useUploadSeedStatement();
+  const saveInitialData = useSaveSeedInitialData();
+  const saveAccountBalances = useSaveAccountBalances();
+  const saveCompanyData = useSaveCompanyData();
 
   // Local state for editing
   const [payrollRows, setPayrollRows] = useState<SeedPayroll[]>([]);
   const [taxesRows, setTaxesRows] = useState<SeedTaxes[]>([]);
   const [revenueRows, setRevenueRows] = useState<SeedRevenue[]>([]);
+  
+  // State for "Outras Informações"
+  const [accountBalances, setAccountBalances] = useState<{ account_id: string; name: string; initial_balance: number }[]>([]);
+  const [companyInfo, setCompanyInfo] = useState<CompanyData>({
+    cnpj: '',
+    regime_tributario: 'SIMPLES',
+    iss_aliquota: 5,
+    data_inicio_atividades: '',
+  });
+  const [staffInfo, setStaffInfo] = useState<StaffData>({
+    funcionarios_clt: 0,
+    socios_ativos: 0,
+    observacoes: '',
+  });
+  const [generalNotes, setGeneralNotes] = useState('');
 
   // Initialize rows from fetched data (14 meses: Nov/2024 - Dez/2025)
   useEffect(() => {
@@ -165,6 +198,48 @@ export default function DataSeed2025() {
       setRevenueRows(initialRows);
     }
   }, [revenueData]);
+
+  // Initialize account balances from accounts data
+  useEffect(() => {
+    if (accounts.length > 0) {
+      setAccountBalances(accounts.map(acc => ({
+        account_id: acc.id,
+        name: acc.name,
+        initial_balance: acc.initial_balance || 0,
+      })));
+    }
+  }, [accounts]);
+
+  // Initialize company data from tax_config
+  useEffect(() => {
+    if (taxConfig) {
+      setCompanyInfo({
+        cnpj: taxConfig.cnpj || '',
+        regime_tributario: (taxConfig.regime_atual as 'SIMPLES' | 'LUCRO_PRESUMIDO' | 'LUCRO_REAL') || 'SIMPLES',
+        iss_aliquota: (taxConfig.iss_aliquota || 0.05) * 100, // Converte decimal para percentual
+        data_inicio_atividades: '',
+      });
+    }
+  }, [taxConfig]);
+
+  // Initialize staff info and notes from initialData
+  useEffect(() => {
+    if (initialData) {
+      const staffItem = initialData.find(i => i.categoria === 'quadro_pessoal' && i.chave === 'quadro_geral');
+      if (staffItem && staffItem.valor) {
+        setStaffInfo({
+          funcionarios_clt: Number(staffItem.valor.funcionarios_clt) || 0,
+          socios_ativos: Number(staffItem.valor.socios_ativos) || 0,
+          observacoes: String(staffItem.valor.observacoes || ''),
+        });
+      }
+      
+      const notesItem = initialData.find(i => i.categoria === 'observacoes' && i.chave === 'geral');
+      if (notesItem && notesItem.valor) {
+        setGeneralNotes(String(notesItem.valor.texto || ''));
+      }
+    }
+  }, [initialData]);
 
   // Calculations
   const payrollTotals = useMemo(() => {
@@ -241,6 +316,53 @@ export default function DataSeed2025() {
     const url = `${window.location.origin}/settings/data-2025`;
     await navigator.clipboard.writeText(url);
     toast.success('Link copiado! Envie para a contabilidade');
+  };
+
+  const handleSaveOutrasInformacoes = async () => {
+    try {
+      // Salvar saldos das contas
+      if (accountBalances.length > 0) {
+        await saveAccountBalances.mutateAsync(
+          accountBalances.map(b => ({ account_id: b.account_id, initial_balance: b.initial_balance }))
+        );
+      }
+
+      // Salvar dados da empresa
+      await saveCompanyData.mutateAsync(companyInfo);
+
+      // Salvar quadro de pessoal e observações na tabela seed_initial_data
+      const itemsToSave: SeedInitialData[] = [
+        {
+          categoria: 'quadro_pessoal',
+          chave: 'quadro_geral',
+          valor: {
+            funcionarios_clt: staffInfo.funcionarios_clt,
+            socios_ativos: staffInfo.socios_ativos,
+            observacoes: staffInfo.observacoes || '',
+          },
+          data_referencia: '2024-10-31',
+        },
+        {
+          categoria: 'observacoes',
+          chave: 'geral',
+          valor: { texto: generalNotes },
+        },
+      ];
+      await saveInitialData.mutateAsync(itemsToSave);
+
+      toast.success('Outras informações salvas com sucesso!');
+    } catch (error) {
+      console.error('Error saving outras informacoes:', error);
+    }
+  };
+
+  const formatCNPJ = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 14);
+    return digits
+      .replace(/(\d{2})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1.$2')
+      .replace(/(\d{3})(\d)/, '$1/$2')
+      .replace(/(\d{4})(\d)/, '$1-$2');
   };
 
   const formatCurrency = (value: number) => 
@@ -867,6 +989,222 @@ export default function DataSeed2025() {
                   >
                     <Save className="h-4 w-4 mr-2" />
                     {saveRevenue.isPending ? 'Salvando...' : 'Salvar Receita'}
+                  </Button>
+                </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+
+        {/* Step 5: Outras Informações */}
+        <Collapsible open={openSections.outras} onOpenChange={() => toggleSection('outras')}>
+          <Card>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-slate-500/10">
+                      <Settings2 className="h-6 w-6 text-slate-500" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">5. Outras Informações</CardTitle>
+                      <CardDescription>Saldos iniciais, dados da empresa e observações gerais</CardDescription>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge variant="outline">Opcional</Badge>
+                    <ChevronDown className={`h-5 w-5 transition-transform ${openSections.outras ? 'rotate-180' : ''}`} />
+                  </div>
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="space-y-8">
+                {/* Sub-seção: Saldos Iniciais */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b">
+                    <Wallet className="h-5 w-5 text-primary" />
+                    <h3 className="font-semibold">Saldos Iniciais das Contas (31/10/2024)</h3>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Informe o saldo de cada conta na data anterior ao início da prestação de contas.
+                  </p>
+                  <div className="grid gap-4">
+                    {accountBalances.map((account) => (
+                      <div key={account.account_id} className="flex items-center gap-4 p-3 rounded-lg border bg-muted/30">
+                        <span className="flex-1 font-medium">{account.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground">R$</span>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            className="w-40 text-right"
+                            value={account.initial_balance || ''}
+                            onChange={(e) => {
+                              const value = parseFloat(e.target.value) || 0;
+                              setAccountBalances(prev => 
+                                prev.map(b => b.account_id === account.account_id 
+                                  ? { ...b, initial_balance: value } 
+                                  : b
+                                )
+                              );
+                            }}
+                            placeholder="0,00"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    {accountBalances.length === 0 && (
+                      <p className="text-sm text-muted-foreground italic">
+                        Nenhuma conta cadastrada. Acesse Configurações → Contas para criar.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Sub-seção: Dados da Empresa */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b">
+                    <Building2 className="h-5 w-5 text-primary" />
+                    <h3 className="font-semibold">Dados da Empresa</h3>
+                  </div>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="cnpj">CNPJ</Label>
+                      <Input
+                        id="cnpj"
+                        value={companyInfo.cnpj}
+                        onChange={(e) => setCompanyInfo(prev => ({ 
+                          ...prev, 
+                          cnpj: formatCNPJ(e.target.value) 
+                        }))}
+                        placeholder="00.000.000/0000-00"
+                        maxLength={18}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="regime">Regime Tributário</Label>
+                      <Select 
+                        value={companyInfo.regime_tributario}
+                        onValueChange={(value: 'SIMPLES' | 'LUCRO_PRESUMIDO' | 'LUCRO_REAL') => 
+                          setCompanyInfo(prev => ({ ...prev, regime_tributario: value }))
+                        }
+                      >
+                        <SelectTrigger id="regime">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="SIMPLES">Simples Nacional</SelectItem>
+                          <SelectItem value="LUCRO_PRESUMIDO">Lucro Presumido</SelectItem>
+                          <SelectItem value="LUCRO_REAL">Lucro Real</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="iss">Alíquota ISS (%)</Label>
+                      <Input
+                        id="iss"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="5"
+                        value={companyInfo.iss_aliquota || ''}
+                        onChange={(e) => setCompanyInfo(prev => ({ 
+                          ...prev, 
+                          iss_aliquota: parseFloat(e.target.value) || 0 
+                        }))}
+                        placeholder="5"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="data_inicio">Data Início Atividades</Label>
+                      <Input
+                        id="data_inicio"
+                        type="date"
+                        value={companyInfo.data_inicio_atividades || ''}
+                        onChange={(e) => setCompanyInfo(prev => ({ 
+                          ...prev, 
+                          data_inicio_atividades: e.target.value 
+                        }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sub-seção: Quadro de Pessoal */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b">
+                    <Users className="h-5 w-5 text-primary" />
+                    <h3 className="font-semibold">Quadro de Pessoal (Nov/2024)</h3>
+                  </div>
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="funcionarios">Nº Funcionários CLT</Label>
+                      <Input
+                        id="funcionarios"
+                        type="number"
+                        min="0"
+                        value={staffInfo.funcionarios_clt || ''}
+                        onChange={(e) => setStaffInfo(prev => ({ 
+                          ...prev, 
+                          funcionarios_clt: parseInt(e.target.value) || 0 
+                        }))}
+                        placeholder="0"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="socios">Nº Sócios Ativos</Label>
+                      <Input
+                        id="socios"
+                        type="number"
+                        min="0"
+                        value={staffInfo.socios_ativos || ''}
+                        onChange={(e) => setStaffInfo(prev => ({ 
+                          ...prev, 
+                          socios_ativos: parseInt(e.target.value) || 0 
+                        }))}
+                        placeholder="0"
+                      />
+                    </div>
+                    <div className="space-y-2 md:col-span-3">
+                      <Label htmlFor="obs_pessoal">Observações sobre Folha</Label>
+                      <Textarea
+                        id="obs_pessoal"
+                        value={staffInfo.observacoes || ''}
+                        onChange={(e) => setStaffInfo(prev => ({ 
+                          ...prev, 
+                          observacoes: e.target.value 
+                        }))}
+                        placeholder="Ex: Demissão prevista para março, férias coletivas em dezembro..."
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sub-seção: Observações Gerais */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b">
+                    <FileText className="h-5 w-5 text-primary" />
+                    <h3 className="font-semibold">Observações Gerais</h3>
+                  </div>
+                  <Textarea
+                    value={generalNotes}
+                    onChange={(e) => setGeneralNotes(e.target.value)}
+                    placeholder="Notas importantes para a contabilidade...&#10;Ex: Existe parcelamento de FGTS em aberto, conta Santander foi encerrada em Jan/2025, pendência com fornecedor X..."
+                    rows={4}
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <Button 
+                    onClick={handleSaveOutrasInformacoes}
+                    disabled={saveAccountBalances.isPending || saveCompanyData.isPending || saveInitialData.isPending}
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    {(saveAccountBalances.isPending || saveCompanyData.isPending || saveInitialData.isPending) 
+                      ? 'Salvando...' 
+                      : 'Salvar Outras Informações'}
                   </Button>
                 </div>
               </CardContent>

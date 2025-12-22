@@ -58,6 +58,39 @@ export interface SeedPeriod {
   label: string;
 }
 
+// Interface para dados iniciais (saldos, dados empresa, etc.)
+export interface SeedInitialData {
+  id?: string;
+  categoria: 'saldo_conta' | 'config_empresa' | 'quadro_pessoal' | 'observacoes';
+  chave: string;
+  valor: { [key: string]: string | number | boolean | null };
+  referencia_id?: string;
+  data_referencia?: string;
+  observacoes?: string;
+}
+
+// Interface para dados da empresa
+export interface CompanyData {
+  cnpj: string;
+  regime_tributario: 'SIMPLES' | 'LUCRO_PRESUMIDO' | 'LUCRO_REAL';
+  iss_aliquota: number;
+  data_inicio_atividades?: string;
+}
+
+// Interface para quadro de pessoal
+export interface StaffData {
+  funcionarios_clt: number;
+  socios_ativos: number;
+  observacoes?: string;
+}
+
+// Interface para saldo inicial de conta
+export interface AccountInitialBalance {
+  account_id: string;
+  account_name: string;
+  saldo: number;
+}
+
 export const SEED_PERIODS: SeedPeriod[] = [
   { ano: 2024, mes: 11, label: 'Nov/2024' },
   { ano: 2024, mes: 12, label: 'Dez/2024' },
@@ -345,4 +378,140 @@ export function useSeedProgress() {
     revenueComplete: revenueMonths === TOTAL_SEED_MONTHS,
     totalMonths: TOTAL_SEED_MONTHS,
   };
+}
+
+// Hook para buscar dados iniciais (seed_initial_data)
+export function useSeedInitialData() {
+  return useQuery({
+    queryKey: ['seed-initial-data'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('seed_initial_data')
+        .select('*')
+        .order('categoria');
+      
+      if (error) throw error;
+      return data as SeedInitialData[];
+    },
+  });
+}
+
+// Hook para salvar/atualizar dados iniciais
+export function useSaveSeedInitialData() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async (items: SeedInitialData[]) => {
+      const dataWithUser = items.map(item => ({
+        ...item,
+        created_by: item.id ? undefined : user?.id,
+        updated_by: user?.id,
+      }));
+
+      const { error } = await supabase
+        .from('seed_initial_data')
+        .upsert(dataWithUser, { onConflict: 'categoria,chave' });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['seed-initial-data'] });
+      toast.success('Dados iniciais salvos com sucesso!');
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao salvar dados: ${error.message}`);
+    },
+  });
+}
+
+// Hook para salvar saldos iniciais das contas (atualiza tabela accounts)
+export function useSaveAccountBalances() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (balances: { account_id: string; initial_balance: number }[]) => {
+      // Atualiza cada conta individualmente
+      for (const balance of balances) {
+        const { error } = await supabase
+          .from('accounts')
+          .update({ initial_balance: balance.initial_balance })
+          .eq('id', balance.account_id);
+        
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['accounts-seed'] });
+      toast.success('Saldos iniciais salvos com sucesso!');
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao salvar saldos: ${error.message}`);
+    },
+  });
+}
+
+// Hook para salvar dados da empresa (atualiza/cria tax_config)
+export function useSaveCompanyData() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (companyData: CompanyData) => {
+      // Primeiro tenta buscar se já existe um registro
+      const { data: existing } = await supabase
+        .from('tax_config')
+        .select('id')
+        .limit(1)
+        .single();
+
+      if (existing) {
+        // Atualiza o registro existente
+        const { error } = await supabase
+          .from('tax_config')
+          .update({
+            cnpj: companyData.cnpj,
+            regime_atual: companyData.regime_tributario,
+            iss_aliquota: companyData.iss_aliquota / 100, // Converte percentual para decimal
+          })
+          .eq('id', existing.id);
+        
+        if (error) throw error;
+      } else {
+        // Cria um novo registro
+        const { error } = await supabase
+          .from('tax_config')
+          .insert({
+            cnpj: companyData.cnpj,
+            regime_atual: companyData.regime_tributario,
+            iss_aliquota: companyData.iss_aliquota / 100,
+          });
+        
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tax-config'] });
+      toast.success('Dados da empresa salvos com sucesso!');
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao salvar dados: ${error.message}`);
+    },
+  });
+}
+
+// Hook para buscar tax_config
+export function useTaxConfig() {
+  return useQuery({
+    queryKey: ['tax-config'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('tax_config')
+        .select('*')
+        .limit(1)
+        .single();
+      
+      if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows
+      return data;
+    },
+  });
 }

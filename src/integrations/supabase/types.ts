@@ -371,6 +371,48 @@ export type Database = {
           },
         ]
       }
+      seed_initial_data: {
+        Row: {
+          categoria: string
+          chave: string
+          created_at: string | null
+          created_by: string | null
+          data_referencia: string | null
+          id: string
+          observacoes: string | null
+          referencia_id: string | null
+          updated_at: string | null
+          updated_by: string | null
+          valor: Json
+        }
+        Insert: {
+          categoria: string
+          chave: string
+          created_at?: string | null
+          created_by?: string | null
+          data_referencia?: string | null
+          id?: string
+          observacoes?: string | null
+          referencia_id?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+          valor: Json
+        }
+        Update: {
+          categoria?: string
+          chave?: string
+          created_at?: string | null
+          created_by?: string | null
+          data_referencia?: string | null
+          id?: string
+          observacoes?: string | null
+          referencia_id?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+          valor?: Json
+        }
+        Relationships: []
+      }
       seed_payroll: {
         Row: {
           ano: number
