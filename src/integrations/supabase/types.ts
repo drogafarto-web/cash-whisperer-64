@@ -270,6 +270,33 @@ export type Database = {
         }
         Relationships: []
       }
+      card_fee_config: {
+        Row: {
+          active: boolean
+          created_at: string
+          fee_percent: number
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          fee_percent?: number
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          fee_percent?: number
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       cash_closings: {
         Row: {
           account_id: string
@@ -953,6 +980,8 @@ export type Database = {
           amount: number
           approved_at: string | null
           approved_by: string | null
+          card_fee_percent: number | null
+          card_fee_value: number | null
           category_id: string
           competencia_ano: number | null
           competencia_mes: number | null
@@ -962,7 +991,15 @@ export type Database = {
           deleted_at: string | null
           deleted_by: string | null
           description: string | null
+          discount_approval_channel: string | null
+          discount_approved_at: string | null
+          discount_approved_by: string | null
+          discount_percent: number | null
+          discount_reason: string | null
+          discount_value: number | null
+          gross_amount: number | null
           id: string
+          lis_protocol_id: string | null
           partner_id: string | null
           payment_method: string
           rejection_reason: string | null
@@ -977,6 +1014,8 @@ export type Database = {
           amount: number
           approved_at?: string | null
           approved_by?: string | null
+          card_fee_percent?: number | null
+          card_fee_value?: number | null
           category_id: string
           competencia_ano?: number | null
           competencia_mes?: number | null
@@ -986,7 +1025,15 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           description?: string | null
+          discount_approval_channel?: string | null
+          discount_approved_at?: string | null
+          discount_approved_by?: string | null
+          discount_percent?: number | null
+          discount_reason?: string | null
+          discount_value?: number | null
+          gross_amount?: number | null
           id?: string
+          lis_protocol_id?: string | null
           partner_id?: string | null
           payment_method: string
           rejection_reason?: string | null
@@ -1001,6 +1048,8 @@ export type Database = {
           amount?: number
           approved_at?: string | null
           approved_by?: string | null
+          card_fee_percent?: number | null
+          card_fee_value?: number | null
           category_id?: string
           competencia_ano?: number | null
           competencia_mes?: number | null
@@ -1010,7 +1059,15 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           description?: string | null
+          discount_approval_channel?: string | null
+          discount_approved_at?: string | null
+          discount_approved_by?: string | null
+          discount_percent?: number | null
+          discount_reason?: string | null
+          discount_value?: number | null
+          gross_amount?: number | null
           id?: string
+          lis_protocol_id?: string | null
           partner_id?: string | null
           payment_method?: string
           rejection_reason?: string | null
