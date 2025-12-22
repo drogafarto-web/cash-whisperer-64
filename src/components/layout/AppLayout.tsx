@@ -34,6 +34,7 @@ import {
   TrendingUp,
   ShieldAlert,
   Cog,
+  Database,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AppRole } from '@/types/database';
@@ -129,6 +130,7 @@ const navigationGroups: NavGroup[] = [
     icon: ShieldAlert,
     badgeKey: 'riscoEstrategia',
     items: [
+      { name: 'Povoação 2025', href: '/settings/data-2025', icon: Database, roles: ['admin', 'contabilidade'] },
       { name: 'Real x Oficial', href: '/reports/personnel-real-vs-official', icon: Users, roles: ['admin'] },
       { name: 'Auditoria Fator R', href: '/settings/fator-r-audit', icon: Calculator, roles: ['admin', 'contabilidade'] },
       { name: 'Alertas', href: '/settings/alerts', icon: Bell, roles: ['admin'] },
