@@ -497,8 +497,8 @@ export default function BankStatementImport() {
                         </TableCell>
                         <TableCell>
                           <Select
-                            value={record.suggestedPartner?.id || ''}
-                            onValueChange={(value) => updateRecordPartner(record.id, value)}
+                            value={record.suggestedPartner?.id || 'none'}
+                            onValueChange={(value) => updateRecordPartner(record.id, value === 'none' ? '' : value)}
                           >
                             <SelectTrigger className="h-8 text-xs">
                               <SelectValue placeholder="Selecione...">
@@ -516,7 +516,7 @@ export default function BankStatementImport() {
                               </SelectValue>
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="">Nenhum</SelectItem>
+                              <SelectItem value="none">Nenhum</SelectItem>
                               {getFilteredPartners(record.type).map(p => (
                                 <SelectItem key={p.id} value={p.id}>
                                   <div className="flex items-center gap-1">
