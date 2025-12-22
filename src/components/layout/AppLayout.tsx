@@ -18,6 +18,7 @@ import {
   MapPin,
   FileBarChart,
   FileUp,
+  Handshake,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -74,6 +75,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     { name: 'Unidades', href: '/settings/units', icon: MapPin, adminOnly: true },
     { name: 'Contas', href: '/settings/accounts', icon: Building2, adminOnly: true },
     { name: 'Categorias', href: '/settings/categories', icon: Tags, adminOnly: true },
+    { name: 'Parceiros', href: '/settings/partners', icon: Handshake, adminOnly: true },
   ];
 
   const filteredNav = navigation.filter(item => !item.adminOnly || isAdmin);
