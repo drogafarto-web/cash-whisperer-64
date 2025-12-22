@@ -35,7 +35,12 @@ import { UnitSelector } from '@/components/UnitSelector';
 import { supabase } from '@/integrations/supabase/client';
 import { Account, AccountType, Unit } from '@/types/database';
 import { toast } from 'sonner';
-import { Plus, Loader2, Pencil, Building2 } from 'lucide-react';
+import { Plus, Loader2, Pencil, Building2, AlertTriangle } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 export default function AccountsSettings() {
   const navigate = useNavigate();
@@ -295,15 +300,30 @@ export default function AccountsSettings() {
                   </TableRow>
                 ) : (
                   accounts.map(account => (
-                    <TableRow key={account.id}>
+                    <TableRow key={account.id} className={!account.unit_id ? 'bg-yellow-500/5' : ''}>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           <Building2 className="w-4 h-4 text-muted-foreground" />
                           {account.name}
                         </div>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {account.unit?.name || '—'}
+                      <TableCell>
+                        {account.unit?.name ? (
+                          <span className="text-muted-foreground">{account.unit.name}</span>
+                        ) : (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant="outline" className="border-yellow-500 text-yellow-600 gap-1">
+                                <AlertTriangle className="w-3 h-3" />
+                                Sem unidade
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Contas sem unidade não funcionam no fechamento de caixa.</p>
+                              <p>Clique em editar para vincular a uma unidade.</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
                       </TableCell>
                       <TableCell>
                         {getAccountTypeBadge(account.type || 'CAIXA')}
