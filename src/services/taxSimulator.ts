@@ -612,3 +612,98 @@ export const DEFAULT_TAX_CONFIG: TaxConfig = {
   regime_atual: 'SIMPLES',
   iss_aliquota: 0.05,
 };
+
+// ==================== FATOR R ALERT FUNCTIONS ====================
+
+export type FatorRStatus = 'ABAIXO' | 'MARGEM' | 'SEGURO';
+
+export interface ProlaboreAdjustment {
+  ajusteNecessario: number;
+  ajusteMensal: number;
+  fatorRAtual: number;
+  fatorRProjetado: number;
+  status: FatorRStatus;
+  folhaAtual: number;
+  folhaNecessaria: number;
+}
+
+export interface AnexoSavings {
+  economiaMensal: number;
+  economiaAnual: number;
+  aliquotaAnexo3: number;
+  aliquotaAnexo5: number;
+  impostoAnexo3: number;
+  impostoAnexo5: number;
+}
+
+/**
+ * Calcula o ajuste necessário no pró-labore para atingir o Fator R desejado (28%)
+ * 
+ * Fórmula:
+ * Fator R = Folha12 / RBT12
+ * Para Fator R = 0.28:
+ *   0.28 = (Folha12 + Ajuste) / RBT12
+ *   Ajuste = (0.28 × RBT12) - Folha12
+ */
+export function calculateProlaboreAdjustment(
+  folha12: number,
+  rbt12: number,
+  targetFatorR: number = 0.28
+): ProlaboreAdjustment {
+  const fatorRAtual = rbt12 > 0 ? folha12 / rbt12 : 0;
+  
+  // Folha necessária para atingir target
+  const folhaNecessaria = rbt12 * targetFatorR;
+  const ajusteNecessario = Math.max(0, folhaNecessaria - folha12);
+  const ajusteMensal = ajusteNecessario / 12;
+  
+  // Determinar status
+  let status: FatorRStatus;
+  if (fatorRAtual < 0.25) {
+    status = 'ABAIXO'; // Muito abaixo, risco alto
+  } else if (fatorRAtual < 0.28) {
+    status = 'MARGEM'; // Próximo do limite, precisa atenção
+  } else {
+    status = 'SEGURO'; // Confortável acima de 28%
+  }
+  
+  return {
+    ajusteNecessario,
+    ajusteMensal,
+    fatorRAtual,
+    fatorRProjetado: targetFatorR,
+    status,
+    folhaAtual: folha12,
+    folhaNecessaria,
+  };
+}
+
+/**
+ * Calcula a economia ao manter-se no Anexo III vs cair para Anexo V
+ */
+export function calculateAnexoSavings(
+  receitaMensal: number,
+  rbt12: number,
+  taxParameters: TaxParameters
+): AnexoSavings {
+  // Calcular alíquota no Anexo III
+  const aliquotaAnexo3 = calculateAliquotaEfetivaSimples(rbt12, taxParameters.simples_anexo3_faixas);
+  const impostoAnexo3 = receitaMensal * aliquotaAnexo3;
+  
+  // Calcular alíquota no Anexo V
+  const aliquotaAnexo5 = calculateAliquotaEfetivaSimples(rbt12, taxParameters.simples_anexo5_faixas);
+  const impostoAnexo5 = receitaMensal * aliquotaAnexo5;
+  
+  // Economia mensal
+  const economiaMensal = impostoAnexo5 - impostoAnexo3;
+  const economiaAnual = economiaMensal * 12;
+  
+  return {
+    economiaMensal,
+    economiaAnual,
+    aliquotaAnexo3,
+    aliquotaAnexo5,
+    impostoAnexo3,
+    impostoAnexo5,
+  };
+}
