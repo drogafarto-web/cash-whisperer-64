@@ -58,6 +58,39 @@ export type Database = {
           },
         ]
       }
+      alert_preferences: {
+        Row: {
+          created_at: string | null
+          email_fator_r_alerta: boolean | null
+          email_fator_r_critico: boolean | null
+          frequencia: string | null
+          id: string
+          limite_alerta_preventivo: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email_fator_r_alerta?: boolean | null
+          email_fator_r_critico?: boolean | null
+          frequencia?: string | null
+          id?: string
+          limite_alerta_preventivo?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          email_fator_r_alerta?: boolean | null
+          email_fator_r_critico?: boolean | null
+          frequencia?: string | null
+          id?: string
+          limite_alerta_preventivo?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       cash_closings: {
         Row: {
           account_id: string
@@ -188,6 +221,56 @@ export type Database = {
             columns: ["transaction_id"]
             isOneToOne: false
             referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fator_r_alerts: {
+        Row: {
+          ajuste_sugerido: number | null
+          created_at: string | null
+          economia_potencial: number | null
+          email_enviado: boolean | null
+          email_enviado_em: string | null
+          fator_r_anterior: number | null
+          fator_r_atual: number
+          id: string
+          tipo_alerta: string
+          unit_id: string | null
+          user_id: string
+        }
+        Insert: {
+          ajuste_sugerido?: number | null
+          created_at?: string | null
+          economia_potencial?: number | null
+          email_enviado?: boolean | null
+          email_enviado_em?: string | null
+          fator_r_anterior?: number | null
+          fator_r_atual: number
+          id?: string
+          tipo_alerta: string
+          unit_id?: string | null
+          user_id: string
+        }
+        Update: {
+          ajuste_sugerido?: number | null
+          created_at?: string | null
+          economia_potencial?: number | null
+          email_enviado?: boolean | null
+          email_enviado_em?: string | null
+          fator_r_anterior?: number | null
+          fator_r_atual?: number
+          id?: string
+          tipo_alerta?: string
+          unit_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fator_r_alerts_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
             referencedColumns: ["id"]
           },
         ]
