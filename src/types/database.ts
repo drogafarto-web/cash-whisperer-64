@@ -59,6 +59,7 @@ export interface Category {
   tax_group: TaxGroup | null;
   recurrence_type: RecurrenceType | null;
   active: boolean;
+  entra_fator_r: boolean;
   created_at: string;
 }
 
