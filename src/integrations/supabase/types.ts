@@ -122,6 +122,7 @@ export type Database = {
           description: string | null
           entra_fator_r: boolean | null
           id: string
+          is_informal: boolean | null
           name: string
           recurrence_type: string | null
           tax_group: string | null
@@ -133,6 +134,7 @@ export type Database = {
           description?: string | null
           entra_fator_r?: boolean | null
           id?: string
+          is_informal?: boolean | null
           name: string
           recurrence_type?: string | null
           tax_group?: string | null
@@ -144,6 +146,7 @@ export type Database = {
           description?: string | null
           entra_fator_r?: boolean | null
           id?: string
+          is_informal?: boolean | null
           name?: string
           recurrence_type?: string | null
           tax_group?: string | null

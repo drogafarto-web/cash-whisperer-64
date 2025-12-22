@@ -60,7 +60,30 @@ export interface Category {
   recurrence_type: RecurrenceType | null;
   active: boolean;
   entra_fator_r: boolean;
+  is_informal: boolean;
   created_at: string;
+}
+
+// Tipos para simulação de regularização de pagamentos informais
+export interface RegularizationSimulation {
+  percentualRegularizacao: number;
+  folhaOficial: number;
+  pagamentosInformais: number;
+  folhaSimulada: number; // oficial + (informal * %)
+  fatorRAtual: number;
+  fatorRSimulado: number;
+  custoAdicionalEncargos: number;
+  economiaImposto: number;
+  resultadoLiquido: number;
+}
+
+export interface PersonnelCostSummary {
+  funcionario: string;
+  partnerId: string | null;
+  salarioOficial: number;
+  pagamentosInformais: number;
+  custoTotal: number;
+  percentualInformal: number;
 }
 
 export type TransactionStatus = 'PENDENTE' | 'APROVADO' | 'REJEITADO';
