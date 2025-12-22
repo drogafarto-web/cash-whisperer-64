@@ -22,16 +22,25 @@ import {
   Calculator,
   Settings,
   Bell,
+  ChevronDown,
+  FileText,
+  Wallet,
+  TrendingUp,
+  ShieldAlert,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { AppRole } from '@/types/database';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 
 interface AppLayoutProps {
   children: ReactNode;
 }
 
-// Configuração de navegação com papéis permitidos
 interface NavItem {
   name: string;
   href: string;
@@ -39,24 +48,74 @@ interface NavItem {
   roles: AppRole[];
 }
 
-const navigation: NavItem[] = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'secretaria', 'gestor_unidade'] },
-  { name: 'Transações', href: '/transactions', icon: Receipt, roles: ['admin', 'secretaria', 'contabilidade', 'gestor_unidade'] },
-  { name: 'Fechamento de Caixa', href: '/cash-closing', icon: DollarSign, roles: ['admin', 'secretaria', 'gestor_unidade'] },
-  { name: 'Importar LIS', href: '/import/daily-movement', icon: FileUp, roles: ['admin', 'secretaria', 'gestor_unidade'] },
-  { name: 'Importar Extrato', href: '/import/bank-statement', icon: FileUp, roles: ['admin', 'secretaria', 'gestor_unidade'] },
-  { name: 'Rel. Fechamentos', href: '/reports/cash-closings', icon: FileBarChart, roles: ['admin', 'contabilidade', 'gestor_unidade'] },
-  { name: 'Rel. Transações', href: '/reports/transactions', icon: FileBarChart, roles: ['admin', 'contabilidade', 'gestor_unidade'] },
-  { name: 'Cenários Tributários', href: '/reports/tax-scenarios', icon: Calculator, roles: ['admin', 'contabilidade'] },
-  { name: 'Real x Oficial', href: '/reports/personnel-real-vs-official', icon: Users, roles: ['admin'] },
-  { name: 'Auditoria Fator R', href: '/settings/fator-r-audit', icon: Calculator, roles: ['admin', 'contabilidade'] },
-  { name: 'Config. Tributária', href: '/settings/tax-config', icon: Settings, roles: ['admin'] },
-  { name: 'Usuários', href: '/settings/users', icon: Users, roles: ['admin'] },
-  { name: 'Unidades', href: '/settings/units', icon: MapPin, roles: ['admin'] },
-  { name: 'Contas', href: '/settings/accounts', icon: Building2, roles: ['admin'] },
-  { name: 'Categorias', href: '/settings/categories', icon: Tags, roles: ['admin'] },
-  { name: 'Parceiros', href: '/settings/partners', icon: Handshake, roles: ['admin'] },
-  { name: 'Alertas', href: '/settings/alerts', icon: Bell, roles: ['admin'] },
+interface NavGroup {
+  id: string;
+  name: string;
+  icon: React.ElementType;
+  items: NavItem[];
+}
+
+// Navegação organizada por objetivos estratégicos
+const navigationGroups: NavGroup[] = [
+  {
+    id: 'overview',
+    name: 'Visão Geral',
+    icon: LayoutDashboard,
+    items: [
+      { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'secretaria', 'gestor_unidade'] },
+    ],
+  },
+  {
+    id: 'prestacao-contas',
+    name: 'Prestação de Contas',
+    icon: FileText,
+    items: [
+      { name: 'Rel. Fechamentos', href: '/reports/cash-closings', icon: FileBarChart, roles: ['admin', 'contabilidade', 'gestor_unidade'] },
+      { name: 'Rel. Transações', href: '/reports/transactions', icon: FileBarChart, roles: ['admin', 'contabilidade', 'gestor_unidade'] },
+    ],
+  },
+  {
+    id: 'caixa-unidades',
+    name: 'Caixa & Unidades',
+    icon: Wallet,
+    items: [
+      { name: 'Fechamento de Caixa', href: '/cash-closing', icon: DollarSign, roles: ['admin', 'secretaria', 'gestor_unidade'] },
+      { name: 'Transações', href: '/transactions', icon: Receipt, roles: ['admin', 'secretaria', 'contabilidade', 'gestor_unidade'] },
+      { name: 'Importar LIS', href: '/import/daily-movement', icon: FileUp, roles: ['admin', 'secretaria', 'gestor_unidade'] },
+      { name: 'Importar Extrato', href: '/import/bank-statement', icon: FileUp, roles: ['admin', 'secretaria', 'gestor_unidade'] },
+      { name: 'Unidades', href: '/settings/units', icon: MapPin, roles: ['admin'] },
+      { name: 'Contas', href: '/settings/accounts', icon: Building2, roles: ['admin'] },
+    ],
+  },
+  {
+    id: 'tributacao-cenarios',
+    name: 'Tributação & Cenários',
+    icon: Calculator,
+    items: [
+      { name: 'Cenários Tributários', href: '/reports/tax-scenarios', icon: Calculator, roles: ['admin', 'contabilidade'] },
+      { name: 'Config. Tributária', href: '/settings/tax-config', icon: Settings, roles: ['admin'] },
+    ],
+  },
+  {
+    id: 'lucratividade',
+    name: 'Lucratividade & Custos',
+    icon: TrendingUp,
+    items: [
+      { name: 'Categorias', href: '/settings/categories', icon: Tags, roles: ['admin'] },
+      { name: 'Parceiros', href: '/settings/partners', icon: Handshake, roles: ['admin'] },
+    ],
+  },
+  {
+    id: 'risco-estrategia',
+    name: 'Risco & Estratégia',
+    icon: ShieldAlert,
+    items: [
+      { name: 'Real x Oficial', href: '/reports/personnel-real-vs-official', icon: Users, roles: ['admin'] },
+      { name: 'Auditoria Fator R', href: '/settings/fator-r-audit', icon: Calculator, roles: ['admin', 'contabilidade'] },
+      { name: 'Alertas', href: '/settings/alerts', icon: Bell, roles: ['admin'] },
+      { name: 'Usuários', href: '/settings/users', icon: Users, roles: ['admin'] },
+    ],
+  },
 ];
 
 // Labels amigáveis para os papéis
@@ -73,6 +132,22 @@ export function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [hasTodayCashClosing, setHasTodayCashClosing] = useState<boolean | null>(null);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+
+  // Inicializa grupos abertos baseado na rota atual
+  useEffect(() => {
+    const currentPath = location.pathname;
+    const initialOpen: Record<string, boolean> = {};
+    
+    navigationGroups.forEach(group => {
+      const hasActiveItem = group.items.some(item => currentPath === item.href);
+      if (hasActiveItem) {
+        initialOpen[group.id] = true;
+      }
+    });
+    
+    setOpenGroups(prev => ({ ...prev, ...initialOpen }));
+  }, [location.pathname]);
 
   // Verificar se existe fechamento de caixa para hoje
   useEffect(() => {
@@ -84,7 +159,6 @@ export function AppLayout({ children }: AppLayoutProps) {
         .select('id')
         .eq('date', today);
       
-      // Se não for admin e tiver unidade, filtra pela unidade
       if (!isAdmin && unit?.id) {
         query = query.eq('unit_id', unit.id);
       }
@@ -104,11 +178,17 @@ export function AppLayout({ children }: AppLayoutProps) {
     navigate('/auth');
   };
 
-  // Filtra navegação baseado no papel do usuário
-  const filteredNav = navigation.filter(item => {
-    if (!role) return false;
-    return item.roles.includes(role);
-  });
+  const toggleGroup = (groupId: string) => {
+    setOpenGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }));
+  };
+
+  // Filtra grupos e itens baseado no papel do usuário
+  const filteredGroups = navigationGroups
+    .map(group => ({
+      ...group,
+      items: group.items.filter(item => role && item.roles.includes(role)),
+    }))
+    .filter(group => group.items.length > 0);
 
   return (
     <div className="min-h-screen bg-background">
@@ -143,32 +223,97 @@ export function AppLayout({ children }: AppLayoutProps) {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-            {filteredNav.map((item) => {
-              const isActive = location.pathname === item.href;
-              const showPendingBadge = item.href === '/cash-closing' && hasTodayCashClosing === false;
-              
+          <nav className="flex-1 px-3 py-4 space-y-2 overflow-y-auto">
+            {filteredGroups.map((group) => {
+              const isGroupOpen = openGroups[group.id] ?? false;
+              const hasActiveItem = group.items.some(item => location.pathname === item.href);
+              const GroupIcon = group.icon;
+
+              // Se o grupo tem apenas 1 item, renderiza diretamente sem collapsible
+              if (group.items.length === 1) {
+                const item = group.items[0];
+                const isActive = location.pathname === item.href;
+                const showPendingBadge = item.href === '/cash-closing' && hasTodayCashClosing === false;
+
+                return (
+                  <Link
+                    key={group.id}
+                    to={item.href}
+                    onClick={() => setSidebarOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                        : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+                    )}
+                  >
+                    <item.icon className="w-5 h-5" />
+                    <span className="flex-1">{item.name}</span>
+                    {showPendingBadge && (
+                      <Badge variant="destructive" className="text-xs px-1.5 py-0.5">
+                        <AlertCircle className="w-3 h-3 mr-1" />
+                        Pendente
+                      </Badge>
+                    )}
+                  </Link>
+                );
+              }
+
               return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  onClick={() => setSidebarOpen(false)}
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-                    isActive
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                      : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
-                  )}
+                <Collapsible
+                  key={group.id}
+                  open={isGroupOpen || hasActiveItem}
+                  onOpenChange={() => toggleGroup(group.id)}
                 >
-                  <item.icon className="w-5 h-5" />
-                  <span className="flex-1">{item.name}</span>
-                  {showPendingBadge && (
-                    <Badge variant="destructive" className="text-xs px-1.5 py-0.5">
-                      <AlertCircle className="w-3 h-3 mr-1" />
-                      Pendente
-                    </Badge>
-                  )}
-                </Link>
+                  <CollapsibleTrigger className="w-full">
+                    <div
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                        hasActiveItem
+                          ? "text-sidebar-foreground"
+                          : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+                      )}
+                    >
+                      <GroupIcon className="w-5 h-5" />
+                      <span className="flex-1 text-left">{group.name}</span>
+                      <ChevronDown
+                        className={cn(
+                          "w-4 h-4 transition-transform duration-200",
+                          (isGroupOpen || hasActiveItem) && "rotate-180"
+                        )}
+                      />
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pl-4 mt-1 space-y-1">
+                    {group.items.map((item) => {
+                      const isActive = location.pathname === item.href;
+                      const showPendingBadge = item.href === '/cash-closing' && hasTodayCashClosing === false;
+
+                      return (
+                        <Link
+                          key={item.name}
+                          to={item.href}
+                          onClick={() => setSidebarOpen(false)}
+                          className={cn(
+                            "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
+                            isActive
+                              ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                              : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+                          )}
+                        >
+                          <item.icon className="w-4 h-4" />
+                          <span className="flex-1">{item.name}</span>
+                          {showPendingBadge && (
+                            <Badge variant="destructive" className="text-xs px-1.5 py-0.5">
+                              <AlertCircle className="w-3 h-3 mr-1" />
+                              Pendente
+                            </Badge>
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </CollapsibleContent>
+                </Collapsible>
               );
             })}
           </nav>
