@@ -5,6 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useBadgeCounts } from '@/hooks/useBadgeCounts';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   LayoutDashboard,
   Receipt,
   DollarSign,
@@ -36,6 +42,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+
+// Tooltips explicativos para cada badge
+const BADGE_TOOLTIPS: Record<string, string> = {
+  caixaUnidades: 'unidade(s) sem fechamento de caixa hoje',
+  lucratividade: 'categoria(s) sem grupo tributário definido',
+  riscoEstrategia: 'alerta(s) de risco ativo(s)',
+  tributacao: 'unidade(s) sem configuração tributária',
+};
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -251,13 +265,22 @@ export function AppLayout({ children }: AppLayoutProps) {
                     >
                       <GroupIcon className="w-5 h-5" />
                       <span className="flex-1 text-left">{group.name}</span>
-                      {groupBadgeCount > 0 && (
-                        <Badge 
-                          variant={group.badgeKey === 'caixaUnidades' || group.badgeKey === 'riscoEstrategia' ? 'destructive' : 'secondary'} 
-                          className="text-xs px-1.5 py-0.5 mr-1"
-                        >
-                          {groupBadgeCount}
-                        </Badge>
+                      {groupBadgeCount > 0 && group.badgeKey && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge 
+                                variant={group.badgeKey === 'caixaUnidades' || group.badgeKey === 'riscoEstrategia' ? 'destructive' : 'secondary'} 
+                                className="text-xs px-1.5 py-0.5 mr-1 cursor-help"
+                              >
+                                {groupBadgeCount}
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent side="right" className="max-w-xs">
+                              <p>{groupBadgeCount} {BADGE_TOOLTIPS[group.badgeKey]}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       )}
                       <ChevronDown
                         className={cn(
