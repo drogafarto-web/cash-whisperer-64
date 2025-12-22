@@ -20,7 +20,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   Legend,
   ResponsiveContainer,
 } from 'recharts';
@@ -33,7 +33,9 @@ import {
   Info,
   CheckCircle,
   Users,
+  HelpCircle,
 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Unit } from '@/types/database';
 import {
   runTaxSimulation,
@@ -60,6 +62,8 @@ import {
   RegularizationResult,
 } from '@/services/regularizationSimulator';
 import { FatorRAlert } from '@/components/alerts/FatorRAlert';
+import { FatorREducationalCard } from '@/components/tax/FatorREducationalCard';
+import { OptimizationTargetsCard } from '@/components/tax/OptimizationTargetsCard';
 
 // Tipo estendido para incluir dados de folha informal
 interface ExtendedTaxSimulationOutput extends TaxSimulationOutput {
@@ -563,22 +567,63 @@ export default function TaxScenarios() {
           </div>
         </div>
 
-        {/* Fator R Badge and Alert */}
+        {/* Fator R Badge and Alert with Tooltips */}
         {simulationResult && (
           <>
             <div className="flex flex-wrap items-center gap-4">
-              <Badge
-                variant={simulationResult.fatorR >= 0.28 ? 'default' : 'destructive'}
-                className="text-sm px-3 py-1"
-              >
-                Fator R: {(simulationResult.fatorR * 100).toFixed(1)}%
-              </Badge>
-              <Badge variant="outline" className="text-sm px-3 py-1">
-                Anexo {simulationResult.anexoSimples}
-              </Badge>
-              <Badge variant="secondary" className="text-sm px-3 py-1">
-                Receita: {formatCurrency(simulationResult.receitaTotal)}
-              </Badge>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge
+                      variant={simulationResult.fatorR >= 0.28 ? 'default' : 'destructive'}
+                      className="text-sm px-3 py-1 cursor-help"
+                    >
+                      Fator R: {(simulationResult.fatorR * 100).toFixed(1)}%
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p className="font-semibold mb-1">Fator R = Folha 12m ÷ Receita 12m</p>
+                    <p className="text-xs">
+                      {simulationResult.fatorR >= 0.28 
+                        ? '✓ Acima de 28%, você está no Anexo III com alíquotas menores'
+                        : '⚠ Abaixo de 28%, você está no Anexo V com alíquotas maiores. Considere aumentar o pró-labore.'}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="text-sm px-3 py-1 cursor-help">
+                      Anexo {simulationResult.anexoSimples}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p className="font-semibold mb-1">
+                      {simulationResult.anexoSimples === 'III' ? 'Anexo III - Mais Econômico' : 'Anexo V - Mais Caro'}
+                    </p>
+                    <p className="text-xs">
+                      {simulationResult.anexoSimples === 'III' 
+                        ? 'Alíquotas iniciais em torno de 6%. Você está aproveitando o benefício do Fator R ≥ 28%.'
+                        : 'Alíquotas iniciais em torno de 15,5%. Para migrar ao Anexo III, aumente o Fator R para ≥ 28%.'}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="secondary" className="text-sm px-3 py-1 cursor-help">
+                      Receita: {formatCurrency(simulationResult.receitaTotal)}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Receita bruta do mês selecionado (serviços + outras)</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
 
             {/* Fator R Alert Card when below threshold */}
@@ -609,6 +654,25 @@ export default function TaxScenarios() {
           </div>
         ) : simulationResult ? (
           <>
+            {/* Card Educativo sobre Fator R */}
+            <FatorREducationalCard 
+              fatorRAtual={simulationResult.fatorR} 
+              anexoAtual={simulationResult.anexoSimples} 
+            />
+
+            {/* Card de Alvos de Otimização */}
+            {taxParameters && (
+              <OptimizationTargetsCard
+                fatorR={simulationResult.fatorR}
+                rbt12={simulationResult.cenarios.find(c => c.regime === 'SIMPLES')?.detalhes.rbt12 || 0}
+                folha12={simulationResult.folhaOficial12}
+                receitaMensal={simulationResult.receitaTotal}
+                taxParameters={taxParameters}
+                cenarios={simulationResult.cenarios}
+                regimeAtual={taxConfig?.regime_atual || 'SIMPLES'}
+              />
+            )}
+
             {/* Bloco de Resumo: Folha Oficial / Informal / Total */}
             {simulationResult.folhaInformal12 > 0 && (
               <Card className="border-yellow-500/50 bg-yellow-500/5">
@@ -948,7 +1012,7 @@ export default function TaxScenarios() {
                         className="text-xs"
                         domain={[0, 'auto']}
                       />
-                      <Tooltip
+                      <RechartsTooltip
                         formatter={(value: number) => [`${value.toFixed(2)}%`, '']}
                         labelFormatter={(label) => `Mês: ${label}`}
                       />
@@ -1008,7 +1072,7 @@ export default function TaxScenarios() {
                       tickFormatter={(v) => formatCurrency(v).replace('R$', '')}
                       className="text-xs"
                     />
-                    <Tooltip
+                    <RechartsTooltip
                       formatter={(value: number) => [formatCurrency(value), 'Imposto']}
                       labelFormatter={(label) => `Regime: ${label}`}
                     />
