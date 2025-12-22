@@ -34,6 +34,7 @@ import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 import { DashboardFilters, PeriodType, ViewLevel } from '@/components/dashboard/DashboardFilters';
+import { DashboardCard } from '@/components/dashboard/DashboardCard';
 import { StatusBadge, getMarginLevel, getFatorRLevel, getCashDifferenceLevel } from '@/components/dashboard/StatusBadge';
 import { GaugeChart } from '@/components/dashboard/GaugeChart';
 import {
@@ -56,6 +57,24 @@ const THRESHOLDS = {
   margemLiquidaAtencao: 0.10,
   diferencaCaixaToleravel: 50,
   percentualInformalAlerta: 0.10,
+};
+
+// Tooltips explicativos para termos técnicos
+const TOOLTIPS = {
+  resultado: "Resultado operacional = Receitas - Custos no período selecionado. A margem líquida indica a saúde financeira do negócio.",
+  margemLiquida: "Margem Líquida = (Receita - Custos) / Receita. Verde: >15% (saudável), Amarelo: 10-15% (atenção), Vermelho: <10% (problema).",
+  caixa: "Compara o saldo esperado (sistema) com o saldo físico (contagem real). Diferenças exigem conferência de envelope/fechamento.",
+  fatorR: "Fator R = Folha de Pagamentos (12 meses) ÷ Receita Bruta (12 meses). Determina se a empresa fica no Anexo III (menor imposto) ou Anexo V (maior imposto).",
+  anexoIII: "Anexo III: Alíquotas menores do Simples Nacional. A empresa se enquadra quando o Fator R é ≥28%.",
+  anexoV: "Anexo V: Alíquotas maiores do Simples Nacional. A empresa fica neste anexo quando o Fator R é <28%.",
+  folhaInformal: "Pagamentos 'por fora' que não constam na folha oficial. Representam risco trabalhista, fiscal e não contam para o cálculo do Fator R.",
+  simples: "Simples Nacional: Regime tributário simplificado para micro e pequenas empresas com faturamento até R$ 4,8 milhões/ano.",
+  presumido: "Lucro Presumido: Regime onde a base de cálculo é presumida (32% para serviços). Indicado para empresas com margens altas.",
+  real: "Lucro Real: Regime onde o imposto é calculado sobre o lucro efetivo. Indicado para empresas com margens baixas ou prejuízo.",
+  cbsIbs: "CBS (Contribuição sobre Bens e Serviços) e IBS (Imposto sobre Bens e Serviços): Novos tributos da Reforma Tributária que substituirão PIS, COFINS, ICMS, ISS e IPI a partir de 2027.",
+  dependencia: "Concentração de receita em poucos clientes/convênios. Representa risco caso algum cliente deixe de pagar ou encerre o contrato.",
+  lucratividade: "Resultado por unidade = Receitas da unidade - Custos da unidade. Ajuda a identificar unidades rentáveis e deficitárias.",
+  cenariosTributarios: "Comparativo de carga tributária anual estimada para cada regime fiscal (Simples, Presumido, Real, CBS/IBS).",
 };
 
 interface Unit {
@@ -597,211 +616,189 @@ export default function Dashboard() {
         {/* Fila 1: Cards Principais */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           {/* Card 1: Resultado e Prestação de Contas */}
-          <Card className={`border-l-4 ${margemLevel === 'success' ? 'border-l-success' : margemLevel === 'warning' ? 'border-l-warning' : 'border-l-destructive'}`}>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4" />
-                  Resultado
-                </CardTitle>
-                <StatusBadge level={margemLevel}>
-                  {(margemPercent * 100).toFixed(1)}% margem
-                </StatusBadge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <p className={`text-2xl font-bold ${resultado.margem >= 0 ? 'text-success' : 'text-destructive'}`}>
-                {formatCurrency(resultado.margem)}
-              </p>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                {resultado.variacaoPercent !== 0 && (
-                  <span className={`flex items-center gap-1 ${resultado.variacaoPercent > 0 ? 'text-success' : 'text-destructive'}`}>
-                    {resultado.variacaoPercent > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                    {resultado.variacaoPercent > 0 ? '+' : ''}{resultado.variacaoPercent.toFixed(1)}% vs período anterior
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Receita: {formatCurrency(resultado.receita)} | Custos: {formatCurrency(resultado.custos)}
-              </p>
-              <Link to="/reports/transactions" className="inline-flex items-center text-xs text-primary hover:underline">
-                Ver relatório detalhado <ChevronRight className="h-3 w-3" />
-              </Link>
-            </CardContent>
-          </Card>
+          <DashboardCard
+            title="Resultado"
+            subtitle={(margemPercent * 100).toFixed(1) + '% margem'}
+            icon={TrendingUp}
+            status={margemLevel}
+            value={resultado.margem}
+            valuePrefix="R$ "
+            tooltip={TOOLTIPS.resultado}
+            linkTo="/reports/transactions"
+            linkLabel="Ver relatório detalhado"
+          >
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              {resultado.variacaoPercent !== 0 && (
+                <span className={`flex items-center gap-1 ${resultado.variacaoPercent > 0 ? 'text-success' : 'text-destructive'}`}>
+                  {resultado.variacaoPercent > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                  {resultado.variacaoPercent > 0 ? '+' : ''}{resultado.variacaoPercent.toFixed(1)}% vs período anterior
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Receita: {formatCurrency(resultado.receita)} | Custos: {formatCurrency(resultado.custos)}
+            </p>
+          </DashboardCard>
 
           {/* Card 2: Caixa & Extratos por Unidade */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Wallet className="h-4 w-4" />
-                Caixa por Unidade
-                <TooltipProvider>
-                  <UITooltip>
-                    <TooltipTrigger>
-                      <HelpCircle className="h-3 w-3 text-muted-foreground/50" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="text-xs">Último fechamento de caixa por unidade</p>
-                    </TooltipContent>
-                  </UITooltip>
-                </TooltipProvider>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {cashClosings.length > 0 ? (
-                <div className="space-y-1">
-                  <div className="grid grid-cols-4 gap-1 text-xs font-medium text-muted-foreground pb-1 border-b">
-                    <span>Unidade</span>
-                    <span className="text-right">Sistema</span>
-                    <span className="text-right">Físico</span>
-                    <span className="text-right">Dif.</span>
-                  </div>
-                  {cashClosings.slice(0, 4).map((c) => {
-                    const diffLevel = getCashDifferenceLevel(c.difference, THRESHOLDS.diferencaCaixaToleravel);
-                    return (
-                      <div key={c.unit_id || 'sem'} className="grid grid-cols-4 gap-1 text-xs py-1">
-                        <span className="truncate">{c.unit_name}</span>
-                        <span className="text-right">{formatCurrency(c.expected_balance)}</span>
-                        <span className="text-right">{formatCurrency(c.actual_balance)}</span>
-                        <span className={`text-right font-medium ${diffLevel === 'success' ? 'text-success' : diffLevel === 'warning' ? 'text-warning' : 'text-destructive'}`}>
-                          {formatCurrency(c.difference)}
-                        </span>
-                      </div>
-                    );
-                  })}
+          <DashboardCard
+            title="Caixa por Unidade"
+            icon={Wallet}
+            tooltip={TOOLTIPS.caixa}
+            linkTo="/cash-closing"
+            linkLabel="Ver fechamentos"
+          >
+            {cashClosings.length > 0 ? (
+              <div className="space-y-1">
+                <div className="grid grid-cols-4 gap-1 text-xs font-medium text-muted-foreground pb-1 border-b">
+                  <span>Unidade</span>
+                  <span className="text-right">Sistema</span>
+                  <span className="text-right">Físico</span>
+                  <span className="text-right">Dif.</span>
                 </div>
-              ) : (
-                <p className="text-xs text-muted-foreground">Nenhum fechamento registrado</p>
-              )}
-              <Link to="/cash-closing" className="inline-flex items-center text-xs text-primary hover:underline mt-2">
-                Ver fechamentos <ChevronRight className="h-3 w-3" />
-              </Link>
-            </CardContent>
-          </Card>
+                {cashClosings.slice(0, 4).map((c) => {
+                  const diffLevel = getCashDifferenceLevel(c.difference, THRESHOLDS.diferencaCaixaToleravel);
+                  return (
+                    <div key={c.unit_id || 'sem'} className="grid grid-cols-4 gap-1 text-xs py-1">
+                      <span className="truncate">{c.unit_name}</span>
+                      <span className="text-right">{formatCurrency(c.expected_balance)}</span>
+                      <span className="text-right">{formatCurrency(c.actual_balance)}</span>
+                      <span className={`text-right font-medium ${diffLevel === 'success' ? 'text-success' : diffLevel === 'warning' ? 'text-warning' : 'text-destructive'}`}>
+                        {formatCurrency(c.difference)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Nenhum fechamento registrado</p>
+            )}
+          </DashboardCard>
 
           {/* Card 3: Regime Tributário */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Calculator className="h-4 w-4" />
-                Cenários Tributários
-                <TooltipProvider>
-                  <UITooltip>
-                    <TooltipTrigger>
-                      <HelpCircle className="h-3 w-3 text-muted-foreground/50" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="text-xs">Carga tributária anual por regime</p>
-                    </TooltipContent>
-                  </UITooltip>
-                </TooltipProvider>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {taxScenarios.length > 0 ? (
-                <div className="space-y-2">
-                  {taxScenarios.map((scenario) => {
-                    const isLowest = scenario.carga === Math.min(...taxScenarios.map(s => s.carga));
-                    return (
-                      <div key={scenario.regime} className="flex items-center gap-2">
-                        <span className="text-xs w-20 truncate">{scenario.regime}</span>
-                        <div className="flex-1 h-4 bg-muted rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full rounded-full ${isLowest ? 'bg-success' : 'bg-primary/60'}`}
-                            style={{ width: `${Math.min(scenario.percentReceita * 3, 100)}%` }}
-                          />
-                        </div>
-                        <span className={`text-xs font-medium w-14 text-right ${isLowest ? 'text-success' : ''}`}>
-                          {scenario.percentReceita.toFixed(1)}%
-                        </span>
-                      </div>
-                    );
-                  })}
-                  {taxScenarios.length > 0 && (
-                    <p className="text-xs text-success font-medium mt-2">
-                      ✓ Melhor: {taxScenarios.reduce((a, b) => a.carga < b.carga ? a : b).regime}
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground">Sem dados para simulação</p>
-              )}
-              <Link to="/reports/tax-scenarios" className="inline-flex items-center text-xs text-primary hover:underline mt-2">
-                Abrir cenários <ChevronRight className="h-3 w-3" />
-              </Link>
-            </CardContent>
-          </Card>
+          <DashboardCard
+            title="Cenários Tributários"
+            icon={Calculator}
+            tooltip={TOOLTIPS.cenariosTributarios}
+            linkTo="/reports/tax-scenarios"
+            linkLabel="Abrir cenários"
+          >
+            {taxScenarios.length > 0 ? (
+              <div className="space-y-2">
+                {taxScenarios.map((scenario) => {
+                  const isLowest = scenario.carga === Math.min(...taxScenarios.map(s => s.carga));
+                  const regimeTooltip = scenario.regime === 'SIMPLES' ? TOOLTIPS.simples 
+                    : scenario.regime === 'PRESUMIDO' ? TOOLTIPS.presumido 
+                    : scenario.regime === 'REAL' ? TOOLTIPS.real 
+                    : TOOLTIPS.cbsIbs;
+                  return (
+                    <TooltipProvider key={scenario.regime}>
+                      <UITooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-2 cursor-help">
+                            <span className="text-xs w-20 truncate">{scenario.regime}</span>
+                            <div className="flex-1 h-4 bg-muted rounded-full overflow-hidden">
+                              <div 
+                                className={`h-full rounded-full ${isLowest ? 'bg-success' : 'bg-primary/60'}`}
+                                style={{ width: `${Math.min(scenario.percentReceita * 3, 100)}%` }}
+                              />
+                            </div>
+                            <span className={`text-xs font-medium w-14 text-right ${isLowest ? 'text-success' : ''}`}>
+                              {scenario.percentReceita.toFixed(1)}%
+                            </span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="text-xs">{regimeTooltip}</p>
+                        </TooltipContent>
+                      </UITooltip>
+                    </TooltipProvider>
+                  );
+                })}
+                {taxScenarios.length > 0 && (
+                  <p className="text-xs text-success font-medium mt-2">
+                    ✓ Melhor: {taxScenarios.reduce((a, b) => a.carga < b.carga ? a : b).regime}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Sem dados para simulação</p>
+            )}
+          </DashboardCard>
 
           {/* Card 4: Fator R & Folha */}
-          <Card className={`border-l-4 ${fatorRData ? (getFatorRLevel(fatorRData.fatorR) === 'success' ? 'border-l-success' : getFatorRLevel(fatorRData.fatorR) === 'warning' ? 'border-l-warning' : 'border-l-destructive') : 'border-l-border'}`}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Fator R & Folha
-                <TooltipProvider>
-                  <UITooltip>
-                    <TooltipTrigger>
-                      <HelpCircle className="h-3 w-3 text-muted-foreground/50" />
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      <p className="text-xs">Fator R = Folha ÷ Receita (12m). ≥28% = Anexo III (menor imposto)</p>
-                    </TooltipContent>
-                  </UITooltip>
-                </TooltipProvider>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {fatorRData ? (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <GaugeChart
-                      value={fatorRData.fatorR}
-                      min={0}
-                      max={0.5}
-                      targetLine={THRESHOLDS.fatorRMinimo}
-                      size={120}
-                    />
-                    <div className="text-right">
-                      <StatusBadge level={fatorRData.anexo === 'III' ? 'success' : 'danger'}>
-                        Anexo {fatorRData.anexo}
-                      </StatusBadge>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-1 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Folha oficial (12m):</span>
-                      <span className="font-medium">{formatCurrency(fatorRData.folhaOficial)}</span>
-                    </div>
-                    {fatorRData.folhaInformal > 0 && (
-                      <div className="flex justify-between text-warning">
-                        <span>Pagamentos informais:</span>
-                        <span className="font-medium">{formatCurrency(fatorRData.folhaInformal)} ({(fatorRData.percentInformal * 100).toFixed(0)}%)</span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {fatorRData.fatorR < THRESHOLDS.fatorRMinimo && (
-                    <p className="text-xs text-destructive">
-                      ⚠ Fator R {(fatorRData.fatorR * 100).toFixed(1)}% — risco de ficar no Anexo V
-                    </p>
-                  )}
-                  
-                  <div className="flex flex-col gap-1">
-                    <Link to="/reports/tax-scenarios" className="inline-flex items-center text-xs text-primary hover:underline">
-                      Ver simulador Fator R <ChevronRight className="h-3 w-3" />
-                    </Link>
-                    <Link to="/reports/personnel-real-vs-official" className="inline-flex items-center text-xs text-primary hover:underline">
-                      Ver Real x Oficial <ChevronRight className="h-3 w-3" />
-                    </Link>
+          <DashboardCard
+            title="Fator R & Folha"
+            icon={Users}
+            status={fatorRData ? getFatorRLevel(fatorRData.fatorR) : 'default'}
+            tooltip={TOOLTIPS.fatorR}
+            linkTo="/reports/tax-scenarios"
+            linkLabel="Ver simulador Fator R"
+          >
+            {fatorRData ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <GaugeChart
+                    value={fatorRData.fatorR}
+                    min={0}
+                    max={0.5}
+                    targetLine={THRESHOLDS.fatorRMinimo}
+                    size={120}
+                  />
+                  <div className="text-right">
+                    <TooltipProvider>
+                      <UITooltip>
+                        <TooltipTrigger asChild>
+                          <div className="cursor-help">
+                            <StatusBadge level={fatorRData.anexo === 'III' ? 'success' : 'danger'}>
+                              Anexo {fatorRData.anexo}
+                            </StatusBadge>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="text-xs">{fatorRData.anexo === 'III' ? TOOLTIPS.anexoIII : TOOLTIPS.anexoV}</p>
+                        </TooltipContent>
+                      </UITooltip>
+                    </TooltipProvider>
                   </div>
                 </div>
-              ) : (
-                <p className="text-xs text-muted-foreground">Sem dados de folha</p>
-              )}
-            </CardContent>
-          </Card>
+                
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Folha oficial (12m):</span>
+                    <span className="font-medium">{formatCurrency(fatorRData.folhaOficial)}</span>
+                  </div>
+                  {fatorRData.folhaInformal > 0 && (
+                    <TooltipProvider>
+                      <UITooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex justify-between text-warning cursor-help">
+                            <span>Pagamentos informais:</span>
+                            <span className="font-medium">{formatCurrency(fatorRData.folhaInformal)} ({(fatorRData.percentInformal * 100).toFixed(0)}%)</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="text-xs">{TOOLTIPS.folhaInformal}</p>
+                        </TooltipContent>
+                      </UITooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
+                
+                {fatorRData.fatorR < THRESHOLDS.fatorRMinimo && (
+                  <p className="text-xs text-destructive">
+                    ⚠ Fator R {(fatorRData.fatorR * 100).toFixed(1)}% — risco de ficar no Anexo V
+                  </p>
+                )}
+                
+                <Link to="/reports/personnel-real-vs-official" className="inline-flex items-center text-xs text-primary hover:underline">
+                  Ver Real x Oficial <ChevronRight className="h-3 w-3" />
+                </Link>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Sem dados de folha</p>
+            )}
+          </DashboardCard>
         </div>
 
         {/* Fila 2: Blocos de Profundidade */}
@@ -812,6 +809,16 @@ export default function Dashboard() {
               <CardTitle className="text-base flex items-center gap-2">
                 <Building2 className="h-4 w-4" />
                 Lucratividade por Unidade
+                <TooltipProvider>
+                  <UITooltip>
+                    <TooltipTrigger>
+                      <HelpCircle className="h-3.5 w-3.5 text-muted-foreground/50" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="text-xs">{TOOLTIPS.lucratividade}</p>
+                    </TooltipContent>
+                  </UITooltip>
+                </TooltipProvider>
               </CardTitle>
               <CardDescription>Margem de cada unidade no período</CardDescription>
             </CardHeader>
@@ -850,6 +857,16 @@ export default function Dashboard() {
               <CardTitle className="text-base flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4" />
                 Riscos: Informalidade & Dependência
+                <TooltipProvider>
+                  <UITooltip>
+                    <TooltipTrigger>
+                      <HelpCircle className="h-3.5 w-3.5 text-muted-foreground/50" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p className="text-xs">{TOOLTIPS.folhaInformal} {TOOLTIPS.dependencia}</p>
+                    </TooltipContent>
+                  </UITooltip>
+                </TooltipProvider>
               </CardTitle>
               <CardDescription>Pagamentos informais e concentração de receita</CardDescription>
             </CardHeader>
@@ -858,7 +875,16 @@ export default function Dashboard() {
               {fatorRData && fatorRData.percentInformal > 0 && (
                 <div className="p-3 rounded-lg bg-warning/10 border border-warning/20">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-warning">Pagamentos Informais</span>
+                    <TooltipProvider>
+                      <UITooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-sm font-medium text-warning cursor-help">Pagamentos Informais</span>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="text-xs">{TOOLTIPS.folhaInformal}</p>
+                        </TooltipContent>
+                      </UITooltip>
+                    </TooltipProvider>
                     <StatusBadge level={fatorRData.percentInformal > THRESHOLDS.percentualInformalAlerta ? 'danger' : 'warning'}>
                       {(fatorRData.percentInformal * 100).toFixed(0)}% do custo de pessoal
                     </StatusBadge>
@@ -872,7 +898,16 @@ export default function Dashboard() {
               {/* Dependência de parceiros */}
               {partnerDependency.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-sm font-medium">Top Convênios/Clientes por Receita</p>
+                  <TooltipProvider>
+                    <UITooltip>
+                      <TooltipTrigger asChild>
+                        <p className="text-sm font-medium cursor-help">Top Convênios/Clientes por Receita</p>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p className="text-xs">{TOOLTIPS.dependencia}</p>
+                      </TooltipContent>
+                    </UITooltip>
+                  </TooltipProvider>
                   {partnerDependency.map((p) => (
                     <div key={p.partner_id} className="flex items-center gap-2">
                       <span className="text-xs truncate flex-1">{p.partner_name}</span>
