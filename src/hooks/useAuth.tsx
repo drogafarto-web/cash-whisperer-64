@@ -11,6 +11,10 @@ interface AuthContextType {
   unit: Unit | null;
   isLoading: boolean;
   isAdmin: boolean;
+  isContabilidade: boolean;
+  isGestorUnidade: boolean;
+  isSecretaria: boolean;
+  hasPermission: (permission: string) => boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, name: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -127,6 +131,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUnit(null);
   };
 
+  const isAdmin = role === 'admin';
+  const isContabilidade = role === 'contabilidade';
+  const isGestorUnidade = role === 'gestor_unidade';
+  const isSecretaria = role === 'secretaria';
+
+  // Verifica se o usuário tem acesso a uma determinada permissão
+  const hasPermission = (permission: string): boolean => {
+    if (isAdmin) return true; // Admin tem acesso total
+    
+    const permissions: Record<string, AppRole[]> = {
+      'dashboard': ['admin', 'gestor_unidade'],
+      'transactions': ['admin', 'secretaria', 'contabilidade', 'gestor_unidade'],
+      'cash_closing': ['admin', 'secretaria', 'gestor_unidade'],
+      'imports': ['admin', 'secretaria', 'gestor_unidade'],
+      'reports': ['admin', 'contabilidade', 'gestor_unidade'],
+      'tax_scenarios': ['admin', 'contabilidade'],
+      'personnel_real_vs_official': ['admin'],
+      'fator_r_audit': ['admin', 'contabilidade'],
+      'tax_config': ['admin'],
+      'users': ['admin'],
+      'settings': ['admin'],
+    };
+    
+    const allowedRoles = permissions[permission];
+    if (!allowedRoles || !role) return false;
+    return allowedRoles.includes(role);
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -135,7 +167,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       role,
       unit,
       isLoading,
-      isAdmin: role === 'admin',
+      isAdmin,
+      isContabilidade,
+      isGestorUnidade,
+      isSecretaria,
+      hasPermission,
       signIn,
       signUp,
       signOut,

@@ -24,10 +24,46 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { AppRole } from '@/types/database';
 
 interface AppLayoutProps {
   children: ReactNode;
 }
+
+// Configuração de navegação com papéis permitidos
+interface NavItem {
+  name: string;
+  href: string;
+  icon: React.ElementType;
+  roles: AppRole[];
+}
+
+const navigation: NavItem[] = [
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'gestor_unidade'] },
+  { name: 'Transações', href: '/transactions', icon: Receipt, roles: ['admin', 'secretaria', 'contabilidade', 'gestor_unidade'] },
+  { name: 'Fechamento de Caixa', href: '/cash-closing', icon: DollarSign, roles: ['admin', 'secretaria', 'gestor_unidade'] },
+  { name: 'Importar LIS', href: '/import/daily-movement', icon: FileUp, roles: ['admin', 'secretaria', 'gestor_unidade'] },
+  { name: 'Importar Extrato', href: '/import/bank-statement', icon: FileUp, roles: ['admin', 'secretaria', 'gestor_unidade'] },
+  { name: 'Rel. Fechamentos', href: '/reports/cash-closings', icon: FileBarChart, roles: ['admin', 'contabilidade', 'gestor_unidade'] },
+  { name: 'Rel. Transações', href: '/reports/transactions', icon: FileBarChart, roles: ['admin', 'contabilidade', 'gestor_unidade'] },
+  { name: 'Cenários Tributários', href: '/reports/tax-scenarios', icon: Calculator, roles: ['admin', 'contabilidade'] },
+  { name: 'Real x Oficial', href: '/reports/personnel-real-vs-official', icon: Users, roles: ['admin'] },
+  { name: 'Auditoria Fator R', href: '/settings/fator-r-audit', icon: Calculator, roles: ['admin', 'contabilidade'] },
+  { name: 'Config. Tributária', href: '/settings/tax-config', icon: Settings, roles: ['admin'] },
+  { name: 'Usuários', href: '/settings/users', icon: Users, roles: ['admin'] },
+  { name: 'Unidades', href: '/settings/units', icon: MapPin, roles: ['admin'] },
+  { name: 'Contas', href: '/settings/accounts', icon: Building2, roles: ['admin'] },
+  { name: 'Categorias', href: '/settings/categories', icon: Tags, roles: ['admin'] },
+  { name: 'Parceiros', href: '/settings/partners', icon: Handshake, roles: ['admin'] },
+];
+
+// Labels amigáveis para os papéis
+const ROLE_LABELS: Record<AppRole, string> = {
+  admin: 'Administrador',
+  contabilidade: 'Contabilidade',
+  gestor_unidade: 'Gestor',
+  secretaria: 'Atendente',
+};
 
 export function AppLayout({ children }: AppLayoutProps) {
   const { profile, role, unit, signOut, isAdmin } = useAuth();
@@ -59,33 +95,18 @@ export function AppLayout({ children }: AppLayoutProps) {
     };
     
     checkTodayCashClosing();
-  }, [location.pathname, isAdmin, unit]); // Re-check when route changes or unit changes
+  }, [location.pathname, isAdmin, unit]);
 
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
   };
 
-  const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, adminOnly: true },
-    { name: 'Transações', href: '/transactions', icon: Receipt, adminOnly: false },
-    { name: 'Fechamento de Caixa', href: '/cash-closing', icon: DollarSign, adminOnly: false },
-    { name: 'Importar LIS', href: '/import/daily-movement', icon: FileUp, adminOnly: false },
-    { name: 'Importar Extrato', href: '/import/bank-statement', icon: FileUp, adminOnly: false },
-    { name: 'Rel. Fechamentos', href: '/reports/cash-closings', icon: FileBarChart, adminOnly: true },
-    { name: 'Rel. Transações', href: '/reports/transactions', icon: FileBarChart, adminOnly: true },
-    { name: 'Cenários Tributários', href: '/reports/tax-scenarios', icon: Calculator, adminOnly: true },
-    { name: 'Real x Oficial', href: '/reports/personnel-real-vs-official', icon: Users, adminOnly: true },
-    { name: 'Auditoria Fator R', href: '/settings/fator-r-audit', icon: Calculator, adminOnly: true },
-    { name: 'Config. Tributária', href: '/settings/tax-config', icon: Settings, adminOnly: true },
-    { name: 'Usuários', href: '/settings/users', icon: Users, adminOnly: true },
-    { name: 'Unidades', href: '/settings/units', icon: MapPin, adminOnly: true },
-    { name: 'Contas', href: '/settings/accounts', icon: Building2, adminOnly: true },
-    { name: 'Categorias', href: '/settings/categories', icon: Tags, adminOnly: true },
-    { name: 'Parceiros', href: '/settings/partners', icon: Handshake, adminOnly: true },
-  ];
-
-  const filteredNav = navigation.filter(item => !item.adminOnly || isAdmin);
+  // Filtra navegação baseado no papel do usuário
+  const filteredNav = navigation.filter(item => {
+    if (!role) return false;
+    return item.roles.includes(role);
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -161,7 +182,7 @@ export function AppLayout({ children }: AppLayoutProps) {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{profile?.name}</p>
                 <div className="flex items-center gap-1 text-xs text-sidebar-foreground/70">
-                  <span className="capitalize">{role}</span>
+                  <span>{role ? ROLE_LABELS[role] : 'Sem papel'}</span>
                   {unit && (
                     <>
                       <span>•</span>
