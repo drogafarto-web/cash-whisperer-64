@@ -14,7 +14,9 @@ import {
   DollarSign, 
   Clock, 
   FileDown,
-  Loader2
+  Loader2,
+  RefreshCw,
+  Zap
 } from 'lucide-react';
 import {
   BarChart,
@@ -25,6 +27,9 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  PieChart,
+  Pie,
+  Cell,
 } from 'recharts';
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
@@ -35,6 +40,10 @@ interface DashboardStats {
   totalSaidas: number;
   saldo: number;
   pendentes: number;
+  receitaRecorrente: number;
+  receitaVariavel: number;
+  despesaFixa: number;
+  despesaVariavel: number;
 }
 
 interface CategoryData {
@@ -43,12 +52,22 @@ interface CategoryData {
   saidas: number;
 }
 
+interface RecurrenceData {
+  name: string;
+  value: number;
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { user, role, isLoading: authLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
-  const [stats, setStats] = useState<DashboardStats>({ totalEntradas: 0, totalSaidas: 0, saldo: 0, pendentes: 0 });
+  const [stats, setStats] = useState<DashboardStats>({ 
+    totalEntradas: 0, totalSaidas: 0, saldo: 0, pendentes: 0,
+    receitaRecorrente: 0, receitaVariavel: 0, despesaFixa: 0, despesaVariavel: 0 
+  });
   const [categoryData, setCategoryData] = useState<CategoryData[]>([]);
+  const [receitaComposicao, setReceitaComposicao] = useState<RecurrenceData[]>([]);
+  const [despesaComposicao, setDespesaComposicao] = useState<RecurrenceData[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [dateRange] = useState({ start: startOfMonth(new Date()), end: endOfMonth(new Date()) });
@@ -91,12 +110,40 @@ export default function Dashboard() {
       const saidas = approved.filter(t => t.type === 'SAIDA').reduce((sum, t) => sum + Number(t.amount), 0);
       const pendentes = typedTxData.filter(t => t.status === 'PENDENTE').length;
 
+      // Calculate recurrence stats
+      const receitaRecorrente = approved
+        .filter(t => t.type === 'ENTRADA' && t.category?.recurrence_type === 'RECORRENTE')
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+      const receitaVariavel = approved
+        .filter(t => t.type === 'ENTRADA' && t.category?.recurrence_type === 'NAO_RECORRENTE')
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+      const despesaFixa = approved
+        .filter(t => t.type === 'SAIDA' && t.category?.recurrence_type === 'RECORRENTE')
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+      const despesaVariavel = approved
+        .filter(t => t.type === 'SAIDA' && t.category?.recurrence_type === 'NAO_RECORRENTE')
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+
       setStats({
         totalEntradas: entradas,
         totalSaidas: saidas,
         saldo: entradas - saidas,
         pendentes,
+        receitaRecorrente,
+        receitaVariavel,
+        despesaFixa,
+        despesaVariavel,
       });
+
+      // Composição charts
+      setReceitaComposicao([
+        { name: 'Recorrente', value: receitaRecorrente },
+        { name: 'Variável', value: receitaVariavel },
+      ]);
+      setDespesaComposicao([
+        { name: 'Fixa', value: despesaFixa },
+        { name: 'Variável', value: despesaVariavel },
+      ]);
 
       // Calculate category breakdown
       const categoryMap = new Map<string, { entradas: number; saidas: number }>();
@@ -252,6 +299,126 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold text-warning">{stats.pendentes}</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Recurrence KPIs */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="border-l-4 border-l-success">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Receita Recorrente</CardTitle>
+              <RefreshCw className="h-5 w-5 text-success" />
+            </CardHeader>
+            <CardContent>
+              <p className="text-xl font-bold text-success">
+                R$ {stats.receitaRecorrente.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Piso de faturamento</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-l-4 border-l-primary">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Receita Variável</CardTitle>
+              <Zap className="h-5 w-5 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <p className="text-xl font-bold text-primary">
+                R$ {stats.receitaVariavel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Por volume de atendimento</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-l-4 border-l-destructive">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Despesa Fixa</CardTitle>
+              <RefreshCw className="h-5 w-5 text-destructive" />
+            </CardHeader>
+            <CardContent>
+              <p className="text-xl font-bold text-destructive">
+                R$ {stats.despesaFixa.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Custo mínimo mensal</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-l-4 border-l-warning">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Despesa Variável</CardTitle>
+              <Zap className="h-5 w-5 text-warning" />
+            </CardHeader>
+            <CardContent>
+              <p className="text-xl font-bold text-warning">
+                R$ {stats.despesaVariavel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Pontual/por demanda</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Composição Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Composição da Receita</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {receitaComposicao.some(d => d.value > 0) ? (
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={receitaComposicao}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={80}
+                      dataKey="value"
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    >
+                      <Cell fill="hsl(var(--success))" />
+                      <Cell fill="hsl(var(--primary))" />
+                    </Pie>
+                    <Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-48 text-muted-foreground">
+                  Sem dados de receita classificados
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Composição da Despesa</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {despesaComposicao.some(d => d.value > 0) ? (
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={despesaComposicao}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={80}
+                      dataKey="value"
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    >
+                      <Cell fill="hsl(var(--destructive))" />
+                      <Cell fill="hsl(var(--warning))" />
+                    </Pie>
+                    <Tooltip formatter={(value: number) => `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-48 text-muted-foreground">
+                  Sem dados de despesa classificados
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

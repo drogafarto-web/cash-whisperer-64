@@ -122,6 +122,7 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          recurrence_type: string | null
           tax_group: string | null
           type: string
         }
@@ -131,6 +132,7 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          recurrence_type?: string | null
           tax_group?: string | null
           type: string
         }
@@ -140,6 +142,7 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          recurrence_type?: string | null
           tax_group?: string | null
           type?: string
         }
