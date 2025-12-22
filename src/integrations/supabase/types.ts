@@ -98,6 +98,42 @@ export type Database = {
           },
         ]
       }
+      accounting_settings: {
+        Row: {
+          historico_fim_ano: number
+          historico_fim_mes: number
+          historico_inicio_ano: number
+          historico_inicio_mes: number
+          id: string
+          reminder_day: number
+          reminder_hour: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          historico_fim_ano?: number
+          historico_fim_mes?: number
+          historico_inicio_ano?: number
+          historico_inicio_mes?: number
+          id?: string
+          reminder_day?: number
+          reminder_hour?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          historico_fim_ano?: number
+          historico_fim_mes?: number
+          historico_inicio_ano?: number
+          historico_inicio_mes?: number
+          id?: string
+          reminder_day?: number
+          reminder_hour?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       accounting_tokens: {
         Row: {
           ano: number | null
