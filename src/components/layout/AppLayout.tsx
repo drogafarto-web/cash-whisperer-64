@@ -79,6 +79,7 @@ const navigationGroups: NavGroup[] = [
     icon: LayoutDashboard,
     items: [
       { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'secretaria', 'gestor_unidade'] },
+      { name: 'Pendências', href: '/pendencias', icon: AlertCircle, roles: ['admin', 'contabilidade', 'gestor_unidade'] },
     ],
   },
   {
