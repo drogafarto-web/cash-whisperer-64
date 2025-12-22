@@ -19,6 +19,7 @@ import {
   useSaveAccountBalances,
   useSaveCompanyData,
   useTaxConfig,
+  usePopulateTestData,
   SeedPayroll,
   SeedTaxes,
   SeedRevenue,
@@ -60,6 +61,7 @@ import {
   Settings2,
   Building2,
   Wallet,
+  FlaskConical,
 } from 'lucide-react';
 
 const PAYROLL_COLUMNS = [
@@ -125,6 +127,7 @@ export default function DataSeed2025() {
   const saveInitialData = useSaveSeedInitialData();
   const saveAccountBalances = useSaveAccountBalances();
   const saveCompanyData = useSaveCompanyData();
+  const populateTestData = usePopulateTestData();
 
   // Local state for editing
   const [payrollRows, setPayrollRows] = useState<SeedPayroll[]>([]);
@@ -415,16 +418,36 @@ export default function DataSeed2025() {
                 <Calendar className="h-8 w-8 text-primary" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold">Dados para Prestação de Contas</h1>
+              <h1 className="text-2xl font-bold">Dados para Prestação de Contas</h1>
                 <p className="text-muted-foreground">
                   Período: Nov/2024 a Dez/2025 ({TOTAL_SEED_MONTHS} meses)
                 </p>
               </div>
             </div>
-            <Button variant="outline" onClick={handleCopyLink} className="gap-2">
-              <Link2 className="h-4 w-4" />
-              Copiar link para contabilidade
-            </Button>
+            <div className="flex gap-2">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="secondary" 
+                      onClick={() => populateTestData.mutate()}
+                      disabled={populateTestData.isPending}
+                      className="gap-2"
+                    >
+                      <FlaskConical className="h-4 w-4" />
+                      {populateTestData.isPending ? 'Inserindo...' : 'Dados de Teste'}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>Insere dados realistas de um laboratório de análises clínicas com Fator R ~23% para testar os cenários tributários</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <Button variant="outline" onClick={handleCopyLink} className="gap-2">
+                <Link2 className="h-4 w-4" />
+                Copiar link para contabilidade
+              </Button>
+            </div>
           </div>
 
           {/* Context Card */}

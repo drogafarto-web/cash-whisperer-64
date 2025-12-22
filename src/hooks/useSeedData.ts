@@ -515,3 +515,94 @@ export function useTaxConfig() {
     },
   });
 }
+
+// Hook para popular dados de teste realistas
+export function usePopulateTestData() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async () => {
+      const userId = user?.id;
+      
+      // Dados de teste para um laboratório de análises clínicas típico
+      // Objetivo: Simular Fator R de ~23% (abaixo de 28%) para demonstrar Anexo V
+      const payrollData: Omit<SeedPayroll, 'id'>[] = SEED_PERIODS.map((period, index) => {
+        // Variação sazonal para realismo
+        const seasonalFactor = 1 + (Math.sin(index * 0.5) * 0.1);
+        const isDecember = period.mes === 12;
+        
+        return {
+          ano: period.ano,
+          mes: period.mes,
+          salarios: Math.round(10500 * seasonalFactor), // 3 funcionários CLT
+          prolabore: 15000, // 2 sócios - valor fixo que mantém Fator R baixo
+          inss_patronal: Math.round(5100 * seasonalFactor),
+          fgts: Math.round(840 * seasonalFactor),
+          decimo_terceiro: isDecember ? 10500 : 0, // Apenas dezembro
+          ferias: Math.round(3500 * seasonalFactor), // Provisão mensal
+          observacoes: `Dados de teste - ${period.label}`,
+          created_by: userId,
+          updated_by: userId,
+        };
+      });
+
+      const revenueData: Omit<SeedRevenue, 'id'>[] = SEED_PERIODS.map((period, index) => {
+        // Receita média de R$ 150k com variação
+        const baseFactor = 1 + (Math.cos(index * 0.4) * 0.15);
+        
+        return {
+          ano: period.ano,
+          mes: period.mes,
+          receita_servicos: Math.round(145000 * baseFactor),
+          receita_outras: Math.round(7000 * baseFactor),
+          fonte_principal: 'Convênios e Particular',
+          observacoes: `Dados de teste - ${period.label}`,
+          created_by: userId,
+          updated_by: userId,
+        };
+      });
+
+      const taxesData: Omit<SeedTaxes, 'id'>[] = SEED_PERIODS.map((period, index) => {
+        const baseFactor = 1 + (Math.cos(index * 0.4) * 0.15);
+        const receita = Math.round(152000 * baseFactor);
+        
+        // Estimativa de DAS ~15.5% (Anexo V para Fator R < 28%)
+        return {
+          ano: period.ano,
+          mes: period.mes,
+          das: Math.round(receita * 0.155), // Simula Anexo V
+          iss_proprio: 0,
+          iss_retido: Math.round(receita * 0.05 * 0.2), // 20% retido
+          irrf_retido: Math.round(receita * 0.015),
+          outros: 0,
+          observacoes: `Dados de teste - ${period.label}`,
+          created_by: userId,
+          updated_by: userId,
+        };
+      });
+
+      // Inserir dados em paralelo
+      const [payrollResult, revenueResult, taxesResult] = await Promise.all([
+        supabase.from('seed_payroll').upsert(payrollData, { onConflict: 'ano,mes' }),
+        supabase.from('seed_revenue').upsert(revenueData, { onConflict: 'ano,mes' }),
+        supabase.from('seed_taxes').upsert(taxesData, { onConflict: 'ano,mes' }),
+      ]);
+
+      if (payrollResult.error) throw payrollResult.error;
+      if (revenueResult.error) throw revenueResult.error;
+      if (taxesResult.error) throw taxesResult.error;
+
+      return { payroll: 14, revenue: 14, taxes: 14 };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['seed-payroll'] });
+      queryClient.invalidateQueries({ queryKey: ['seed-revenue'] });
+      queryClient.invalidateQueries({ queryKey: ['seed-taxes'] });
+      toast.success(`Dados de teste inseridos: ${result.payroll} meses de folha, ${result.revenue} de receita, ${result.taxes} de impostos`);
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao inserir dados de teste: ${error.message}`);
+    },
+  });
+}
