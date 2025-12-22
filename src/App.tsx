@@ -23,6 +23,7 @@ import FatorRAudit from "./pages/settings/FatorRAudit";
 import DailyMovementImport from "./pages/import/DailyMovement";
 import BankStatementImport from "./pages/import/BankStatement";
 import AlertsConfig from "./pages/settings/AlertsConfig";
+import SettingsHub from "./pages/settings/SettingsHub";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -41,6 +42,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/cash-closing" element={<CashClosing />} />
+            <Route path="/settings" element={<SettingsHub />} />
             <Route path="/settings/users" element={<UsersSettings />} />
             <Route path="/settings/units" element={<UnitsSettings />} />
             <Route path="/settings/accounts" element={<AccountsSettings />} />

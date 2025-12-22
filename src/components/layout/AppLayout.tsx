@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/integrations/supabase/client';
+import { useBadgeCounts } from '@/hooks/useBadgeCounts';
 import {
   LayoutDashboard,
   Receipt,
@@ -27,9 +27,9 @@ import {
   Wallet,
   TrendingUp,
   ShieldAlert,
+  Cog,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
 import { AppRole } from '@/types/database';
 import {
   Collapsible,
@@ -53,6 +53,7 @@ interface NavGroup {
   name: string;
   icon: React.ElementType;
   items: NavItem[];
+  badgeKey?: 'caixaUnidades' | 'lucratividade' | 'riscoEstrategia' | 'tributacao';
 }
 
 // Navegação organizada por objetivos estratégicos
@@ -78,6 +79,7 @@ const navigationGroups: NavGroup[] = [
     id: 'caixa-unidades',
     name: 'Caixa & Unidades',
     icon: Wallet,
+    badgeKey: 'caixaUnidades',
     items: [
       { name: 'Fechamento de Caixa', href: '/cash-closing', icon: DollarSign, roles: ['admin', 'secretaria', 'gestor_unidade'] },
       { name: 'Transações', href: '/transactions', icon: Receipt, roles: ['admin', 'secretaria', 'contabilidade', 'gestor_unidade'] },
@@ -91,6 +93,7 @@ const navigationGroups: NavGroup[] = [
     id: 'tributacao-cenarios',
     name: 'Tributação & Cenários',
     icon: Calculator,
+    badgeKey: 'tributacao',
     items: [
       { name: 'Cenários Tributários', href: '/reports/tax-scenarios', icon: Calculator, roles: ['admin', 'contabilidade'] },
       { name: 'Config. Tributária', href: '/settings/tax-config', icon: Settings, roles: ['admin'] },
@@ -100,6 +103,7 @@ const navigationGroups: NavGroup[] = [
     id: 'lucratividade',
     name: 'Lucratividade & Custos',
     icon: TrendingUp,
+    badgeKey: 'lucratividade',
     items: [
       { name: 'Categorias', href: '/settings/categories', icon: Tags, roles: ['admin'] },
       { name: 'Parceiros', href: '/settings/partners', icon: Handshake, roles: ['admin'] },
@@ -109,6 +113,7 @@ const navigationGroups: NavGroup[] = [
     id: 'risco-estrategia',
     name: 'Risco & Estratégia',
     icon: ShieldAlert,
+    badgeKey: 'riscoEstrategia',
     items: [
       { name: 'Real x Oficial', href: '/reports/personnel-real-vs-official', icon: Users, roles: ['admin'] },
       { name: 'Auditoria Fator R', href: '/settings/fator-r-audit', icon: Calculator, roles: ['admin', 'contabilidade'] },
@@ -127,12 +132,12 @@ const ROLE_LABELS: Record<AppRole, string> = {
 };
 
 export function AppLayout({ children }: AppLayoutProps) {
-  const { profile, role, unit, signOut, isAdmin } = useAuth();
+  const { profile, role, unit, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [hasTodayCashClosing, setHasTodayCashClosing] = useState<boolean | null>(null);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+  const { data: badgeCounts } = useBadgeCounts();
 
   // Inicializa grupos abertos baseado na rota atual
   useEffect(() => {
@@ -148,30 +153,6 @@ export function AppLayout({ children }: AppLayoutProps) {
     
     setOpenGroups(prev => ({ ...prev, ...initialOpen }));
   }, [location.pathname]);
-
-  // Verificar se existe fechamento de caixa para hoje
-  useEffect(() => {
-    const checkTodayCashClosing = async () => {
-      const today = format(new Date(), 'yyyy-MM-dd');
-      
-      let query = supabase
-        .from('cash_closings')
-        .select('id')
-        .eq('date', today);
-      
-      if (!isAdmin && unit?.id) {
-        query = query.eq('unit_id', unit.id);
-      }
-      
-      const { data, error } = await query.limit(1);
-      
-      if (!error) {
-        setHasTodayCashClosing(data && data.length > 0);
-      }
-    };
-    
-    checkTodayCashClosing();
-  }, [location.pathname, isAdmin, unit]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -228,12 +209,12 @@ export function AppLayout({ children }: AppLayoutProps) {
               const isGroupOpen = openGroups[group.id] ?? false;
               const hasActiveItem = group.items.some(item => location.pathname === item.href);
               const GroupIcon = group.icon;
+              const groupBadgeCount = group.badgeKey && badgeCounts ? badgeCounts[group.badgeKey] : 0;
 
               // Se o grupo tem apenas 1 item, renderiza diretamente sem collapsible
               if (group.items.length === 1) {
                 const item = group.items[0];
                 const isActive = location.pathname === item.href;
-                const showPendingBadge = item.href === '/cash-closing' && hasTodayCashClosing === false;
 
                 return (
                   <Link
@@ -249,12 +230,6 @@ export function AppLayout({ children }: AppLayoutProps) {
                   >
                     <item.icon className="w-5 h-5" />
                     <span className="flex-1">{item.name}</span>
-                    {showPendingBadge && (
-                      <Badge variant="destructive" className="text-xs px-1.5 py-0.5">
-                        <AlertCircle className="w-3 h-3 mr-1" />
-                        Pendente
-                      </Badge>
-                    )}
                   </Link>
                 );
               }
@@ -276,6 +251,14 @@ export function AppLayout({ children }: AppLayoutProps) {
                     >
                       <GroupIcon className="w-5 h-5" />
                       <span className="flex-1 text-left">{group.name}</span>
+                      {groupBadgeCount > 0 && (
+                        <Badge 
+                          variant={group.badgeKey === 'caixaUnidades' || group.badgeKey === 'riscoEstrategia' ? 'destructive' : 'secondary'} 
+                          className="text-xs px-1.5 py-0.5 mr-1"
+                        >
+                          {groupBadgeCount}
+                        </Badge>
+                      )}
                       <ChevronDown
                         className={cn(
                           "w-4 h-4 transition-transform duration-200",
@@ -287,7 +270,6 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <CollapsibleContent className="pl-4 mt-1 space-y-1">
                     {group.items.map((item) => {
                       const isActive = location.pathname === item.href;
-                      const showPendingBadge = item.href === '/cash-closing' && hasTodayCashClosing === false;
 
                       return (
                         <Link
@@ -303,12 +285,6 @@ export function AppLayout({ children }: AppLayoutProps) {
                         >
                           <item.icon className="w-4 h-4" />
                           <span className="flex-1">{item.name}</span>
-                          {showPendingBadge && (
-                            <Badge variant="destructive" className="text-xs px-1.5 py-0.5">
-                              <AlertCircle className="w-3 h-3 mr-1" />
-                              Pendente
-                            </Badge>
-                          )}
                         </Link>
                       );
                     })}
@@ -317,6 +293,23 @@ export function AppLayout({ children }: AppLayoutProps) {
               );
             })}
           </nav>
+
+          {/* Settings Hub Link */}
+          <div className="px-3 pb-2">
+            <Link
+              to="/settings"
+              onClick={() => setSidebarOpen(false)}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                location.pathname === '/settings'
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                  : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+              )}
+            >
+              <Cog className="w-5 h-5" />
+              <span className="flex-1">Configurações</span>
+            </Link>
+          </div>
 
           {/* User info */}
           <div className="p-4 border-t border-sidebar-border">
