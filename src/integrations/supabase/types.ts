@@ -315,6 +315,107 @@ export type Database = {
           },
         ]
       }
+      tax_config: {
+        Row: {
+          cnpj: string | null
+          created_at: string
+          id: string
+          iss_aliquota: number
+          notas: string | null
+          regime_atual: string
+          unit_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          cnpj?: string | null
+          created_at?: string
+          id?: string
+          iss_aliquota?: number
+          notas?: string | null
+          regime_atual?: string
+          unit_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cnpj?: string | null
+          created_at?: string
+          id?: string
+          iss_aliquota?: number
+          notas?: string | null
+          regime_atual?: string
+          unit_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tax_config_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: true
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tax_parameters: {
+        Row: {
+          ano: number
+          cbs_aliquota: number
+          cofins_cumulativo: number
+          cofins_nao_cumulativo: number
+          created_at: string
+          csll_aliquota: number
+          ibs_aliquota: number
+          id: string
+          irpj_adicional: number
+          irpj_adicional_limite: number
+          irpj_aliquota: number
+          pis_cumulativo: number
+          pis_nao_cumulativo: number
+          presuncao_servicos: number
+          reducao_saude: number
+          simples_anexo3_faixas: Json
+          simples_anexo5_faixas: Json
+        }
+        Insert: {
+          ano?: number
+          cbs_aliquota?: number
+          cofins_cumulativo?: number
+          cofins_nao_cumulativo?: number
+          created_at?: string
+          csll_aliquota?: number
+          ibs_aliquota?: number
+          id?: string
+          irpj_adicional?: number
+          irpj_adicional_limite?: number
+          irpj_aliquota?: number
+          pis_cumulativo?: number
+          pis_nao_cumulativo?: number
+          presuncao_servicos?: number
+          reducao_saude?: number
+          simples_anexo3_faixas?: Json
+          simples_anexo5_faixas?: Json
+        }
+        Update: {
+          ano?: number
+          cbs_aliquota?: number
+          cofins_cumulativo?: number
+          cofins_nao_cumulativo?: number
+          created_at?: string
+          csll_aliquota?: number
+          ibs_aliquota?: number
+          id?: string
+          irpj_adicional?: number
+          irpj_adicional_limite?: number
+          irpj_aliquota?: number
+          pis_cumulativo?: number
+          pis_nao_cumulativo?: number
+          presuncao_servicos?: number
+          reducao_saude?: number
+          simples_anexo3_faixas?: Json
+          simples_anexo5_faixas?: Json
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           account_id: string
