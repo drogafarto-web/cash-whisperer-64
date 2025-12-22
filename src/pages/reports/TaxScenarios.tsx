@@ -31,6 +31,7 @@ import {
   Lightbulb,
   Info,
   CheckCircle,
+  Users,
 } from 'lucide-react';
 import { Unit } from '@/types/database';
 import {
@@ -51,6 +52,13 @@ import {
   AnexoSavings,
 } from '@/services/taxSimulator';
 import { FatorRAlert } from '@/components/alerts/FatorRAlert';
+
+// Tipo estendido para incluir dados de folha informal
+interface ExtendedTaxSimulationOutput extends TaxSimulationOutput {
+  folhaOficial12: number;
+  folhaInformal12: number;
+  custoPessoalTotal: number;
+}
 
 export default function TaxScenarios() {
   const { isAdmin, unit } = useAuth();
@@ -121,7 +129,7 @@ export default function TaxScenarios() {
         .from('transactions')
         .select(`
           *,
-          category:categories(id, name, type, tax_group, entra_fator_r)
+          category:categories(id, name, type, tax_group, entra_fator_r, is_informal)
         `)
         .gte('date', format(startDate, 'yyyy-MM-dd'))
         .lte('date', format(endDate, 'yyyy-MM-dd'))
@@ -140,7 +148,7 @@ export default function TaxScenarios() {
   });
 
   // Processar dados para o simulador
-  const simulationResult = useMemo<TaxSimulationOutput | null>(() => {
+  const simulationResult = useMemo<ExtendedTaxSimulationOutput | null>(() => {
     if (!transactionsData || !taxParameters || !taxConfig) return null;
 
     // Agrupar transações por mês
@@ -172,6 +180,15 @@ export default function TaxScenarios() {
         // SAIDA
         switch (taxGroup) {
           case 'PESSOAL':
+            // Verificar se é pagamento informal
+            const isInformal = tx.category?.is_informal ?? false;
+            
+            if (isInformal) {
+              // Pagamentos informais - NÃO entram no Fator R
+              data.folha_informal += amount;
+              break;
+            }
+            
             // Usar flag entra_fator_r para determinar se entra no cálculo
             const entraFatorR = tx.category?.entra_fator_r ?? false;
             
@@ -221,12 +238,27 @@ export default function TaxScenarios() {
     const monthlyDataArray = Array.from(monthlyDataMap.values());
     const currentMonthData = monthlyDataArray.find(m => m.mes === selectedMonth) || createEmptyMonthlyData(selectedMonth);
 
-    return runTaxSimulation({
+    // Calcular totais de folha informal dos 12 meses
+    const folhaOficial12 = monthlyDataArray.reduce((sum, m) => 
+      sum + m.folha_salarios + m.folha_prolabore + m.folha_encargos, 0
+    );
+    const folhaInformal12 = monthlyDataArray.reduce((sum, m) => sum + m.folha_informal, 0);
+    const custoPessoalTotal = folhaOficial12 + folhaInformal12;
+
+    const simulationOutput = runTaxSimulation({
       monthlyData: currentMonthData,
       last12MonthsData: monthlyDataArray,
       taxConfig,
       taxParameters,
     });
+
+    // Adicionar dados de folha informal ao resultado
+    return {
+      ...simulationOutput,
+      folhaOficial12,
+      folhaInformal12,
+      custoPessoalTotal,
+    };
   }, [transactionsData, taxParameters, taxConfig, selectedMonth]);
 
   // Dados para o gráfico de barras
@@ -270,6 +302,14 @@ export default function TaxScenarios() {
       } else {
         switch (taxGroup) {
           case 'PESSOAL':
+            // Verificar se é pagamento informal
+            const isInformalChart = tx.category?.is_informal ?? false;
+            
+            if (isInformalChart) {
+              data.folha_informal += amount;
+              break;
+            }
+            
             const entraFatorRChart = tx.category?.entra_fator_r ?? false;
             
             if (!entraFatorRChart) {
@@ -518,6 +558,66 @@ export default function TaxScenarios() {
           </div>
         ) : simulationResult ? (
           <>
+            {/* Bloco de Resumo: Folha Oficial / Informal / Total */}
+            {simulationResult.folhaInformal12 > 0 && (
+              <Card className="border-yellow-500/50 bg-yellow-500/5">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    Custos de Pessoal (12 meses)
+                    <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300">
+                      Atenção
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription>
+                    Comparativo entre folha oficial (Fator R) e pagamentos informais
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
+                      <p className="text-sm font-medium text-muted-foreground">Folha Oficial (Fator R)</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        {formatCurrency(simulationResult.folhaOficial12)}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Salários + Pró-labore + Encargos
+                      </p>
+                    </div>
+                    <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                      <p className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                        Pagamentos Informais
+                        <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                      </p>
+                      <p className="text-2xl font-bold text-yellow-600">
+                        {formatCurrency(simulationResult.folhaInformal12)}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        "Por fora" - não entra no Fator R
+                      </p>
+                    </div>
+                    <div className="p-4 rounded-lg bg-muted/50 border border-border">
+                      <p className="text-sm font-medium text-muted-foreground">Custo Total Real</p>
+                      <p className="text-2xl font-bold">
+                        {formatCurrency(simulationResult.custoPessoalTotal)}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {((simulationResult.folhaInformal12 / simulationResult.custoPessoalTotal) * 100).toFixed(1)}% informal
+                      </p>
+                    </div>
+                  </div>
+                  <Alert className="mt-4" variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Risco Trabalhista e Fiscal</AlertTitle>
+                    <AlertDescription>
+                      Pagamentos informais representam risco de passivo trabalhista e fiscal. 
+                      Use o <strong>Relatório Real x Oficial</strong> para simular a regularização gradual.
+                    </AlertDescription>
+                  </Alert>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Cards de Cenários */}
             <div className="grid gap-4 md:grid-cols-4">
               {simulationResult.cenarios.map((cenario) => {

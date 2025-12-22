@@ -55,6 +55,7 @@ export interface MonthlyFinancialData {
   folha_salarios: number;
   folha_prolabore: number;
   folha_encargos: number; // INSS patronal + FGTS
+  folha_informal: number; // Pagamentos informais ("por fora") - NÃO entra no Fator R
   insumos: number;
   servicos_terceiros: number;
   despesas_administrativas: number;
@@ -565,6 +566,7 @@ export function createEmptyMonthlyData(mes: string): MonthlyFinancialData {
     folha_salarios: 0,
     folha_prolabore: 0,
     folha_encargos: 0,
+    folha_informal: 0,
     insumos: 0,
     servicos_terceiros: 0,
     despesas_administrativas: 0,
