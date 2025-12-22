@@ -14,6 +14,149 @@ export type Database = {
   }
   public: {
     Tables: {
+      accounting_contacts: {
+        Row: {
+          ativo: boolean | null
+          created_at: string | null
+          created_by: string | null
+          email: string
+          empresa: string | null
+          id: string
+          nome: string
+          telefone: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string | null
+          created_by?: string | null
+          email: string
+          empresa?: string | null
+          id?: string
+          nome: string
+          telefone?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string | null
+          created_by?: string | null
+          email?: string
+          empresa?: string | null
+          id?: string
+          nome?: string
+          telefone?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      accounting_email_logs: {
+        Row: {
+          contact_id: string | null
+          email_to: string
+          error_message: string | null
+          id: string
+          sent_at: string | null
+          status: string | null
+          subject: string
+          token_id: string | null
+        }
+        Insert: {
+          contact_id?: string | null
+          email_to: string
+          error_message?: string | null
+          id?: string
+          sent_at?: string | null
+          status?: string | null
+          subject: string
+          token_id?: string | null
+        }
+        Update: {
+          contact_id?: string | null
+          email_to?: string
+          error_message?: string | null
+          id?: string
+          sent_at?: string | null
+          status?: string | null
+          subject?: string
+          token_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounting_email_logs_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounting_email_logs_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accounting_tokens: {
+        Row: {
+          ano: number | null
+          ano_fim: number | null
+          ano_inicio: number | null
+          contact_id: string | null
+          created_at: string | null
+          created_by: string | null
+          expires_at: string
+          id: string
+          mes: number | null
+          mes_fim: number | null
+          mes_inicio: number | null
+          tipo: string
+          token: string
+          used_at: string | null
+        }
+        Insert: {
+          ano?: number | null
+          ano_fim?: number | null
+          ano_inicio?: number | null
+          contact_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          expires_at: string
+          id?: string
+          mes?: number | null
+          mes_fim?: number | null
+          mes_inicio?: number | null
+          tipo?: string
+          token: string
+          used_at?: string | null
+        }
+        Update: {
+          ano?: number | null
+          ano_fim?: number | null
+          ano_inicio?: number | null
+          contact_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          mes?: number | null
+          mes_fim?: number | null
+          mes_inicio?: number | null
+          tipo?: string
+          token?: string
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounting_tokens_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       accounts: {
         Row: {
           active: boolean

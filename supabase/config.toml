@@ -8,3 +8,12 @@ verify_jwt = false
 
 [functions.check-fator-r-alerts]
 verify_jwt = false
+
+[functions.send-accounting-link]
+verify_jwt = true
+
+[functions.save-accounting-data]
+verify_jwt = false
+
+[functions.monthly-accounting-reminder]
+verify_jwt = false
