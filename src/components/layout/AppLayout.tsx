@@ -21,6 +21,7 @@ import {
   Handshake,
   Calculator,
   Settings,
+  Bell,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -55,6 +56,7 @@ const navigation: NavItem[] = [
   { name: 'Contas', href: '/settings/accounts', icon: Building2, roles: ['admin'] },
   { name: 'Categorias', href: '/settings/categories', icon: Tags, roles: ['admin'] },
   { name: 'Parceiros', href: '/settings/partners', icon: Handshake, roles: ['admin'] },
+  { name: 'Alertas', href: '/settings/alerts', icon: Bell, roles: ['admin'] },
 ];
 
 // Labels amigáveis para os papéis

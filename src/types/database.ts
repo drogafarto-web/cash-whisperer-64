@@ -187,3 +187,13 @@ export interface Import {
   unit?: Unit;
   importer?: Profile;
 }
+
+export interface SystemConfig {
+  id: string;
+  key: string;
+  value: Record<string, number>;
+  description: string | null;
+  category: string | null;
+  updated_at: string;
+  updated_by: string | null;
+}
