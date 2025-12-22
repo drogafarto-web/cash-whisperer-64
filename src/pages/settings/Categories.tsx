@@ -34,7 +34,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { Category, TaxGroup, RecurrenceType } from '@/types/database';
 import { toast } from 'sonner';
-import { Plus, Loader2, Pencil, RefreshCw, Zap } from 'lucide-react';
+import { Plus, Loader2, Pencil, RefreshCw, Zap, Calculator } from 'lucide-react';
 
 const TAX_GROUP_OPTIONS: { value: TaxGroup; label: string }[] = [
   { value: 'RECEITA_SERVICOS', label: 'Receita de Serviços' },
@@ -69,6 +69,7 @@ export default function CategoriesSettings() {
   const [taxGroup, setTaxGroup] = useState<TaxGroup | ''>('');
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType | ''>('');
   const [description, setDescription] = useState('');
+  const [entraFatorR, setEntraFatorR] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -115,6 +116,7 @@ export default function CategoriesSettings() {
             tax_group: taxGroup || null,
             recurrence_type: recurrenceType || null,
             description: description || null,
+            entra_fator_r: entraFatorR,
           })
           .eq('id', editingCategory.id);
 
@@ -127,6 +129,7 @@ export default function CategoriesSettings() {
           tax_group: taxGroup || null,
           recurrence_type: recurrenceType || null,
           description: description || null,
+          entra_fator_r: entraFatorR,
         });
 
         if (error) throw error;
@@ -151,6 +154,7 @@ export default function CategoriesSettings() {
     setTaxGroup(category.tax_group || '');
     setRecurrenceType(category.recurrence_type || '');
     setDescription(category.description || '');
+    setEntraFatorR(category.entra_fator_r);
     setIsDialogOpen(true);
   };
 
@@ -177,6 +181,7 @@ export default function CategoriesSettings() {
     setTaxGroup('');
     setRecurrenceType('');
     setDescription('');
+    setEntraFatorR(false);
   };
 
   if (authLoading || isLoading) {
@@ -274,6 +279,26 @@ export default function CategoriesSettings() {
                     rows={2}
                   />
                 </div>
+                {taxGroup === 'PESSOAL' && (
+                  <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Calculator className="w-4 h-4 text-primary" />
+                      <div>
+                        <Label htmlFor="entraFatorR" className="text-sm font-medium">
+                          Entra no Fator R
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Inclui no cálculo do Fator R (Simples Nacional)
+                        </p>
+                      </div>
+                    </div>
+                    <Switch
+                      id="entraFatorR"
+                      checked={entraFatorR}
+                      onCheckedChange={setEntraFatorR}
+                    />
+                  </div>
+                )}
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
                   {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                   {editingCategory ? 'Salvar' : 'Criar'}
@@ -292,7 +317,7 @@ export default function CategoriesSettings() {
                   <TableHead>Tipo</TableHead>
                   <TableHead>Grupo Tributário</TableHead>
                   <TableHead>Recorrência</TableHead>
-                  <TableHead>Descrição</TableHead>
+                  <TableHead className="text-center">Fator R</TableHead>
                   <TableHead>Ativa</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -300,7 +325,7 @@ export default function CategoriesSettings() {
               <TableBody>
                 {categories.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       Nenhuma categoria cadastrada
                     </TableCell>
                   </TableRow>
@@ -338,7 +363,19 @@ export default function CategoriesSettings() {
                           <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{category.description || '—'}</TableCell>
+                      <TableCell className="text-center">
+                        {category.tax_group === 'PESSOAL' ? (
+                          category.entra_fator_r ? (
+                            <Badge className="bg-green-100 text-green-800 gap-1">
+                              <Calculator className="w-3 h-3" /> Sim
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-muted-foreground">Não</Badge>
+                          )
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Switch
                           checked={category.active}

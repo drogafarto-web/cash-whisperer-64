@@ -121,7 +121,7 @@ export default function TaxScenarios() {
         .from('transactions')
         .select(`
           *,
-          category:categories(id, name, type, tax_group)
+          category:categories(id, name, type, tax_group, entra_fator_r)
         `)
         .gte('date', format(startDate, 'yyyy-MM-dd'))
         .lte('date', format(endDate, 'yyyy-MM-dd'))
@@ -172,13 +172,28 @@ export default function TaxScenarios() {
         // SAIDA
         switch (taxGroup) {
           case 'PESSOAL':
-            // Tentar identificar tipo de despesa de pessoal pelo nome da categoria
+            // Usar flag entra_fator_r para determinar se entra no cálculo
+            const entraFatorR = tx.category?.entra_fator_r ?? false;
+            
+            if (!entraFatorR) {
+              // Benefícios e outros que NÃO entram no Fator R
+              data.despesas_administrativas += amount;
+              break;
+            }
+            
+            // Identificar tipo de despesa de pessoal pelo nome da categoria
             const catName = tx.category?.name?.toLowerCase() || '';
             if (catName.includes('pró-labore') || catName.includes('pro-labore')) {
               data.folha_prolabore += amount;
-            } else if (catName.includes('inss') || catName.includes('fgts') || catName.includes('encargo')) {
+            } else if (
+              catName.includes('inss') || 
+              catName.includes('fgts') || 
+              catName.includes('encargo') ||
+              catName.includes('patronal')
+            ) {
               data.folha_encargos += amount;
             } else {
+              // Salários, 13º, Férias
               data.folha_salarios += amount;
             }
             break;
@@ -255,10 +270,22 @@ export default function TaxScenarios() {
       } else {
         switch (taxGroup) {
           case 'PESSOAL':
-            const catName = tx.category?.name?.toLowerCase() || '';
-            if (catName.includes('pró-labore') || catName.includes('pro-labore')) {
+            const entraFatorRChart = tx.category?.entra_fator_r ?? false;
+            
+            if (!entraFatorRChart) {
+              data.despesas_administrativas += amount;
+              break;
+            }
+            
+            const catNameChart = tx.category?.name?.toLowerCase() || '';
+            if (catNameChart.includes('pró-labore') || catNameChart.includes('pro-labore')) {
               data.folha_prolabore += amount;
-            } else if (catName.includes('inss') || catName.includes('fgts') || catName.includes('encargo')) {
+            } else if (
+              catNameChart.includes('inss') || 
+              catNameChart.includes('fgts') || 
+              catNameChart.includes('encargo') ||
+              catNameChart.includes('patronal')
+            ) {
               data.folha_encargos += amount;
             } else {
               data.folha_salarios += amount;

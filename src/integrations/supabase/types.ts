@@ -120,6 +120,7 @@ export type Database = {
           active: boolean
           created_at: string
           description: string | null
+          entra_fator_r: boolean | null
           id: string
           name: string
           recurrence_type: string | null
@@ -130,6 +131,7 @@ export type Database = {
           active?: boolean
           created_at?: string
           description?: string | null
+          entra_fator_r?: boolean | null
           id?: string
           name: string
           recurrence_type?: string | null
@@ -140,6 +142,7 @@ export type Database = {
           active?: boolean
           created_at?: string
           description?: string | null
+          entra_fator_r?: boolean | null
           id?: string
           name?: string
           recurrence_type?: string | null
