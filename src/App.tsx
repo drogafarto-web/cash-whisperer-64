@@ -23,9 +23,11 @@ import TaxConfigPage from "./pages/settings/TaxConfig";
 import FatorRAudit from "./pages/settings/FatorRAudit";
 import DailyMovementImport from "./pages/import/DailyMovement";
 import BankStatementImport from "./pages/import/BankStatement";
+import ExtratoParticulares from "./pages/import/ExtratoParticulares";
 import AlertsConfig from "./pages/settings/AlertsConfig";
 import SettingsHub from "./pages/settings/SettingsHub";
 import DataSeed2025 from "./pages/settings/DataSeed2025";
+import CardFeesConfig from "./pages/settings/CardFeesConfig";
 import Pendencias from "./pages/Pendencias";
 import NotFound from "./pages/NotFound";
 
@@ -55,12 +57,14 @@ const App = () => (
             <Route path="/settings/fator-r-audit" element={<FatorRAudit />} />
             <Route path="/settings/alerts" element={<AlertsConfig />} />
             <Route path="/settings/data-2025" element={<DataSeed2025 />} />
+            <Route path="/settings/card-fees" element={<CardFeesConfig />} />
             <Route path="/reports/cash-closings" element={<CashClosingReport />} />
             <Route path="/reports/transactions" element={<TransactionsReport />} />
             <Route path="/reports/tax-scenarios" element={<TaxScenarios />} />
             <Route path="/reports/personnel-real-vs-official" element={<PersonnelRealVsOfficial />} />
             <Route path="/import/daily-movement" element={<DailyMovementImport />} />
             <Route path="/import/bank-statement" element={<BankStatementImport />} />
+            <Route path="/import/extrato-particulares" element={<ExtratoParticulares />} />
         <Route path="/pendencias" element={<Pendencias />} />
         <Route path="/contabilidade/dados/:token" element={<AccountingForm />} />
         <Route path="*" element={<NotFound />} />
