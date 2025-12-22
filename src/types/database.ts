@@ -38,11 +38,22 @@ export interface Account {
   unit?: Unit;
 }
 
+export type TaxGroup = 
+  | 'RECEITA_SERVICOS' 
+  | 'RECEITA_OUTRAS' 
+  | 'INSUMOS' 
+  | 'PESSOAL' 
+  | 'SERVICOS_TERCEIROS' 
+  | 'ADMINISTRATIVAS' 
+  | 'FINANCEIRAS' 
+  | 'TRIBUTARIAS';
+
 export interface Category {
   id: string;
   name: string;
   type: 'ENTRADA' | 'SAIDA';
   description: string | null;
+  tax_group: TaxGroup | null;
   active: boolean;
   created_at: string;
 }
