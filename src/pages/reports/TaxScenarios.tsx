@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Slider } from '@/components/ui/slider';
 import {
   BarChart,
   Bar,
@@ -51,6 +52,13 @@ import {
   ProlaboreAdjustment,
   AnexoSavings,
 } from '@/services/taxSimulator';
+import {
+  simulateRegularization,
+  findOptimalRegularization,
+  generateRegularizationDiagnostics,
+  RegularizationInput,
+  RegularizationResult,
+} from '@/services/regularizationSimulator';
 import { FatorRAlert } from '@/components/alerts/FatorRAlert';
 
 // Tipo estendido para incluir dados de folha informal
@@ -64,6 +72,7 @@ export default function TaxScenarios() {
   const { isAdmin, unit } = useAuth();
   const [selectedUnitId, setSelectedUnitId] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
+  const [regularizationPercent, setRegularizationPercent] = useState<number>(0);
 
   // Buscar unidades
   const { data: units = [] } = useQuery({
@@ -260,6 +269,48 @@ export default function TaxScenarios() {
       custoPessoalTotal,
     };
   }, [transactionsData, taxParameters, taxConfig, selectedMonth]);
+
+  // Simulador de Regularização
+  const regularizationResult = useMemo<RegularizationResult | null>(() => {
+    if (!simulationResult || !taxParameters) return null;
+    
+    const rbt12 = simulationResult.cenarios.find(c => c.regime === 'SIMPLES')?.detalhes.rbt12 || 0;
+    
+    if (rbt12 === 0) return null;
+    
+    const input: RegularizationInput = {
+      folhaOficial12: simulationResult.folhaOficial12,
+      pagamentosInformais12: simulationResult.folhaInformal12,
+      rbt12,
+      taxParameters,
+      receitaMensal: simulationResult.receitaTotal,
+    };
+    
+    return simulateRegularization(input, regularizationPercent);
+  }, [simulationResult, taxParameters, regularizationPercent]);
+
+  const optimalRegularization = useMemo(() => {
+    if (!simulationResult || !taxParameters) return null;
+    
+    const rbt12 = simulationResult.cenarios.find(c => c.regime === 'SIMPLES')?.detalhes.rbt12 || 0;
+    
+    if (rbt12 === 0 || simulationResult.folhaInformal12 === 0) return null;
+    
+    const input: RegularizationInput = {
+      folhaOficial12: simulationResult.folhaOficial12,
+      pagamentosInformais12: simulationResult.folhaInformal12,
+      rbt12,
+      taxParameters,
+      receitaMensal: simulationResult.receitaTotal,
+    };
+    
+    return findOptimalRegularization(input);
+  }, [simulationResult, taxParameters]);
+
+  const regularizationDiagnostics = useMemo(() => {
+    if (!regularizationResult) return [];
+    return generateRegularizationDiagnostics(regularizationResult);
+  }, [regularizationResult]);
 
   // Dados para o gráfico de barras
   const barChartData = useMemo(() => {
@@ -612,6 +663,217 @@ export default function TaxScenarios() {
                     <AlertDescription>
                       Pagamentos informais representam risco de passivo trabalhista e fiscal. 
                       Use o <strong>Relatório Real x Oficial</strong> para simular a regularização gradual.
+                    </AlertDescription>
+                  </Alert>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Simulador de Regularização */}
+            {simulationResult.folhaInformal12 > 0 && regularizationResult && (
+              <Card className="border-blue-500/50">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Calculator className="h-5 w-5" />
+                    Simulador de Regularização de Pagamentos Informais
+                  </CardTitle>
+                  <CardDescription>
+                    Simule o impacto de regularizar os pagamentos "por fora" na folha oficial.
+                    Arraste o slider para ver cenários.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Slider */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium">
+                        Percentual de Regularização
+                      </label>
+                      <span className="text-lg font-bold text-blue-600">
+                        {regularizationPercent}%
+                      </span>
+                    </div>
+                    <Slider
+                      value={[regularizationPercent]}
+                      onValueChange={(v) => setRegularizationPercent(v[0])}
+                      max={100}
+                      step={10}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>0%</span>
+                      <span>25%</span>
+                      <span>50%</span>
+                      <span>75%</span>
+                      <span>100%</span>
+                    </div>
+                    
+                    {/* Sugestão de percentual ótimo */}
+                    {optimalRegularization && optimalRegularization.percentual > 0 && (
+                      <Alert className="mt-2">
+                        <Lightbulb className="h-4 w-4" />
+                        <AlertDescription>
+                          <strong>Sugestão:</strong> O percentual ótimo é{' '}
+                          <button
+                            onClick={() => setRegularizationPercent(optimalRegularization.percentual)}
+                            className="text-blue-600 underline font-semibold"
+                          >
+                            {optimalRegularization.percentual}%
+                          </button>
+                          {' '}(resultado líquido máximo).
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+
+                  {/* Cards lado a lado: Atual vs Simulado */}
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {/* Cenário Atual */}
+                    <div className="p-4 rounded-lg border bg-muted/30">
+                      <h4 className="font-semibold text-sm mb-3 text-muted-foreground">
+                        Cenário Atual (Sem Regularização)
+                      </h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span>Folha Oficial (12m):</span>
+                          <span className="font-medium">
+                            {formatCurrency(regularizationResult.folhaOficial)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Fator R:</span>
+                          <span className={`font-bold ${
+                            regularizationResult.fatorRAtual >= 0.28 ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {formatPercent(regularizationResult.fatorRAtual * 100)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Anexo Simples:</span>
+                          <Badge variant={regularizationResult.anexoAtual === 'III' ? 'default' : 'destructive'}>
+                            {regularizationResult.anexoAtual}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Alíquota Efetiva:</span>
+                          <span className="font-medium">
+                            {formatPercent(regularizationResult.aliquotaAtual * 100)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Cenário Simulado */}
+                    <div className={`p-4 rounded-lg border ${
+                      regularizationPercent > 0 ? 'bg-blue-500/5 border-blue-500/30' : 'bg-muted/30'
+                    }`}>
+                      <h4 className="font-semibold text-sm mb-3 text-blue-700">
+                        Cenário Simulado ({regularizationPercent}% regularizado)
+                      </h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span>Folha Simulada (12m):</span>
+                          <span className="font-medium">
+                            {formatCurrency(regularizationResult.folhaSimulada)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Fator R Simulado:</span>
+                          <span className={`font-bold ${
+                            regularizationResult.fatorRSimulado >= 0.28 ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {formatPercent(regularizationResult.fatorRSimulado * 100)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Anexo Simples:</span>
+                          <Badge variant={regularizationResult.anexoSimulado === 'III' ? 'default' : 'destructive'}>
+                            {regularizationResult.anexoSimulado}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Alíquota Efetiva:</span>
+                          <span className="font-medium">
+                            {formatPercent(regularizationResult.aliquotaSimulada * 100)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card de Impacto Financeiro */}
+                  {regularizationPercent > 0 && (
+                    <div className="p-4 rounded-lg border bg-muted/20">
+                      <h4 className="font-semibold text-sm mb-3">Impacto Financeiro Anual</h4>
+                      <div className="grid gap-3 md:grid-cols-4 text-sm">
+                        <div>
+                          <p className="text-muted-foreground">Custo Adicional Encargos</p>
+                          <p className="text-lg font-bold text-red-600">
+                            {formatCurrency(regularizationResult.custoAdicionalEncargos)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">~50% sobre valor regularizado</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Economia de Imposto</p>
+                          <p className="text-lg font-bold text-green-600">
+                            {formatCurrency(regularizationResult.economiaImposto)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {regularizationResult.anexoAtual !== regularizationResult.anexoSimulado
+                              ? 'Migração de anexo!'
+                              : 'Mesma alíquota'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Resultado Líquido</p>
+                          <p className={`text-lg font-bold ${
+                            regularizationResult.resultadoLiquido >= 0 ? 'text-green-600' : 'text-amber-600'
+                          }`}>
+                            {formatCurrency(regularizationResult.resultadoLiquido)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {regularizationResult.resultadoLiquido >= 0 ? 'Vantajoso' : 'Custo adicional'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">ROI / Payback</p>
+                          <p className="text-lg font-bold">
+                            {regularizationResult.roiRegularizacao >= 0 
+                              ? `${(regularizationResult.roiRegularizacao * 100).toFixed(0)}%`
+                              : 'N/A'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {regularizationResult.paybackMeses !== Infinity && regularizationResult.paybackMeses > 0
+                              ? `Payback: ${regularizationResult.paybackMeses.toFixed(1)} meses`
+                              : 'Não aplicável'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Lista de Diagnósticos */}
+                  {regularizationDiagnostics.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="font-semibold text-sm">Diagnósticos</h4>
+                      <ul className="space-y-1 text-sm">
+                        {regularizationDiagnostics.map((diag, idx) => (
+                          <li key={idx} className="pl-4 border-l-2 border-blue-500 py-1">
+                            {diag}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Disclaimer */}
+                  <Alert>
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Simulação Estimativa</AlertTitle>
+                    <AlertDescription>
+                      Esta simulação é para <strong>planejamento</strong> de regularização. 
+                      Pagamentos informais representam risco trabalhista e fiscal mesmo que o resultado 
+                      líquido não seja positivo. <strong>Valide com contador e advogado trabalhista.</strong>
                     </AlertDescription>
                   </Alert>
                 </CardContent>
