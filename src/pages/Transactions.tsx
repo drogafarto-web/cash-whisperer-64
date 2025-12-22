@@ -632,14 +632,14 @@ export default function Transactions() {
                 <div className="space-y-2">
                   <Label>Parceiro (opcional)</Label>
                   <Select
-                    value={formData.partner_id}
-                    onValueChange={handlePartnerChange}
+                    value={formData.partner_id || 'none'}
+                    onValueChange={(value) => handlePartnerChange(value === 'none' ? '' : value)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Nenhum</SelectItem>
+                      <SelectItem value="none">Nenhum</SelectItem>
                       {filteredPartners.map(p => (
                         <SelectItem key={p.id} value={p.id}>
                           <div className="flex items-center gap-2">

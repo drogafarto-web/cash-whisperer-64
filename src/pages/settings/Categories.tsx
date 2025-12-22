@@ -239,12 +239,15 @@ export default function CategoriesSettings() {
                 </div>
                 <div className="space-y-2">
                   <Label>Grupo Tributário</Label>
-                  <Select value={taxGroup} onValueChange={value => setTaxGroup(value as TaxGroup | '')}>
+                  <Select
+                    value={taxGroup || 'none'}
+                    onValueChange={(value) => setTaxGroup(value === 'none' ? '' : (value as TaxGroup))}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o grupo..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Nenhum</SelectItem>
+                      <SelectItem value="none">Nenhum</SelectItem>
                       {TAX_GROUP_OPTIONS.map(option => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label}
@@ -255,12 +258,15 @@ export default function CategoriesSettings() {
                 </div>
                 <div className="space-y-2">
                   <Label>Tipo de Recorrência</Label>
-                  <Select value={recurrenceType} onValueChange={value => setRecurrenceType(value as RecurrenceType | '')}>
+                  <Select
+                    value={recurrenceType || 'none'}
+                    onValueChange={(value) => setRecurrenceType(value === 'none' ? '' : (value as RecurrenceType))}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o tipo..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Não definido</SelectItem>
+                      <SelectItem value="none">Não definido</SelectItem>
                       {RECURRENCE_OPTIONS.map(option => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label}
