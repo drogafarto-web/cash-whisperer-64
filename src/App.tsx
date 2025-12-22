@@ -24,6 +24,7 @@ import DailyMovementImport from "./pages/import/DailyMovement";
 import BankStatementImport from "./pages/import/BankStatement";
 import AlertsConfig from "./pages/settings/AlertsConfig";
 import SettingsHub from "./pages/settings/SettingsHub";
+import DataSeed2025 from "./pages/settings/DataSeed2025";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -51,6 +52,7 @@ const App = () => (
             <Route path="/settings/tax-config" element={<TaxConfigPage />} />
             <Route path="/settings/fator-r-audit" element={<FatorRAudit />} />
             <Route path="/settings/alerts" element={<AlertsConfig />} />
+            <Route path="/settings/data-2025" element={<DataSeed2025 />} />
             <Route path="/reports/cash-closings" element={<CashClosingReport />} />
             <Route path="/reports/transactions" element={<TransactionsReport />} />
             <Route path="/reports/tax-scenarios" element={<TaxScenarios />} />

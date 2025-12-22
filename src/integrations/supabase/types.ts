@@ -321,6 +321,197 @@ export type Database = {
           },
         ]
       }
+      seed_bank_statements: {
+        Row: {
+          account_id: string | null
+          ano: number
+          created_at: string | null
+          created_by: string | null
+          file_name: string
+          file_type: string
+          id: string
+          imported: boolean
+          imported_at: string | null
+          mes: number
+          storage_path: string
+        }
+        Insert: {
+          account_id?: string | null
+          ano?: number
+          created_at?: string | null
+          created_by?: string | null
+          file_name: string
+          file_type: string
+          id?: string
+          imported?: boolean
+          imported_at?: string | null
+          mes: number
+          storage_path: string
+        }
+        Update: {
+          account_id?: string | null
+          ano?: number
+          created_at?: string | null
+          created_by?: string | null
+          file_name?: string
+          file_type?: string
+          id?: string
+          imported?: boolean
+          imported_at?: string | null
+          mes?: number
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seed_bank_statements_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      seed_payroll: {
+        Row: {
+          ano: number
+          created_at: string | null
+          created_by: string | null
+          decimo_terceiro: number
+          ferias: number
+          fgts: number
+          id: string
+          inss_patronal: number
+          mes: number
+          observacoes: string | null
+          prolabore: number
+          salarios: number
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          ano?: number
+          created_at?: string | null
+          created_by?: string | null
+          decimo_terceiro?: number
+          ferias?: number
+          fgts?: number
+          id?: string
+          inss_patronal?: number
+          mes: number
+          observacoes?: string | null
+          prolabore?: number
+          salarios?: number
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          ano?: number
+          created_at?: string | null
+          created_by?: string | null
+          decimo_terceiro?: number
+          ferias?: number
+          fgts?: number
+          id?: string
+          inss_patronal?: number
+          mes?: number
+          observacoes?: string | null
+          prolabore?: number
+          salarios?: number
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      seed_revenue: {
+        Row: {
+          ano: number
+          created_at: string | null
+          created_by: string | null
+          fonte_principal: string | null
+          id: string
+          mes: number
+          observacoes: string | null
+          receita_outras: number
+          receita_servicos: number
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          ano?: number
+          created_at?: string | null
+          created_by?: string | null
+          fonte_principal?: string | null
+          id?: string
+          mes: number
+          observacoes?: string | null
+          receita_outras?: number
+          receita_servicos?: number
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          ano?: number
+          created_at?: string | null
+          created_by?: string | null
+          fonte_principal?: string | null
+          id?: string
+          mes?: number
+          observacoes?: string | null
+          receita_outras?: number
+          receita_servicos?: number
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      seed_taxes: {
+        Row: {
+          ano: number
+          created_at: string | null
+          created_by: string | null
+          das: number
+          id: string
+          irrf_retido: number
+          iss_proprio: number
+          iss_retido: number
+          mes: number
+          observacoes: string | null
+          outros: number
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          ano?: number
+          created_at?: string | null
+          created_by?: string | null
+          das?: number
+          id?: string
+          irrf_retido?: number
+          iss_proprio?: number
+          iss_retido?: number
+          mes: number
+          observacoes?: string | null
+          outros?: number
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          ano?: number
+          created_at?: string | null
+          created_by?: string | null
+          das?: number
+          id?: string
+          irrf_retido?: number
+          iss_proprio?: number
+          iss_retido?: number
+          mes?: number
+          observacoes?: string | null
+          outros?: number
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       system_config: {
         Row: {
           category: string | null
