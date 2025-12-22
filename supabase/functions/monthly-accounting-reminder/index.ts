@@ -48,6 +48,23 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Read settings from database
+    const { data: settings, error: settingsError } = await supabase
+      .from("accounting_settings")
+      .select("*")
+      .limit(1)
+      .single();
+
+    if (settingsError) {
+      console.log("No settings found, using defaults");
+    }
+
+    // Settings with defaults
+    const reminderDay = settings?.reminder_day || 5;
+    const reminderHour = settings?.reminder_hour || 8;
+    
+    console.log(`Reminder configured for day ${reminderDay} at ${reminderHour}:00 BRT`);
+
     const { ano, mes } = getPreviousMonth();
     console.log(`Checking data for ${mes}/${ano}`);
 
@@ -223,6 +240,10 @@ serve(async (req) => {
         message: `Lembretes enviados para ${emailsSent} contato(s)`,
         emails_sent: emailsSent,
         month_checked: `${mes}/${ano}`,
+        settings_used: {
+          reminder_day: reminderDay,
+          reminder_hour: reminderHour,
+        },
       }),
       {
         status: 200,
