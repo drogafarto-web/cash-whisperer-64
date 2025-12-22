@@ -1,7 +1,9 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { supabase } from '@/integrations/supabase/client';
 import {
   LayoutDashboard,
   Receipt,
@@ -13,9 +15,10 @@ import {
   Users,
   Building2,
   Tags,
+  AlertCircle,
 } from 'lucide-react';
-import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -26,6 +29,25 @@ export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [hasTodayCashClosing, setHasTodayCashClosing] = useState<boolean | null>(null);
+
+  // Verificar se existe fechamento de caixa para hoje
+  useEffect(() => {
+    const checkTodayCashClosing = async () => {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const { data, error } = await supabase
+        .from('cash_closings')
+        .select('id')
+        .eq('date', today)
+        .limit(1);
+      
+      if (!error) {
+        setHasTodayCashClosing(data && data.length > 0);
+      }
+    };
+    
+    checkTodayCashClosing();
+  }, [location.pathname]); // Re-check when route changes
 
   const handleSignOut = async () => {
     await signOut();
@@ -79,6 +101,8 @@ export function AppLayout({ children }: AppLayoutProps) {
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
             {filteredNav.map((item) => {
               const isActive = location.pathname === item.href;
+              const showPendingBadge = item.href === '/cash-closing' && hasTodayCashClosing === false;
+              
               return (
                 <Link
                   key={item.name}
@@ -92,7 +116,13 @@ export function AppLayout({ children }: AppLayoutProps) {
                   )}
                 >
                   <item.icon className="w-5 h-5" />
-                  {item.name}
+                  <span className="flex-1">{item.name}</span>
+                  {showPendingBadge && (
+                    <Badge variant="destructive" className="text-xs px-1.5 py-0.5">
+                      <AlertCircle className="w-3 h-3 mr-1" />
+                      Pendente
+                    </Badge>
+                  )}
                 </Link>
               );
             })}
