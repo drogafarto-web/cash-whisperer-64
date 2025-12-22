@@ -180,6 +180,53 @@ export type Database = {
           },
         ]
       }
+      imports: {
+        Row: {
+          created_at: string | null
+          file_name: string
+          id: string
+          imported_by: string
+          imported_records: number
+          period_end: string | null
+          period_start: string | null
+          skipped_records: number
+          total_records: number
+          unit_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          file_name: string
+          id?: string
+          imported_by: string
+          imported_records?: number
+          period_end?: string | null
+          period_start?: string | null
+          skipped_records?: number
+          total_records?: number
+          unit_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          file_name?: string
+          id?: string
+          imported_by?: string
+          imported_records?: number
+          period_end?: string | null
+          period_start?: string | null
+          skipped_records?: number
+          total_records?: number
+          unit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "imports_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string

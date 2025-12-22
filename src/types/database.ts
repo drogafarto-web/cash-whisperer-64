@@ -115,3 +115,19 @@ export interface CashClosing {
   closer?: Profile;
   unit?: Unit;
 }
+
+export interface Import {
+  id: string;
+  unit_id: string | null;
+  file_name: string;
+  period_start: string | null;
+  period_end: string | null;
+  total_records: number;
+  imported_records: number;
+  skipped_records: number;
+  imported_by: string;
+  created_at: string;
+  // Joined data
+  unit?: Unit;
+  importer?: Profile;
+}

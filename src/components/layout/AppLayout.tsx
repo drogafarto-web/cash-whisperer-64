@@ -17,6 +17,7 @@ import {
   AlertCircle,
   MapPin,
   FileBarChart,
+  FileUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -66,6 +67,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, adminOnly: true },
     { name: 'Transações', href: '/transactions', icon: Receipt, adminOnly: false },
     { name: 'Fechamento de Caixa', href: '/cash-closing', icon: DollarSign, adminOnly: false },
+    { name: 'Importar LIS', href: '/import/daily-movement', icon: FileUp, adminOnly: false },
     { name: 'Rel. Fechamentos', href: '/reports/cash-closings', icon: FileBarChart, adminOnly: true },
     { name: 'Rel. Transações', href: '/reports/transactions', icon: FileBarChart, adminOnly: true },
     { name: 'Usuários', href: '/settings/users', icon: Users, adminOnly: true },
