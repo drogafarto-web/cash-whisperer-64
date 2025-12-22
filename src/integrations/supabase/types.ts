@@ -354,6 +354,60 @@ export type Database = {
           },
         ]
       }
+      cash_envelopes: {
+        Row: {
+          cash_total: number
+          closure_id: string
+          conferencia_checkbox: boolean
+          created_at: string
+          id: string
+          label_printed_at: string | null
+          label_printed_by: string | null
+          lis_codes: string[]
+          status: string
+          unit_id: string | null
+        }
+        Insert: {
+          cash_total?: number
+          closure_id: string
+          conferencia_checkbox?: boolean
+          created_at?: string
+          id?: string
+          label_printed_at?: string | null
+          label_printed_by?: string | null
+          lis_codes?: string[]
+          status?: string
+          unit_id?: string | null
+        }
+        Update: {
+          cash_total?: number
+          closure_id?: string
+          conferencia_checkbox?: boolean
+          created_at?: string
+          id?: string
+          label_printed_at?: string | null
+          label_printed_by?: string | null
+          lis_codes?: string[]
+          status?: string
+          unit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_envelopes_closure_id_fkey"
+            columns: ["closure_id"]
+            isOneToOne: true
+            referencedRelation: "lis_closures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_envelopes_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           active: boolean
@@ -521,6 +575,164 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "imports_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lis_closure_items: {
+        Row: {
+          amount: number
+          card_fee_percent: number | null
+          card_fee_value: number | null
+          closure_id: string
+          comprovante_status: string | null
+          convenio: string | null
+          created_at: string
+          date: string
+          discount_approval_channel: string | null
+          discount_approved_at: string | null
+          discount_approved_by: string | null
+          discount_percent: number | null
+          discount_reason: string | null
+          discount_value: number | null
+          gross_amount: number | null
+          id: string
+          justificativa: string | null
+          lis_code: string
+          net_amount: number | null
+          patient_name: string | null
+          payment_method: string
+          status: string
+          transaction_id: string | null
+        }
+        Insert: {
+          amount?: number
+          card_fee_percent?: number | null
+          card_fee_value?: number | null
+          closure_id: string
+          comprovante_status?: string | null
+          convenio?: string | null
+          created_at?: string
+          date: string
+          discount_approval_channel?: string | null
+          discount_approved_at?: string | null
+          discount_approved_by?: string | null
+          discount_percent?: number | null
+          discount_reason?: string | null
+          discount_value?: number | null
+          gross_amount?: number | null
+          id?: string
+          justificativa?: string | null
+          lis_code: string
+          net_amount?: number | null
+          patient_name?: string | null
+          payment_method: string
+          status?: string
+          transaction_id?: string | null
+        }
+        Update: {
+          amount?: number
+          card_fee_percent?: number | null
+          card_fee_value?: number | null
+          closure_id?: string
+          comprovante_status?: string | null
+          convenio?: string | null
+          created_at?: string
+          date?: string
+          discount_approval_channel?: string | null
+          discount_approved_at?: string | null
+          discount_approved_by?: string | null
+          discount_percent?: number | null
+          discount_reason?: string | null
+          discount_value?: number | null
+          gross_amount?: number | null
+          id?: string
+          justificativa?: string | null
+          lis_code?: string
+          net_amount?: number | null
+          patient_name?: string | null
+          payment_method?: string
+          status?: string
+          transaction_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lis_closure_items_closure_id_fkey"
+            columns: ["closure_id"]
+            isOneToOne: false
+            referencedRelation: "lis_closures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lis_closure_items_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lis_closures: {
+        Row: {
+          closed_at: string | null
+          closed_by: string | null
+          conferencia_checkbox: boolean
+          created_at: string
+          created_by: string
+          id: string
+          itens_sem_comprovante: number
+          period_end: string
+          period_start: string
+          status: string
+          total_cartao_liquido: number
+          total_dinheiro: number
+          total_nao_pago: number
+          total_pix: number
+          total_taxa_cartao: number
+          unit_id: string | null
+        }
+        Insert: {
+          closed_at?: string | null
+          closed_by?: string | null
+          conferencia_checkbox?: boolean
+          created_at?: string
+          created_by: string
+          id?: string
+          itens_sem_comprovante?: number
+          period_end: string
+          period_start: string
+          status?: string
+          total_cartao_liquido?: number
+          total_dinheiro?: number
+          total_nao_pago?: number
+          total_pix?: number
+          total_taxa_cartao?: number
+          unit_id?: string | null
+        }
+        Update: {
+          closed_at?: string | null
+          closed_by?: string | null
+          conferencia_checkbox?: boolean
+          created_at?: string
+          created_by?: string
+          id?: string
+          itens_sem_comprovante?: number
+          period_end?: string
+          period_start?: string
+          status?: string
+          total_cartao_liquido?: number
+          total_dinheiro?: number
+          total_nao_pago?: number
+          total_pix?: number
+          total_taxa_cartao?: number
+          unit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lis_closures_unit_id_fkey"
             columns: ["unit_id"]
             isOneToOne: false
             referencedRelation: "units"
