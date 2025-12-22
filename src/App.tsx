@@ -14,6 +14,7 @@ import UnitsSettings from "./pages/settings/Units";
 import AccountsSettings from "./pages/settings/Accounts";
 import CategoriesSettings from "./pages/settings/Categories";
 import CashClosingReport from "./pages/reports/CashClosingReport";
+import TransactionsReport from "./pages/reports/TransactionsReport";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/settings/accounts" element={<AccountsSettings />} />
             <Route path="/settings/categories" element={<CategoriesSettings />} />
             <Route path="/reports/cash-closings" element={<CashClosingReport />} />
+            <Route path="/reports/transactions" element={<TransactionsReport />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
