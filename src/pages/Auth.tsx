@@ -7,9 +7,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { DollarSign, Loader2 } from 'lucide-react';
 import { z } from 'zod';
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email('Email inválido'),
+});
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -38,6 +50,34 @@ export default function Auth() {
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
+
+  // Forgot password
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotDialogOpen, setForgotDialogOpen] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
+
+  const handleForgotPassword = async () => {
+    const validation = forgotPasswordSchema.safeParse({ email: forgotEmail });
+    if (!validation.success) {
+      toast.error(validation.error.errors[0].message);
+      return;
+    }
+
+    setForgotLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setForgotLoading(false);
+
+    if (error) {
+      toast.error('Erro ao enviar email de recuperação');
+      return;
+    }
+
+    toast.success('Email de recuperação enviado! Verifique sua caixa de entrada.');
+    setForgotDialogOpen(false);
+    setForgotEmail('');
+  };
 
   useEffect(() => {
     if (user && !authLoading) {
@@ -148,7 +188,47 @@ export default function Auth() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="login-password">Senha</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="login-password">Senha</Label>
+                      <Dialog open={forgotDialogOpen} onOpenChange={setForgotDialogOpen}>
+                        <DialogTrigger asChild>
+                          <button
+                            type="button"
+                            className="text-xs text-primary hover:underline"
+                          >
+                            Esqueci minha senha
+                          </button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-md">
+                          <DialogHeader>
+                            <DialogTitle>Recuperar Senha</DialogTitle>
+                            <DialogDescription>
+                              Digite seu email para receber um link de recuperação de senha.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4 pt-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="forgot-email">Email</Label>
+                              <Input
+                                id="forgot-email"
+                                type="email"
+                                placeholder="seu@email.com"
+                                value={forgotEmail}
+                                onChange={(e) => setForgotEmail(e.target.value)}
+                              />
+                            </div>
+                            <Button
+                              className="w-full"
+                              onClick={handleForgotPassword}
+                              disabled={forgotLoading}
+                            >
+                              {forgotLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                              Enviar Link de Recuperação
+                            </Button>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
                     <Input
                       id="login-password"
                       type="password"
