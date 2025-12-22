@@ -1,0 +1,143 @@
+import { ReactNode } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/button';
+import {
+  LayoutDashboard,
+  Receipt,
+  DollarSign,
+  Settings,
+  LogOut,
+  Menu,
+  X,
+  Users,
+  Building2,
+  Tags,
+} from 'lucide-react';
+import { useState } from 'react';
+import { cn } from '@/lib/utils';
+
+interface AppLayoutProps {
+  children: ReactNode;
+}
+
+export function AppLayout({ children }: AppLayoutProps) {
+  const { profile, role, signOut, isAdmin } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth');
+  };
+
+  const navigation = [
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, adminOnly: true },
+    { name: 'Transações', href: '/transactions', icon: Receipt, adminOnly: false },
+    { name: 'Fechamento de Caixa', href: '/cash-closing', icon: DollarSign, adminOnly: false },
+    { name: 'Usuários', href: '/settings/users', icon: Users, adminOnly: true },
+    { name: 'Contas', href: '/settings/accounts', icon: Building2, adminOnly: true },
+    { name: 'Categorias', href: '/settings/categories', icon: Tags, adminOnly: true },
+  ];
+
+  const filteredNav = navigation.filter(item => !item.adminOnly || isAdmin);
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Mobile sidebar toggle */}
+      <div className="lg:hidden fixed top-4 left-4 z-50">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+        >
+          {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </Button>
+      </div>
+
+      {/* Sidebar */}
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-40 w-64 bg-sidebar text-sidebar-foreground transform transition-transform duration-200 ease-in-out lg:translate-x-0",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        <div className="flex flex-col h-full">
+          {/* Logo */}
+          <div className="flex items-center gap-3 px-6 py-5 border-b border-sidebar-border">
+            <div className="w-10 h-10 rounded-lg bg-sidebar-primary flex items-center justify-center">
+              <DollarSign className="w-6 h-6 text-sidebar-primary-foreground" />
+            </div>
+            <div>
+              <h1 className="font-semibold text-lg">FinGest</h1>
+              <p className="text-xs text-sidebar-foreground/70">Gestão Financeira</p>
+            </div>
+          </div>
+
+          {/* Navigation */}
+          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+            {filteredNav.map((item) => {
+              const isActive = location.pathname === item.href;
+              return (
+                <Link
+                  key={item.name}
+                  to={item.href}
+                  onClick={() => setSidebarOpen(false)}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                      : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+                  )}
+                >
+                  <item.icon className="w-5 h-5" />
+                  {item.name}
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* User info */}
+          <div className="p-4 border-t border-sidebar-border">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full bg-sidebar-accent flex items-center justify-center">
+                <span className="text-sm font-medium">
+                  {profile?.name?.charAt(0).toUpperCase() || 'U'}
+                </span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{profile?.name}</p>
+                <p className="text-xs text-sidebar-foreground/70 capitalize">{role}</p>
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSignOut}
+              className="w-full justify-start text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Sair
+            </Button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-30 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Main content */}
+      <main className="lg:pl-64">
+        <div className="min-h-screen p-4 lg:p-8">
+          {children}
+        </div>
+      </main>
+    </div>
+  );
+}
