@@ -233,6 +233,53 @@ export type Database = {
           },
         ]
       }
+      partners: {
+        Row: {
+          active: boolean
+          created_at: string
+          default_category_id: string | null
+          expected_amount: number | null
+          id: string
+          is_recurring: boolean
+          name: string
+          notes: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          default_category_id?: string | null
+          expected_amount?: number | null
+          id?: string
+          is_recurring?: boolean
+          name: string
+          notes?: string | null
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          default_category_id?: string | null
+          expected_amount?: number | null
+          id?: string
+          is_recurring?: boolean
+          name?: string
+          notes?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partners_default_category_id_fkey"
+            columns: ["default_category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -284,6 +331,7 @@ export type Database = {
           deleted_by: string | null
           description: string | null
           id: string
+          partner_id: string | null
           payment_method: string
           rejection_reason: string | null
           revenue_source: string | null
@@ -307,6 +355,7 @@ export type Database = {
           deleted_by?: string | null
           description?: string | null
           id?: string
+          partner_id?: string | null
           payment_method: string
           rejection_reason?: string | null
           revenue_source?: string | null
@@ -330,6 +379,7 @@ export type Database = {
           deleted_by?: string | null
           description?: string | null
           id?: string
+          partner_id?: string | null
           payment_method?: string
           rejection_reason?: string | null
           revenue_source?: string | null
@@ -351,6 +401,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "partners"
             referencedColumns: ["id"]
           },
           {

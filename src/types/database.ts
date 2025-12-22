@@ -1,5 +1,6 @@
 export type AppRole = 'admin' | 'secretaria';
 export type AccountType = 'CAIXA' | 'CONTA_BANCARIA' | 'OPERADORA_CARTAO';
+export type PartnerType = 'CLIENTE' | 'FORNECEDOR';
 
 export interface Profile {
   id: string;
@@ -65,6 +66,21 @@ export type TransactionStatus = 'PENDENTE' | 'APROVADO' | 'REJEITADO';
 export type PaymentMethod = 'DINHEIRO' | 'CARTAO' | 'TRANSFERENCIA' | 'PIX' | 'BOLETO';
 export type TransactionType = 'ENTRADA' | 'SAIDA';
 
+export interface Partner {
+  id: string;
+  name: string;
+  type: PartnerType;
+  is_recurring: boolean;
+  default_category_id: string | null;
+  expected_amount: number | null;
+  notes: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+  // Joined data
+  default_category?: Category;
+}
+
 export interface Transaction {
   id: string;
   date: string;
@@ -74,6 +90,7 @@ export interface Transaction {
   account_id: string;
   category_id: string;
   unit_id: string | null;
+  partner_id: string | null;
   description: string | null;
   status: TransactionStatus;
   rejection_reason: string | null;
@@ -87,6 +104,7 @@ export interface Transaction {
   // Joined data
   account?: Account;
   category?: Category;
+  partner?: Partner;
   creator?: Profile;
   approver?: Profile;
   documents?: Document[];

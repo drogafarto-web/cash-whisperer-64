@@ -13,6 +13,7 @@ import UsersSettings from "./pages/settings/Users";
 import UnitsSettings from "./pages/settings/Units";
 import AccountsSettings from "./pages/settings/Accounts";
 import CategoriesSettings from "./pages/settings/Categories";
+import PartnersSettings from "./pages/settings/Partners";
 import CashClosingReport from "./pages/reports/CashClosingReport";
 import TransactionsReport from "./pages/reports/TransactionsReport";
 import DailyMovementImport from "./pages/import/DailyMovement";
@@ -38,6 +39,7 @@ const App = () => (
             <Route path="/settings/units" element={<UnitsSettings />} />
             <Route path="/settings/accounts" element={<AccountsSettings />} />
             <Route path="/settings/categories" element={<CategoriesSettings />} />
+            <Route path="/settings/partners" element={<PartnersSettings />} />
             <Route path="/reports/cash-closings" element={<CashClosingReport />} />
             <Route path="/reports/transactions" element={<TransactionsReport />} />
             <Route path="/import/daily-movement" element={<DailyMovementImport />} />
