@@ -218,6 +218,97 @@ export default function TaxScenarios() {
     }));
   }, [simulationResult]);
 
+  // Dados para o gráfico de evolução mensal (12 meses)
+  const lineChartData = useMemo(() => {
+    if (!transactionsData || !taxParameters || !taxConfig) return [];
+
+    // Agrupar transações por mês (mesmo código da simulação)
+    const monthlyDataMap = new Map<string, MonthlyFinancialData>();
+    
+    for (let i = 0; i < 12; i++) {
+      const monthDate = subMonths(new Date(selectedMonth + '-01'), 11 - i);
+      const monthKey = format(monthDate, 'yyyy-MM');
+      monthlyDataMap.set(monthKey, createEmptyMonthlyData(monthKey));
+    }
+
+    transactionsData.forEach((tx: any) => {
+      const monthKey = format(new Date(tx.date), 'yyyy-MM');
+      const data = monthlyDataMap.get(monthKey);
+      if (!data) return;
+
+      const taxGroup = tx.category?.tax_group;
+      const amount = Math.abs(Number(tx.amount));
+
+      if (tx.type === 'ENTRADA') {
+        if (taxGroup === 'RECEITA_SERVICOS') {
+          data.receita_servicos += amount;
+        } else {
+          data.receita_outras += amount;
+        }
+      } else {
+        switch (taxGroup) {
+          case 'PESSOAL':
+            const catName = tx.category?.name?.toLowerCase() || '';
+            if (catName.includes('pró-labore') || catName.includes('pro-labore')) {
+              data.folha_prolabore += amount;
+            } else if (catName.includes('inss') || catName.includes('fgts') || catName.includes('encargo')) {
+              data.folha_encargos += amount;
+            } else {
+              data.folha_salarios += amount;
+            }
+            break;
+          case 'INSUMOS':
+            data.insumos += amount;
+            break;
+          case 'SERVICOS_TERCEIROS':
+            data.servicos_terceiros += amount;
+            break;
+          case 'ADMINISTRATIVAS':
+            data.despesas_administrativas += amount;
+            break;
+          case 'FINANCEIRAS':
+            data.despesas_financeiras += amount;
+            break;
+          case 'TRIBUTARIAS':
+            data.impostos_pagos += amount;
+            break;
+          default:
+            data.despesas_administrativas += amount;
+        }
+      }
+    });
+
+    const monthlyDataArray = Array.from(monthlyDataMap.values());
+
+    // Para cada mês, calcular os 4 cenários
+    return monthlyDataArray.map((monthData, index) => {
+      // Usar dados acumulados até aquele mês para RBT12 correto
+      const dataUpToMonth = monthlyDataArray.slice(0, index + 1);
+      // Preencher com meses vazios se não tiver 12 meses
+      while (dataUpToMonth.length < 12) {
+        dataUpToMonth.unshift(createEmptyMonthlyData(''));
+      }
+
+      const simulation = runTaxSimulation({
+        monthlyData: monthData,
+        last12MonthsData: dataUpToMonth.slice(-12),
+        taxConfig,
+        taxParameters,
+      });
+
+      const receita = monthData.receita_servicos + monthData.receita_outras;
+
+      return {
+        mes: format(new Date(monthData.mes + '-01'), 'MMM/yy', { locale: ptBR }),
+        simples: receita > 0 ? simulation.cenarios.find(c => c.regime === 'SIMPLES')?.percentualReceita || 0 : 0,
+        presumido: receita > 0 ? simulation.cenarios.find(c => c.regime === 'PRESUMIDO')?.percentualReceita || 0 : 0,
+        real: receita > 0 ? simulation.cenarios.find(c => c.regime === 'REAL')?.percentualReceita || 0 : 0,
+        cbsIbs: receita > 0 ? simulation.cenarios.find(c => c.regime === 'CBS_IBS')?.percentualReceita || 0 : 0,
+        receita,
+      };
+    }).filter(d => d.receita > 0);
+  }, [transactionsData, taxParameters, taxConfig, selectedMonth]);
+
   // Gerar meses para seleção
   const monthOptions = useMemo(() => {
     const options = [];
@@ -398,6 +489,68 @@ export default function TaxScenarios() {
                 );
               })}
             </div>
+
+            {/* Gráfico de Evolução Mensal */}
+            {lineChartData.length > 1 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Evolução da Carga Tributária (12 meses)</CardTitle>
+                  <CardDescription>
+                    Percentual da receita destinado a impostos em cada regime ao longo do tempo
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={350}>
+                    <LineChart data={lineChartData}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="mes" className="text-xs" />
+                      <YAxis
+                        tickFormatter={(v) => `${v.toFixed(0)}%`}
+                        className="text-xs"
+                        domain={[0, 'auto']}
+                      />
+                      <Tooltip
+                        formatter={(value: number) => [`${value.toFixed(2)}%`, '']}
+                        labelFormatter={(label) => `Mês: ${label}`}
+                      />
+                      <Legend />
+                      <Line
+                        type="monotone"
+                        dataKey="simples"
+                        name="Simples Nacional"
+                        stroke="hsl(var(--chart-1))"
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="presumido"
+                        name="Lucro Presumido"
+                        stroke="hsl(var(--chart-2))"
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="real"
+                        name="Lucro Real"
+                        stroke="hsl(var(--chart-3))"
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="cbsIbs"
+                        name="CBS/IBS (Reforma)"
+                        stroke="hsl(var(--chart-4))"
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Gráfico de Barras */}
             <Card>
