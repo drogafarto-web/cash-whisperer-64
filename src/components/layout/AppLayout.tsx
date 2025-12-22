@@ -19,6 +19,7 @@ import {
   FileBarChart,
   FileUp,
   Handshake,
+  Calculator,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -72,6 +73,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     { name: 'Importar Extrato', href: '/import/bank-statement', icon: FileUp, adminOnly: false },
     { name: 'Rel. Fechamentos', href: '/reports/cash-closings', icon: FileBarChart, adminOnly: true },
     { name: 'Rel. Transações', href: '/reports/transactions', icon: FileBarChart, adminOnly: true },
+    { name: 'Cenários Tributários', href: '/reports/tax-scenarios', icon: Calculator, adminOnly: true },
     { name: 'Usuários', href: '/settings/users', icon: Users, adminOnly: true },
     { name: 'Unidades', href: '/settings/units', icon: MapPin, adminOnly: true },
     { name: 'Contas', href: '/settings/accounts', icon: Building2, adminOnly: true },
