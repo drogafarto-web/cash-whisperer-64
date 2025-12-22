@@ -1,4 +1,5 @@
 import { Toaster } from "@/components/ui/toaster";
+import AccountingForm from "./pages/contabilidade/AccountingForm";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -60,8 +61,9 @@ const App = () => (
             <Route path="/reports/personnel-real-vs-official" element={<PersonnelRealVsOfficial />} />
             <Route path="/import/daily-movement" element={<DailyMovementImport />} />
             <Route path="/import/bank-statement" element={<BankStatementImport />} />
-            <Route path="/pendencias" element={<Pendencias />} />
-            <Route path="*" element={<NotFound />} />
+        <Route path="/pendencias" element={<Pendencias />} />
+        <Route path="/contabilidade/dados/:token" element={<AccountingForm />} />
+        <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
       </BrowserRouter>
