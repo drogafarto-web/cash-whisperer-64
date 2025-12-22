@@ -17,6 +17,7 @@ import PartnersSettings from "./pages/settings/Partners";
 import CashClosingReport from "./pages/reports/CashClosingReport";
 import TransactionsReport from "./pages/reports/TransactionsReport";
 import DailyMovementImport from "./pages/import/DailyMovement";
+import BankStatementImport from "./pages/import/BankStatement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -43,6 +44,7 @@ const App = () => (
             <Route path="/reports/cash-closings" element={<CashClosingReport />} />
             <Route path="/reports/transactions" element={<TransactionsReport />} />
             <Route path="/import/daily-movement" element={<DailyMovementImport />} />
+            <Route path="/import/bank-statement" element={<BankStatementImport />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
