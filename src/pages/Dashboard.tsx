@@ -47,6 +47,7 @@ import {
 } from '@/services/taxSimulator';
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { HelpCircle } from 'lucide-react';
+import { AttendantDashboard } from '@/components/dashboard/AttendantDashboard';
 
 // Thresholds configuráveis
 const THRESHOLDS = {
@@ -110,7 +111,7 @@ interface PartnerDependency {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { user, role, isLoading: authLoading } = useAuth();
+  const { user, role, isLoading: authLoading, isSecretaria } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   
   // Filtros
@@ -160,10 +161,16 @@ export default function Dashboard() {
   useEffect(() => {
     if (!authLoading && !user) {
       navigate('/auth');
-    } else if (!authLoading && role !== 'admin') {
-      navigate('/transactions');
+    } else if (!authLoading && role === 'contabilidade') {
+      navigate('/reports/transactions');
     }
+    // secretaria e admin ficam no dashboard (secretaria vê AttendantDashboard)
   }, [user, role, authLoading, navigate]);
+
+  // Se for secretaria, renderizar dashboard simplificado
+  if (!authLoading && isSecretaria) {
+    return <AttendantDashboard />;
+  }
 
   // Fetch units
   useEffect(() => {
