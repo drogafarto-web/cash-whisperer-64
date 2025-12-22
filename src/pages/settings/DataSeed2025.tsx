@@ -42,6 +42,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import { ExternalAccountingCard } from '@/components/settings/ExternalAccountingCard';
 import { 
   FileText, 
   Users, 
@@ -89,6 +90,7 @@ const REVENUE_COLUMNS = [
 export default function DataSeed2025() {
   const { isAdmin, isContabilidade, isLoading: authLoading } = useAuth();
   const [openSections, setOpenSections] = useState({
+    contabilidade: false,
     extratos: false,
     folha: true,
     impostos: false,
@@ -511,6 +513,12 @@ export default function DataSeed2025() {
             </AlertDescription>
           </Alert>
         </div>
+
+        {/* External Accounting Portal */}
+        <ExternalAccountingCard 
+          isOpen={openSections.contabilidade} 
+          onToggle={() => toggleSection('contabilidade')} 
+        />
 
         {/* Step 1: Extratos */}
         <Collapsible open={openSections.extratos} onOpenChange={() => toggleSection('extratos')}>
