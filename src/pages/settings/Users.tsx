@@ -344,12 +344,15 @@ export default function UsersSettings() {
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <Select value={unitId} onValueChange={setUnitId}>
+                    <Select
+                      value={unitId || 'all'}
+                      onValueChange={(value) => setUnitId(value === 'all' ? '' : value)}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Todas as unidades" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Todas as unidades</SelectItem>
+                        <SelectItem value="all">Todas as unidades</SelectItem>
                         {units.map(unit => (
                           <SelectItem key={unit.id} value={unit.id}>
                             {unit.name}
@@ -459,15 +462,15 @@ export default function UsersSettings() {
                                 </SelectContent>
                               </Select>
                               <Select
-                                value={u.unit_id || ''}
-                                onValueChange={value => handleUpdateUnit(u.id, value || null)}
+                                value={u.unit_id || 'all'}
+                                onValueChange={value => handleUpdateUnit(u.id, value === 'all' ? null : value)}
                               >
                                 <SelectTrigger className="w-32">
                                   <Building2 className="w-4 h-4 mr-2" />
                                   <SelectValue placeholder="Unidade" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="">Todas</SelectItem>
+                                  <SelectItem value="all">Todas</SelectItem>
                                   {units.map(unit => (
                                     <SelectItem key={unit.id} value={unit.id}>
                                       {unit.name}
