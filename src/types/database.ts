@@ -48,12 +48,15 @@ export type TaxGroup =
   | 'FINANCEIRAS' 
   | 'TRIBUTARIAS';
 
+export type RecurrenceType = 'RECORRENTE' | 'NAO_RECORRENTE';
+
 export interface Category {
   id: string;
   name: string;
   type: 'ENTRADA' | 'SAIDA';
   description: string | null;
   tax_group: TaxGroup | null;
+  recurrence_type: RecurrenceType | null;
   active: boolean;
   created_at: string;
 }

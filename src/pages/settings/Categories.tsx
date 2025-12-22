@@ -32,9 +32,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
-import { Category, TaxGroup } from '@/types/database';
+import { Category, TaxGroup, RecurrenceType } from '@/types/database';
 import { toast } from 'sonner';
-import { Plus, Loader2, Pencil } from 'lucide-react';
+import { Plus, Loader2, Pencil, RefreshCw, Zap } from 'lucide-react';
 
 const TAX_GROUP_OPTIONS: { value: TaxGroup; label: string }[] = [
   { value: 'RECEITA_SERVICOS', label: 'Receita de Serviços' },
@@ -45,6 +45,11 @@ const TAX_GROUP_OPTIONS: { value: TaxGroup; label: string }[] = [
   { value: 'ADMINISTRATIVAS', label: 'Despesas Administrativas' },
   { value: 'FINANCEIRAS', label: 'Despesas Financeiras' },
   { value: 'TRIBUTARIAS', label: 'Impostos e Tributos' },
+];
+
+const RECURRENCE_OPTIONS: { value: RecurrenceType; label: string; icon: React.ReactNode }[] = [
+  { value: 'RECORRENTE', label: 'Recorrente (fixa/mensal)', icon: <RefreshCw className="w-3 h-3" /> },
+  { value: 'NAO_RECORRENTE', label: 'Não Recorrente (variável)', icon: <Zap className="w-3 h-3" /> },
 ];
 
 export default function CategoriesSettings() {
@@ -62,6 +67,7 @@ export default function CategoriesSettings() {
   const [name, setName] = useState('');
   const [type, setType] = useState<'ENTRADA' | 'SAIDA'>('SAIDA');
   const [taxGroup, setTaxGroup] = useState<TaxGroup | ''>('');
+  const [recurrenceType, setRecurrenceType] = useState<RecurrenceType | ''>('');
   const [description, setDescription] = useState('');
 
   useEffect(() => {
@@ -107,6 +113,7 @@ export default function CategoriesSettings() {
             name,
             type,
             tax_group: taxGroup || null,
+            recurrence_type: recurrenceType || null,
             description: description || null,
           })
           .eq('id', editingCategory.id);
@@ -118,6 +125,7 @@ export default function CategoriesSettings() {
           name,
           type,
           tax_group: taxGroup || null,
+          recurrence_type: recurrenceType || null,
           description: description || null,
         });
 
@@ -141,6 +149,7 @@ export default function CategoriesSettings() {
     setName(category.name);
     setType(category.type as 'ENTRADA' | 'SAIDA');
     setTaxGroup(category.tax_group || '');
+    setRecurrenceType(category.recurrence_type || '');
     setDescription(category.description || '');
     setIsDialogOpen(true);
   };
@@ -166,6 +175,7 @@ export default function CategoriesSettings() {
     setName('');
     setType('SAIDA');
     setTaxGroup('');
+    setRecurrenceType('');
     setDescription('');
   };
 
@@ -239,6 +249,22 @@ export default function CategoriesSettings() {
                   </Select>
                 </div>
                 <div className="space-y-2">
+                  <Label>Tipo de Recorrência</Label>
+                  <Select value={recurrenceType} onValueChange={value => setRecurrenceType(value as RecurrenceType | '')}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o tipo..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Não definido</SelectItem>
+                      {RECURRENCE_OPTIONS.map(option => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="description">Descrição</Label>
                   <Textarea
                     id="description"
@@ -265,6 +291,7 @@ export default function CategoriesSettings() {
                   <TableHead>Nome</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Grupo Tributário</TableHead>
+                  <TableHead>Recorrência</TableHead>
                   <TableHead>Descrição</TableHead>
                   <TableHead>Ativa</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
@@ -273,7 +300,7 @@ export default function CategoriesSettings() {
               <TableBody>
                 {categories.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       Nenhuma categoria cadastrada
                     </TableCell>
                   </TableRow>
@@ -290,6 +317,22 @@ export default function CategoriesSettings() {
                         {category.tax_group ? (
                           <Badge variant="outline" className="text-xs">
                             {TAX_GROUP_OPTIONS.find(o => o.value === category.tax_group)?.label || category.tax_group}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {category.recurrence_type ? (
+                          <Badge 
+                            variant={category.recurrence_type === 'RECORRENTE' ? 'default' : 'secondary'}
+                            className="text-xs gap-1"
+                          >
+                            {category.recurrence_type === 'RECORRENTE' ? (
+                              <><RefreshCw className="w-3 h-3" /> Recorrente</>
+                            ) : (
+                              <><Zap className="w-3 h-3" /> Variável</>
+                            )}
                           </Badge>
                         ) : (
                           <span className="text-muted-foreground">—</span>
