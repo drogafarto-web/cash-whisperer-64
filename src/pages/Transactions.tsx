@@ -32,7 +32,7 @@ import {
 } from '@/components/ui/table';
 import { UnitSelector } from '@/components/UnitSelector';
 import { supabase } from '@/integrations/supabase/client';
-import { Transaction, Account, Category, Document, OcrData, TransactionType, PaymentMethod, Unit } from '@/types/database';
+import { Transaction, Account, Category, Document, OcrData, TransactionType, PaymentMethod, Unit, Partner } from '@/types/database';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -46,7 +46,8 @@ import {
   FileText,
   Image as ImageIcon,
   Sparkles,
-  Filter
+  Filter,
+  RefreshCw
 } from 'lucide-react';
 
 export default function Transactions() {
@@ -56,6 +57,7 @@ export default function Transactions() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [partners, setPartners] = useState<Partner[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   
   // Filter state (for admin)
@@ -76,6 +78,7 @@ export default function Transactions() {
     payment_method: 'PIX' as PaymentMethod,
     account_id: '',
     category_id: '',
+    partner_id: '',
     description: '',
     unit_id: '',
   });
@@ -128,6 +131,7 @@ export default function Transactions() {
         *,
         category:categories(*),
         account:accounts(*),
+        partner:partners(*),
         unit:units(*),
         documents(*)
       `)
@@ -144,13 +148,15 @@ export default function Transactions() {
   };
 
   const fetchAccountsAndCategories = async () => {
-    const [{ data: accountData }, { data: categoryData }] = await Promise.all([
+    const [{ data: accountData }, { data: categoryData }, { data: partnerData }] = await Promise.all([
       supabase.from('accounts').select('*, unit:units(*)').eq('active', true),
       supabase.from('categories').select('*').eq('active', true),
+      supabase.from('partners').select('*, default_category:categories(*)').eq('active', true),
     ]);
 
     setAccounts((accountData || []) as Account[]);
     setCategories((categoryData || []) as Category[]);
+    setPartners((partnerData || []) as Partner[]);
   };
 
   const fetchUnits = async () => {
@@ -237,6 +243,7 @@ export default function Transactions() {
         .from('transactions')
         .insert({
           ...formData,
+          partner_id: formData.partner_id || null,
           amount: parseFloat(formData.amount),
           created_by: user.id,
         })
@@ -361,11 +368,30 @@ export default function Transactions() {
       payment_method: 'PIX',
       account_id: '',
       category_id: '',
+      partner_id: '',
       description: '',
       unit_id: !isAdmin && userUnit ? userUnit.id : '',
     });
     setFile(null);
     setOcrData(null);
+  };
+
+  const handlePartnerChange = (partnerId: string) => {
+    const partner = partners.find(p => p.id === partnerId);
+    setFormData(prev => ({
+      ...prev,
+      partner_id: partnerId,
+      category_id: partner?.default_category_id || prev.category_id,
+    }));
+  };
+
+  const handleTypeChange = (type: TransactionType) => {
+    setFormData(prev => ({ 
+      ...prev, 
+      type, 
+      category_id: '', 
+      partner_id: '' 
+    }));
   };
 
   const getStatusBadge = (status: string) => {
@@ -380,6 +406,12 @@ export default function Transactions() {
   };
 
   const filteredCategories = categories.filter(c => c.type === formData.type);
+  
+  // Filter partners by type (CLIENTE for ENTRADA, FORNECEDOR for SAIDA)
+  const filteredPartners = partners.filter(p => 
+    (formData.type === 'ENTRADA' && p.type === 'CLIENTE') ||
+    (formData.type === 'SAIDA' && p.type === 'FORNECEDOR')
+  );
   
   // Filter accounts by selected unit in form
   const filteredAccounts = formData.unit_id 
@@ -502,7 +534,7 @@ export default function Transactions() {
                     <Label>Tipo</Label>
                     <Select
                       value={formData.type}
-                      onValueChange={value => setFormData(prev => ({ ...prev, type: value as TransactionType, category_id: '' }))}
+                      onValueChange={value => handleTypeChange(value as TransactionType)}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -531,6 +563,30 @@ export default function Transactions() {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+
+                {/* Parceiro selector */}
+                <div className="space-y-2">
+                  <Label>Parceiro (opcional)</Label>
+                  <Select
+                    value={formData.partner_id}
+                    onValueChange={handlePartnerChange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Nenhum</SelectItem>
+                      {filteredPartners.map(p => (
+                        <SelectItem key={p.id} value={p.id}>
+                          <div className="flex items-center gap-2">
+                            {p.name}
+                            {p.is_recurring && <RefreshCw className="h-3 w-3 text-muted-foreground" />}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -621,8 +677,9 @@ export default function Transactions() {
                   {isAdmin && <TableHead>Unidade</TableHead>}
                   <TableHead>Tipo</TableHead>
                   <TableHead>Valor</TableHead>
+                  <TableHead className="hidden md:table-cell">Parceiro</TableHead>
                   <TableHead className="hidden md:table-cell">Categoria</TableHead>
-                  <TableHead className="hidden md:table-cell">Conta</TableHead>
+                  <TableHead className="hidden lg:table-cell">Conta</TableHead>
                   {isAdmin && <TableHead>Status</TableHead>}
                   <TableHead className="text-right">{isAdmin ? 'Ações' : 'Documento'}</TableHead>
                 </TableRow>
@@ -630,7 +687,7 @@ export default function Transactions() {
               <TableBody>
                 {transactions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={isAdmin ? 8 : 6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={isAdmin ? 9 : 7} className="text-center py-8 text-muted-foreground">
                       Nenhuma transação encontrada
                     </TableCell>
                   </TableRow>
@@ -647,8 +704,18 @@ export default function Transactions() {
                       <TableCell className={tx.type === 'ENTRADA' ? 'text-success font-medium' : 'text-destructive font-medium'}>
                         {tx.type === 'ENTRADA' ? '+' : '-'} R$ {Number(tx.amount).toFixed(2)}
                       </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        {tx.partner ? (
+                          <div className="flex items-center gap-1">
+                            <span>{tx.partner.name}</span>
+                            {tx.partner.is_recurring && (
+                              <RefreshCw className="h-3 w-3 text-muted-foreground" />
+                            )}
+                          </div>
+                        ) : '—'}
+                      </TableCell>
                       <TableCell className="hidden md:table-cell">{tx.category?.name}</TableCell>
-                      <TableCell className="hidden md:table-cell">{tx.account?.name}</TableCell>
+                      <TableCell className="hidden lg:table-cell">{tx.account?.name}</TableCell>
                       {isAdmin && <TableCell>{getStatusBadge(tx.status)}</TableCell>}
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
