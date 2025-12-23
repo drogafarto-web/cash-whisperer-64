@@ -16,8 +16,9 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { DollarSign, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { z } from 'zod';
+import labclinLogo from '@/assets/labclin-logo.png';
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -155,11 +156,13 @@ export default function Auth() {
       <div className="w-full max-w-md space-y-6 animate-fade-in">
         {/* Logo */}
         <div className="flex flex-col items-center gap-3">
-          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center shadow-lg">
-            <DollarSign className="w-10 h-10 text-primary-foreground" />
-          </div>
+          <img 
+            src={labclinLogo} 
+            alt="LabClin Logo" 
+            className="w-20 h-20 object-contain"
+          />
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-foreground">FinGest</h1>
+            <h1 className="text-2xl font-bold text-foreground">LabClin</h1>
             <p className="text-muted-foreground">Sistema de Gestão Financeira</p>
           </div>
         </div>
