@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Invoice, Payer, InvoiceOcrResult } from '@/types/billing';
 import { useToast } from '@/hooks/use-toast';
+import { convertPdfToImage, blobToBase64 } from '@/utils/pdfToImage';
 
 // Hook para listar notas fiscais
 export function useInvoices(filters?: {
@@ -163,21 +164,33 @@ export function useInvoiceOcr() {
 
   return useMutation({
     mutationFn: async (file: File): Promise<InvoiceOcrResult> => {
-      // Convert file to base64
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          // Remove data URL prefix
-          const base64Data = result.split(',')[1];
-          resolve(base64Data);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      let base64: string;
+      let mimeType: string;
+
+      // Se for PDF, converter para imagem PNG (OpenAI não aceita PDF diretamente)
+      if (file.type === 'application/pdf') {
+        console.log('Converting PDF to PNG for OCR...');
+        const pngBlob = await convertPdfToImage(file, 2); // scale 2 for high quality
+        base64 = await blobToBase64(pngBlob);
+        mimeType = 'image/png';
+        console.log('PDF converted to PNG successfully');
+      } else {
+        // Já é imagem, usar diretamente
+        base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            const base64Data = result.split(',')[1];
+            resolve(base64Data);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        mimeType = file.type;
+      }
 
       const { data, error } = await supabase.functions.invoke('ocr-invoice', {
-        body: { pdfBase64: base64, mimeType: file.type },
+        body: { pdfBase64: base64, mimeType },
       });
 
       if (error) throw error;
@@ -187,7 +200,7 @@ export function useInvoiceOcr() {
       console.error('OCR error:', error);
       toast({
         title: 'Erro no OCR',
-        description: 'Não foi possível processar o PDF. Preencha os dados manualmente.',
+        description: 'Não foi possível processar o arquivo. Preencha os dados manualmente.',
         variant: 'destructive',
       });
     },
