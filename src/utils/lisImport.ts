@@ -166,6 +166,9 @@ function extractUnitCode(codigo: string): string {
 function isSkipRow(row: unknown[]): boolean {
   const firstCell = String(row[0] || '').toLowerCase().trim();
   
+  // Skip truly empty rows
+  if (firstCell === '') return true;
+  
   const skipPatterns = [
     'total:',
     'boleto:',
@@ -174,13 +177,13 @@ function isSkipRow(row: unknown[]): boolean {
     'data cad',
     'cadastro',
     'código',
+    'codigo',
     'movimento',
     'convenio:',
     'unidade:',
     'local:',
     'periodo',
     'relatorio',
-    '',
   ];
   
   return skipPatterns.some(pattern => firstCell.startsWith(pattern));
