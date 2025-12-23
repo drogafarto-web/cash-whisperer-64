@@ -118,6 +118,16 @@ const navigationGroups: NavGroup[] = [
     ],
   },
   {
+    id: 'faturamento',
+    name: 'Faturamento',
+    icon: FileText,
+    items: [
+      { name: 'Notas Fiscais', href: '/billing/invoices', icon: FileText, roles: ['admin', 'contabilidade'] },
+      { name: 'Convênios', href: '/billing/payers', icon: Handshake, roles: ['admin', 'contabilidade'] },
+      { name: 'Resumo Mensal', href: '/billing/summary', icon: TrendingUp, roles: ['admin', 'contabilidade'] },
+    ],
+  },
+  {
     id: 'lucratividade',
     name: 'Lucratividade & Custos',
     icon: TrendingUp,
