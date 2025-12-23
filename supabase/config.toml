@@ -3,6 +3,9 @@ project_id = "xyojxxvkednngukibadw"
 [functions.ocr-receipt]
 verify_jwt = true
 
+[functions.ocr-invoice]
+verify_jwt = true
+
 [functions.send-fator-r-alert]
 verify_jwt = false
 
