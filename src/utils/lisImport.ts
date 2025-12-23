@@ -34,6 +34,8 @@ export interface LisRecord {
   cardFeePercent: number;
   cardFeeValue: number;
   valorLiquido: number;
+  // Flag para itens sem pagamento
+  isNaoPago: boolean;
 }
 
 export interface ParseResult {
@@ -76,9 +78,9 @@ const paymentMethodMapping: Record<string, PaymentMethod> = {
   'C. credito': 'CARTAO',
   'C. debito': 'CARTAO',
   'Boleto': 'BOLETO',
-  'Não informado': 'PIX',
-  'N. informado': 'PIX',
-  '': 'PIX',
+  'Não informado': 'NAO_PAGO',
+  'N. informado': 'NAO_PAGO',
+  '': 'NAO_PAGO',
 };
 
 function parseDate(dateStr: string): string | null {
@@ -228,8 +230,17 @@ function processRow(
     } else if (formaPagLower.includes('boleto')) {
       paymentMethod = 'BOLETO';
     } else {
-      paymentMethod = 'PIX';
+      // Fallback: se não identificou e valor pago é 0, marca como NAO_PAGO
+      paymentMethod = valorPago === 0 ? 'NAO_PAGO' : 'PIX';
     }
+  }
+  
+  // Determinar se é item não pago (valorPago = 0 ou forma de pagamento não informada)
+  const isNaoPago = valorPago === 0 || paymentMethod === 'NAO_PAGO';
+  
+  // Se valorPago é 0 mas tinha forma de pagamento, forçar NAO_PAGO
+  if (isNaoPago && paymentMethod !== 'NAO_PAGO') {
+    paymentMethod = 'NAO_PAGO';
   }
   
   // Calcular percentual de desconto
@@ -286,6 +297,7 @@ function processRow(
     cardFeePercent,
     cardFeeValue,
     valorLiquido,
+    isNaoPago,
   };
 }
 
@@ -414,6 +426,7 @@ export function getPaymentMethodIcon(method: PaymentMethod): string {
     case 'PIX': return '📲';
     case 'BOLETO': return '📄';
     case 'TRANSFERENCIA': return '🏦';
+    case 'NAO_PAGO': return '❌';
     default: return '💰';
   }
 }

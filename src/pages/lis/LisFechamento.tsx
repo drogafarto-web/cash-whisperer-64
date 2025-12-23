@@ -154,6 +154,11 @@ export default function LisFechamento() {
   const [zplDialogOpen, setZplDialogOpen] = useState(false);
   const [zplContent, setZplContent] = useState('');
   const [cardFees, setCardFees] = useState<Array<{ id: string; name: string; fee_percent: number }>>([]);
+  
+  // Estados para diálogo de confirmação de período
+  const [periodDialogOpen, setPeriodDialogOpen] = useState(false);
+  const [detectedPeriod, setDetectedPeriod] = useState<{ start: string; end: string } | null>(null);
+  const [pendingRecords, setPendingRecords] = useState<LisRecord[] | null>(null);
 
   // Printer state
   const [printer, setPrinter] = useState<ZebraPrinterDevice | null>(null);
@@ -244,28 +249,44 @@ export default function LisFechamento() {
   // Importar arquivo CSV/XLS
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !selectedUnitId || !user) return;
+    
+    // Validação explícita da unidade
+    if (!selectedUnitId) {
+      toast({ 
+        title: 'Selecione a unidade', 
+        description: 'É necessário selecionar a unidade antes de importar o arquivo LIS.',
+        variant: 'destructive' 
+      });
+      event.target.value = '';
+      return;
+    }
+    
+    if (!file || !user) return;
 
     setImporting(true);
     try {
-      let records: LisRecord[] = [];
+      let result: { records: LisRecord[]; periodStart: string | null; periodEnd: string | null; totalRecords: number };
       const fileName = file.name.toLowerCase();
 
       if (fileName.endsWith('.csv')) {
         const content = await file.text();
-        const result = parseLisCsv(content, cardFees);
-        records = result.records;
+        result = parseLisCsv(content, cardFees);
       } else if (fileName.endsWith('.xls') || fileName.endsWith('.xlsx')) {
         const buffer = await file.arrayBuffer();
-        const result = parseLisXls(buffer, cardFees);
-        records = result.records;
+        result = parseLisXls(buffer, cardFees);
       } else {
         throw new Error('Formato não suportado. Use CSV ou XLS/XLSX.');
       }
 
       // Filtrar por unidade selecionada
       const selectedUnit = units.find(u => u.id === selectedUnitId);
-      const filteredRecords = records.filter(r => r.unitId === selectedUnitId);
+      const filteredRecords = result.records.filter(r => r.unitId === selectedUnitId);
+
+      // Mostrar resumo pós-parse
+      toast({ 
+        title: 'Arquivo lido', 
+        description: `${result.totalRecords} linhas lidas. ${filteredRecords.length} da unidade ${selectedUnit?.name}. Período: ${result.periodStart || 'N/A'} a ${result.periodEnd || 'N/A'}`,
+      });
 
       if (filteredRecords.length === 0) {
         toast({ 
@@ -276,6 +297,40 @@ export default function LisFechamento() {
         return;
       }
 
+      // Verificar se período do arquivo difere da tela
+      if (result.periodStart && result.periodEnd) {
+        const filePeriodDiffers = result.periodStart !== periodStart || result.periodEnd !== periodEnd;
+        
+        if (filePeriodDiffers) {
+          // Salvar dados e mostrar diálogo de confirmação
+          setDetectedPeriod({ start: result.periodStart, end: result.periodEnd });
+          setPendingRecords(filteredRecords);
+          setPeriodDialogOpen(true);
+          return;
+        }
+      }
+
+      // Se período igual, processar diretamente
+      await processImport(filteredRecords, periodStart, periodEnd);
+    } catch (error: unknown) {
+      console.error('Erro ao importar arquivo:', error);
+      toast({ 
+        title: 'Erro', 
+        description: error instanceof Error ? error.message : 'Erro ao importar arquivo', 
+        variant: 'destructive' 
+      });
+    } finally {
+      setImporting(false);
+      event.target.value = '';
+    }
+  };
+
+  // Processar importação com período definido
+  const processImport = async (records: LisRecord[], pStart: string, pEnd: string) => {
+    if (!user) return;
+    
+    setImporting(true);
+    try {
       // Criar ou atualizar fechamento
       let closureId = currentClosure?.id;
 
@@ -284,8 +339,8 @@ export default function LisFechamento() {
           .from('lis_closures')
           .insert({
             unit_id: selectedUnitId,
-            period_start: periodStart,
-            period_end: periodEnd,
+            period_start: pStart,
+            period_end: pEnd,
             created_by: user.id,
           })
           .select()
@@ -297,13 +352,13 @@ export default function LisFechamento() {
       }
 
       // Inserir itens
-      const itemsToInsert = filteredRecords.map(record => ({
+      const itemsToInsert = records.map(record => ({
         closure_id: closureId,
         lis_code: record.codigo || record.paciente?.substring(0, 10) || 'N/A',
         date: record.data,
         patient_name: record.paciente,
         convenio: record.convenio,
-        payment_method: record.formaPagamento,
+        payment_method: record.paymentMethod,
         amount: record.valorPago,
         gross_amount: record.valorBruto || record.valorPago,
         discount_value: record.valorDesconto || 0,
@@ -312,7 +367,7 @@ export default function LisFechamento() {
         card_fee_value: record.cardFeeValue || 0,
         card_fee_percent: record.cardFeePercent || 0,
         net_amount: record.valorLiquido || record.valorPago,
-        status: record.valorPago === 0 || record.formaPagamento === 'NAO_PAGO' ? 'NAO_PAGO' : 'NORMAL',
+        status: record.isNaoPago ? 'NAO_PAGO' : 'NORMAL',
       }));
 
       const { error: insertError } = await supabase
@@ -327,18 +382,42 @@ export default function LisFechamento() {
       // Recarregar dados
       await fetchExistingClosure();
 
-      toast({ title: 'Sucesso', description: `${filteredRecords.length} registros importados` });
+      toast({ title: 'Sucesso', description: `${records.length} registros importados` });
     } catch (error: unknown) {
-      console.error('Erro ao importar arquivo:', error);
+      console.error('Erro ao processar importação:', error);
       toast({ 
         title: 'Erro', 
-        description: error instanceof Error ? error.message : 'Erro ao importar arquivo', 
+        description: error instanceof Error ? error.message : 'Erro ao importar', 
         variant: 'destructive' 
       });
     } finally {
       setImporting(false);
-      event.target.value = '';
     }
+  };
+
+  // Confirmar uso do período do arquivo
+  const handleConfirmFilePeriod = async () => {
+    if (!detectedPeriod || !pendingRecords) return;
+    
+    setPeriodStart(detectedPeriod.start);
+    setPeriodEnd(detectedPeriod.end);
+    setPeriodDialogOpen(false);
+    
+    await processImport(pendingRecords, detectedPeriod.start, detectedPeriod.end);
+    
+    setDetectedPeriod(null);
+    setPendingRecords(null);
+  };
+
+  // Manter período da tela
+  const handleKeepScreenPeriod = async () => {
+    if (!pendingRecords) return;
+    
+    setPeriodDialogOpen(false);
+    await processImport(pendingRecords, periodStart, periodEnd);
+    
+    setDetectedPeriod(null);
+    setPendingRecords(null);
   };
 
   // Atualizar totais do fechamento
@@ -1025,6 +1104,27 @@ export default function LisFechamento() {
                   Copiar
                 </Button>
               </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog Confirmação de Período */}
+        <Dialog open={periodDialogOpen} onOpenChange={setPeriodDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Período Diferente Detectado</DialogTitle>
+              <DialogDescription>
+                O arquivo contém período de <strong>{detectedPeriod?.start}</strong> a <strong>{detectedPeriod?.end}</strong>.
+                <br />A tela está configurada para <strong>{periodStart}</strong> a <strong>{periodEnd}</strong>.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-2 justify-end mt-4">
+              <Button variant="outline" onClick={handleKeepScreenPeriod}>
+                Manter período da tela
+              </Button>
+              <Button onClick={handleConfirmFilePeriod}>
+                Usar período do arquivo
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
