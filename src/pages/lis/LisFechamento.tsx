@@ -36,6 +36,16 @@ import {
 import { parseLisCsv, parseLisXls, LisRecord } from '@/utils/lisImport';
 import { generateEnvelopeZpl, downloadZplFile } from '@/utils/zpl';
 import { reconcileLisItems, updateReconciliationStatus, countByComprovanteStatus } from '@/services/lisReconciliation';
+import { 
+  isWebUSBSupported, 
+  requestPrinter, 
+  connectPrinter, 
+  printZpl, 
+  disconnectPrinter, 
+  getPrinterStatus,
+  reconnectToPairedDevice,
+  ZebraPrinterDevice 
+} from '@/utils/zebraPrinter';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -144,6 +154,11 @@ export default function LisFechamento() {
   const [zplDialogOpen, setZplDialogOpen] = useState(false);
   const [zplContent, setZplContent] = useState('');
   const [cardFees, setCardFees] = useState<Array<{ id: string; name: string; fee_percent: number }>>([]);
+
+  // Printer state
+  const [printer, setPrinter] = useState<ZebraPrinterDevice | null>(null);
+  const [printerConnecting, setPrinterConnecting] = useState(false);
+  const webUSBSupported = isWebUSBSupported();
 
   // Carregar dados iniciais
   useEffect(() => {
@@ -422,7 +437,33 @@ export default function LisFechamento() {
     }
   };
 
-  // Gerar etiqueta do envelope
+  // Conectar impressora Zebra
+  const handleConnectPrinter = async () => {
+    setPrinterConnecting(true);
+    try {
+      const device = await requestPrinter();
+      if (device) {
+        await connectPrinter(device);
+        setPrinter(device);
+        toast({ title: 'Impressora conectada', description: device.name });
+      }
+    } catch (error) {
+      toast({ title: 'Erro', description: (error as Error).message, variant: 'destructive' });
+    } finally {
+      setPrinterConnecting(false);
+    }
+  };
+
+  // Imprimir ZPL diretamente
+  const handleDirectPrint = async (zplToPrint: string) => {
+    try {
+      await printZpl(zplToPrint);
+      toast({ title: 'Impresso!', description: 'Etiqueta enviada para a impressora' });
+    } catch (error) {
+      toast({ title: 'Erro ao imprimir', description: (error as Error).message, variant: 'destructive' });
+    }
+  };
+
   const handleGenerateLabel = async () => {
     if (!currentClosure || !cashEnvelope || !user || !envelopeCheckbox) return;
 
@@ -958,7 +999,19 @@ export default function LisFechamento() {
                 readOnly 
                 className="font-mono text-xs h-64"
               />
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                {webUSBSupported && printer?.connected && (
+                  <Button onClick={() => handleDirectPrint(zplContent)} className="bg-green-600 hover:bg-green-700">
+                    <Printer className="h-4 w-4 mr-2" />
+                    Imprimir Direto
+                  </Button>
+                )}
+                {webUSBSupported && !printer?.connected && (
+                  <Button variant="outline" onClick={handleConnectPrinter} disabled={printerConnecting}>
+                    <Printer className="h-4 w-4 mr-2" />
+                    {printerConnecting ? 'Conectando...' : 'Conectar Zebra'}
+                  </Button>
+                )}
                 <Button onClick={() => downloadZplFile(zplContent, `envelope-${currentClosure?.id}.zpl`)}>
                   Download .zpl
                 </Button>
