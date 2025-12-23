@@ -38,6 +38,20 @@ export interface LisRecord {
   isNaoPago: boolean;
 }
 
+export type LisReportType = 
+  | 'movimento-diario-detalhado' 
+  | 'movimento-diario-resumido'
+  | 'atendimentos'
+  | 'financeiro'
+  | 'desconhecido';
+
+export interface ReportTypeDetection {
+  type: LisReportType;
+  confidence: 'high' | 'medium' | 'low';
+  reason: string;
+  isSupported: boolean;
+}
+
 export interface ParseResult {
   records: LisRecord[];
   periodStart: string | null;
@@ -46,6 +60,8 @@ export interface ParseResult {
   validRecords: number;
   invalidRecords: number;
   duplicateRecords: number;
+  // Tipo de relatório detectado
+  reportType?: ReportTypeDetection;
   // Diagnóstico
   diagnostics?: {
     sheetUsed: string;
@@ -502,6 +518,96 @@ function parseSheet(
   };
 }
 
+// Detect the type of LIS report based on content
+function detectLisReportType(data: unknown[][]): ReportTypeDetection {
+  // Analyze first 20 rows to detect report type
+  const textContent = data.slice(0, 20).map(row => 
+    (row as unknown[]).map(cell => String(cell ?? '').toLowerCase()).join(' ')
+  ).join(' ');
+  
+  // Get header row (usually between row 3-10)
+  let headerRow: string[] = [];
+  for (let i = 0; i < Math.min(15, data.length); i++) {
+    const row = data[i];
+    if (row && Array.isArray(row)) {
+      const rowStr = row.map(c => String(c || '').toLowerCase());
+      if (rowStr.some(c => c.includes('cadastro') || c.includes('paciente') || c.includes('codigo') || c.includes('código'))) {
+        headerRow = rowStr;
+        break;
+      }
+    }
+  }
+  
+  const headerStr = headerRow.join(' ');
+  
+  // Check for "Movimento Diário Detalhado" - our supported format
+  const hasMovimentoDiario = textContent.includes('movimento') && textContent.includes('diário') || 
+                              textContent.includes('movimento') && textContent.includes('diario');
+  const hasDetalhado = textContent.includes('detalhado');
+  const hasPaciente = headerStr.includes('paciente');
+  const hasCodigo = headerStr.includes('codigo') || headerStr.includes('código');
+  const hasValorPago = headerStr.includes('pago') || headerStr.includes('total');
+  const hasFormaPag = headerStr.includes('form') || headerStr.includes('pagamento');
+  
+  // Pattern 1: Movimento Diário Detalhado (supported)
+  if ((hasMovimentoDiario || hasDetalhado) && hasPaciente && (hasCodigo || hasValorPago)) {
+    return {
+      type: 'movimento-diario-detalhado',
+      confidence: hasDetalhado ? 'high' : 'medium',
+      reason: 'Movimento Diário Detalhado',
+      isSupported: true,
+    };
+  }
+  
+  // Pattern 2: Has patient/code columns without "detalhado" in title
+  if (hasPaciente && hasCodigo && hasValorPago) {
+    return {
+      type: 'movimento-diario-detalhado',
+      confidence: 'medium',
+      reason: 'Movimento Diário (estrutura compatível)',
+      isSupported: true,
+    };
+  }
+  
+  // Pattern 3: Movimento Diário Resumido (not supported)
+  if (hasMovimentoDiario && !hasPaciente && !hasCodigo) {
+    return {
+      type: 'movimento-diario-resumido',
+      confidence: 'medium',
+      reason: 'Movimento Diário Resumido (sem detalhes por paciente)',
+      isSupported: false,
+    };
+  }
+  
+  // Pattern 4: Relatório de Atendimentos
+  if (textContent.includes('atendimento') && !hasValorPago) {
+    return {
+      type: 'atendimentos',
+      confidence: 'medium',
+      reason: 'Relatório de Atendimentos (sem dados financeiros)',
+      isSupported: false,
+    };
+  }
+  
+  // Pattern 5: Relatório Financeiro
+  if ((textContent.includes('financeiro') || textContent.includes('faturamento')) && !hasPaciente) {
+    return {
+      type: 'financeiro',
+      confidence: 'medium',
+      reason: 'Relatório Financeiro (sem dados de atendimento)',
+      isSupported: false,
+    };
+  }
+  
+  // Unknown format
+  return {
+    type: 'desconhecido',
+    confidence: 'low',
+    reason: 'Formato não reconhecido',
+    isSupported: false,
+  };
+}
+
 export function parseLisXls(
   buffer: ArrayBuffer,
   cardFees: CardFeeConfig[] = []
@@ -522,6 +628,36 @@ export function parseLisXls(
   const rawPreview: string[][] = firstSheetData.slice(0, 5).map(row => 
     (row as unknown[]).slice(0, 10).map(cell => String(cell ?? ''))
   );
+  
+  // Detect report type
+  const reportType = detectLisReportType(firstSheetData);
+  
+  console.log(`[LIS Parser] Report type detected: ${reportType.type} (${reportType.confidence}) - ${reportType.reason}`);
+  
+  // If report type is not supported, return early with diagnostic info
+  if (!reportType.isSupported) {
+    return {
+      records: [],
+      periodStart: null,
+      periodEnd: null,
+      totalRecords: 0,
+      validRecords: 0,
+      invalidRecords: 0,
+      duplicateRecords: 0,
+      reportType,
+      diagnostics: {
+        sheetUsed: firstSheetName,
+        headerRowIndex: -1,
+        startRow: 0,
+        rowsScanned: firstSheetData.length,
+        rowsSkippedInvalidDate: 0,
+        rowsSkippedBySkipRow: 0,
+        rowsSkippedTooFewColumns: 0,
+        rawPreview,
+        sheetsAttempted: workbook.SheetNames,
+      },
+    };
+  }
   
   // Try each sheet until we find one with valid records
   let bestResult: ParseResult | null = null;
@@ -575,9 +711,10 @@ export function parseLisXls(
     };
   }
   
-  // Add rawPreview and sheetsAttempted to diagnostics
+  // Add reportType, rawPreview and sheetsAttempted to diagnostics
   return {
     ...bestResult,
+    reportType,
     diagnostics: {
       ...bestResult.diagnostics!,
       rawPreview,

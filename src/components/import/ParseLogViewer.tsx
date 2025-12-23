@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Terminal, ChevronDown, ChevronUp, Info, AlertTriangle, XCircle, CheckCircle2 } from 'lucide-react';
+import { Terminal, ChevronDown, ChevronUp, Info, AlertTriangle, XCircle, CheckCircle2, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
@@ -14,6 +14,7 @@ interface ParseLogViewerProps {
   logs: LogEntry[];
   isExpanded: boolean;
   onToggleExpand: () => void;
+  fileName?: string;
 }
 
 const levelColors: Record<LogEntry['level'], string> = {
@@ -36,7 +37,30 @@ function formatTime(date: Date): string {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${ms}`;
 }
 
-export function ParseLogViewer({ logs, isExpanded, onToggleExpand }: ParseLogViewerProps) {
+function exportLogs(logs: LogEntry[], fileName?: string) {
+  const header = [
+    '='.repeat(60),
+    'Diagnóstico de Importação LIS',
+    `Gerado em: ${new Date().toLocaleString('pt-BR')}`,
+    fileName ? `Arquivo: ${fileName}` : '',
+    '='.repeat(60),
+    '',
+  ].filter(Boolean).join('\n');
+  
+  const content = logs.map(log => 
+    `[${formatTime(log.timestamp)}] [${log.level.toUpperCase().padEnd(7)}] ${log.message}`
+  ).join('\n');
+  
+  const blob = new Blob([header + content], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `lis-parse-log-${new Date().toISOString().split('T')[0]}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export function ParseLogViewer({ logs, isExpanded, onToggleExpand, fileName }: ParseLogViewerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new logs appear
@@ -54,32 +78,46 @@ export function ParseLogViewer({ logs, isExpanded, onToggleExpand }: ParseLogVie
   return (
     <Card className="border-slate-700 bg-slate-900/50">
       <CardHeader className="py-3 px-4">
-        <Button
-          variant="ghost"
-          className="w-full justify-between p-0 h-auto hover:bg-transparent"
-          onClick={onToggleExpand}
-        >
-          <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-200">
-            <Terminal className="h-4 w-4 text-green-500" />
-            Diagnóstico de Importação
-            <span className="text-xs text-slate-500">({logs.length} mensagens)</span>
-            {errorCount > 0 && (
-              <span className="text-xs bg-red-600 text-white px-1.5 py-0.5 rounded-full">
-                {errorCount} erro{errorCount > 1 ? 's' : ''}
-              </span>
+        <div className="flex items-center justify-between">
+          <Button
+            variant="ghost"
+            className="flex-1 justify-start p-0 h-auto hover:bg-transparent"
+            onClick={onToggleExpand}
+          >
+            <CardTitle className="flex items-center gap-2 text-sm font-medium text-slate-200">
+              <Terminal className="h-4 w-4 text-green-500" />
+              Diagnóstico de Importação
+              <span className="text-xs text-slate-500">({logs.length} mensagens)</span>
+              {errorCount > 0 && (
+                <span className="text-xs bg-red-600 text-white px-1.5 py-0.5 rounded-full">
+                  {errorCount} erro{errorCount > 1 ? 's' : ''}
+                </span>
+              )}
+              {warnCount > 0 && (
+                <span className="text-xs bg-yellow-600 text-white px-1.5 py-0.5 rounded-full">
+                  {warnCount} aviso{warnCount > 1 ? 's' : ''}
+                </span>
+              )}
+            </CardTitle>
+            {isExpanded ? (
+              <ChevronUp className="h-4 w-4 text-slate-400 ml-2" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-slate-400 ml-2" />
             )}
-            {warnCount > 0 && (
-              <span className="text-xs bg-yellow-600 text-white px-1.5 py-0.5 rounded-full">
-                {warnCount} aviso{warnCount > 1 ? 's' : ''}
-              </span>
-            )}
-          </CardTitle>
-          {isExpanded ? (
-            <ChevronUp className="h-4 w-4 text-slate-400" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-slate-400" />
-          )}
-        </Button>
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-slate-400 hover:text-slate-200"
+            onClick={(e) => {
+              e.stopPropagation();
+              exportLogs(logs, fileName);
+            }}
+            title="Exportar logs para arquivo"
+          >
+            <Download className="h-4 w-4" />
+          </Button>
+        </div>
       </CardHeader>
       {isExpanded && (
         <CardContent className="pt-0 px-4 pb-4">
