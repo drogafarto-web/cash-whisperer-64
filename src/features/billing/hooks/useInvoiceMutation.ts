@@ -16,11 +16,22 @@ export function useInvoiceMutation() {
         description: 'A nota fiscal foi registrada com sucesso.',
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Error saving invoice:', error);
+      
+      let description = 'Não foi possível salvar a nota fiscal.';
+      
+      // Detectar erro de RLS
+      if (error?.message?.includes('row-level security') || 
+          error?.code === '42501' ||
+          error?.message?.includes('permission denied') ||
+          error?.message?.includes('violates row-level security')) {
+        description = 'Você não tem permissão para salvar notas fiscais. Verifique se possui role admin ou contabilidade.';
+      }
+      
       toast({
         title: 'Erro ao salvar',
-        description: 'Não foi possível salvar a nota fiscal.',
+        description,
         variant: 'destructive',
       });
     },
