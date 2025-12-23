@@ -158,13 +158,27 @@ export default function DailyMovement() {
       const buffer = await file.arrayBuffer();
       const result = parseLisXls(buffer);
 
+      // Log de diagnóstico se houver
+      if (result.diagnostics) {
+        const d = result.diagnostics;
+        addLog('info', `📑 Planilha: "${d.sheetUsed}", Cabeçalho: linha ${d.headerRowIndex}, Dados: linha ${d.startRow}`);
+        addLog('info', `📊 Linhas escaneadas: ${d.rowsScanned}`);
+        
+        if (d.rowsSkippedInvalidDate > 0 || d.rowsSkippedBySkipRow > 0 || d.rowsSkippedTooFewColumns > 0) {
+          addLog('warn', `⏭️ Puladas: ${d.rowsSkippedInvalidDate} sem data, ${d.rowsSkippedBySkipRow} padrão skip, ${d.rowsSkippedTooFewColumns} poucas colunas`);
+        }
+      }
+
       addLog('info', `📅 Período detectado: ${result.periodStart || 'N/A'} a ${result.periodEnd || 'N/A'}`);
-      addLog('info', `📋 Total de linhas no arquivo: ${result.totalRecords}`);
+      addLog('info', `📋 Total de registros parseados: ${result.totalRecords}`);
       
       if (result.validRecords > 0) {
         addLog('success', `✅ ${result.validRecords} registros válidos encontrados`);
       } else {
-        addLog('warn', '⚠️ Nenhum registro válido encontrado');
+        addLog('error', '❌ Nenhum registro válido encontrado');
+        if (result.diagnostics && result.diagnostics.rowsSkippedInvalidDate > 0) {
+          addLog('warn', '💡 Verifique se o arquivo é o "Relatório Movimento Diário Detalhado" do LIS');
+        }
       }
 
       if (result.invalidRecords > 0) {

@@ -46,6 +46,16 @@ export interface ParseResult {
   validRecords: number;
   invalidRecords: number;
   duplicateRecords: number;
+  // Diagnóstico
+  diagnostics?: {
+    sheetUsed: string;
+    headerRowIndex: number;
+    startRow: number;
+    rowsScanned: number;
+    rowsSkippedInvalidDate: number;
+    rowsSkippedBySkipRow: number;
+    rowsSkippedTooFewColumns: number;
+  };
 }
 
 export interface CardFeeConfig {
@@ -391,15 +401,25 @@ export function parseLisXls(
   let periodStart: string | null = null;
   let periodEnd: string | null = null;
   
-  // Helper to check if a value looks like a valid date
+  // Helper to check if a value looks like a valid date - MORE PERMISSIVE
   const isValidDateCell = (cell: unknown): boolean => {
     if (cell instanceof Date) return true;
-    if (typeof cell === 'number' && cell > 40000 && cell < 50000) return true; // Excel serial 2009-2036
+    // Excel serial: expand range to cover 1990-2050 (33000-55000)
+    if (typeof cell === 'number' && cell > 33000 && cell < 55000) return true;
     if (typeof cell === 'string') {
-      return /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(cell.trim());
+      const trimmed = cell.trim();
+      // Accept dates with or without time: "08/12/2025" or "08/12/2025 00:00:00"
+      if (/\d{1,2}\/\d{1,2}\/\d{2,4}/.test(trimmed)) return true;
+      // Also accept yyyy-mm-dd format
+      if (/\d{4}-\d{1,2}-\d{1,2}/.test(trimmed)) return true;
     }
     return false;
   };
+  
+  // Diagnostics counters
+  let rowsSkippedInvalidDate = 0;
+  let rowsSkippedBySkipRow = 0;
+  let rowsSkippedTooFewColumns = 0;
   
   // Encontrar linha de cabeçalho - try header text first
   let headerRowIndex = -1;
@@ -433,18 +453,30 @@ export function parseLisXls(
   }
   
   const startRow = headerRowIndex >= 0 ? headerRowIndex + 1 : 0;
+  const rowsScanned = data.length - startRow;
   
-  console.log(`[LIS Parser] Found header at row ${headerRowIndex}, starting data at row ${startRow}`);
-  console.log(`[LIS Parser] Total rows in file: ${data.length}`);
+  console.log(`[LIS Parser] Sheet: ${sheetName}, Header at row ${headerRowIndex}, starting data at row ${startRow}`);
+  console.log(`[LIS Parser] Total rows in file: ${data.length}, rows to scan: ${rowsScanned}`);
   
   for (let i = startRow; i < data.length; i++) {
     const row = data[i];
-    if (!row || !Array.isArray(row) || row.length < 5) continue;
-    if (isSkipRow(row)) continue;
+    if (!row || !Array.isArray(row) || row.length < 5) {
+      rowsSkippedTooFewColumns++;
+      continue;
+    }
+    if (isSkipRow(row)) {
+      rowsSkippedBySkipRow++;
+      continue;
+    }
     
     // Extra check: skip if first cell is not a valid date
     const firstCell = row[0];
     if (!isValidDateCell(firstCell)) {
+      rowsSkippedInvalidDate++;
+      // Log the first few invalid cells for debugging
+      if (rowsSkippedInvalidDate <= 3) {
+        console.log(`[LIS Parser] Row ${i} skipped - invalid date cell:`, firstCell, typeof firstCell);
+      }
       continue;
     }
     
@@ -460,6 +492,7 @@ export function parseLisXls(
   }
   
   console.log(`[LIS Parser] Parsed ${records.length} records, period: ${periodStart} to ${periodEnd}`);
+  console.log(`[LIS Parser] Skipped: ${rowsSkippedInvalidDate} invalid date, ${rowsSkippedBySkipRow} skip patterns, ${rowsSkippedTooFewColumns} too few columns`);
   
   const validRecords = records.filter(r => !r.error && !r.isDuplicate);
   
@@ -471,6 +504,15 @@ export function parseLisXls(
     validRecords: validRecords.length,
     invalidRecords: records.filter(r => r.error).length,
     duplicateRecords: 0,
+    diagnostics: {
+      sheetUsed: sheetName,
+      headerRowIndex,
+      startRow,
+      rowsScanned,
+      rowsSkippedInvalidDate,
+      rowsSkippedBySkipRow,
+      rowsSkippedTooFewColumns,
+    },
   };
 }
 
