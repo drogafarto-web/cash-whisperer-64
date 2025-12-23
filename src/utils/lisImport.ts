@@ -83,19 +83,47 @@ const paymentMethodMapping: Record<string, PaymentMethod> = {
   '': 'NAO_PAGO',
 };
 
-function parseDate(dateStr: string): string | null {
-  if (!dateStr) return null;
+function parseDate(value: unknown): string | null {
+  if (!value) return null;
   
-  const match = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
-  if (match) {
-    const day = match[1].padStart(2, '0');
-    const month = match[2].padStart(2, '0');
-    let year = match[3];
-    if (year.length === 2) {
-      year = '20' + year;
-    }
+  // Handle Date object (from cellDates: true)
+  if (value instanceof Date) {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   }
+  
+  // Handle Excel serial number (days since 1899-12-30)
+  if (typeof value === 'number') {
+    // Excel serial date: number of days since 1899-12-30
+    // Excel has a bug where it thinks 1900 is a leap year, so we adjust
+    const excelEpoch = new Date(1899, 11, 30); // Dec 30, 1899
+    const date = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
+    if (!isNaN(date.getTime()) && date.getFullYear() > 1900 && date.getFullYear() < 2100) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    return null;
+  }
+  
+  // Handle string in dd/mm/yyyy format
+  if (typeof value === 'string') {
+    const dateStr = value.trim();
+    const match = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+    if (match) {
+      const day = match[1].padStart(2, '0');
+      const month = match[2].padStart(2, '0');
+      let year = match[3];
+      if (year.length === 2) {
+        year = '20' + year;
+      }
+      return `${year}-${month}-${day}`;
+    }
+  }
+  
   return null;
 }
 
@@ -180,7 +208,10 @@ function processRow(
   // [0] Cadastro (Data), [1] Unidade, [2] Código, [3] Paciente, [4] Convênio,
   // [5] Total R$, [6] Desc. R$, [7] Acres. R$, [8] Pago R$, [9] Form. Pag., [10] Atendente, [11] A Pag. R$
   
-  const dataCad = String(row[0] || '').trim();
+  // Parse date first - supports string, Date object, and Excel serial number
+  const parsedDate = parseDate(row[0]);
+  if (!parsedDate) return null;
+  
   const unidade = String(row[1] || '').trim();
   const codigo = String(row[2] || '').trim();
   const paciente = String(row[3] || '').trim();
@@ -191,9 +222,6 @@ function processRow(
   const valorPago = parseAmount(row[8]); // Pago R$
   const formaPag = String(row[9] || '').trim();
   const atendente = String(row[10] || '').trim();
-  
-  const parsedDate = parseDate(dataCad);
-  if (!parsedDate) return null;
   
   // Extrair código da unidade
   let unidadeCodigo = unidade.toUpperCase();
@@ -347,48 +375,78 @@ export function parseLisXls(
   buffer: ArrayBuffer,
   cardFees: CardFeeConfig[] = []
 ): ParseResult {
-  const workbook = XLSX.read(buffer, { type: 'array' });
+  // Use cellDates: true to get Date objects instead of serial numbers when possible
+  const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
   const sheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[sheetName];
   
-  const data: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+  // Use raw: false to get formatted values, defval for empty cells
+  const data: unknown[][] = XLSX.utils.sheet_to_json(sheet, { 
+    header: 1, 
+    raw: false, // Get formatted strings for dates
+    defval: '' 
+  });
   
   const records: LisRecord[] = [];
   let periodStart: string | null = null;
   let periodEnd: string | null = null;
   
-  // Encontrar linha de cabeçalho
+  // Helper to check if a value looks like a valid date
+  const isValidDateCell = (cell: unknown): boolean => {
+    if (cell instanceof Date) return true;
+    if (typeof cell === 'number' && cell > 40000 && cell < 50000) return true; // Excel serial 2009-2036
+    if (typeof cell === 'string') {
+      return /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(cell.trim());
+    }
+    return false;
+  };
+  
+  // Encontrar linha de cabeçalho - try header text first
   let headerRowIndex = -1;
   for (let i = 0; i < Math.min(20, data.length); i++) {
     const row = data[i];
     if (row && Array.isArray(row)) {
       const rowStr = row.map(c => String(c || '').toLowerCase()).join(' ');
-      if (rowStr.includes('cadastro') || rowStr.includes('data cad') || rowStr.includes('código') || rowStr.includes('paciente')) {
+      // Check for header keywords (handle encoding issues with partial match)
+      if (rowStr.includes('cadastro') || rowStr.includes('data cad') || 
+          rowStr.includes('digo') || rowStr.includes('paciente') ||
+          rowStr.includes('unidade') || rowStr.includes('convênio') || rowStr.includes('convenio')) {
         headerRowIndex = i;
         break;
       }
     }
   }
   
+  // Fallback: find first row with a valid date in the first column
   if (headerRowIndex === -1) {
-    for (let i = 0; i < Math.min(20, data.length); i++) {
+    for (let i = 0; i < Math.min(30, data.length); i++) {
       const row = data[i];
       if (row && Array.isArray(row) && row.length > 5) {
-        const firstCell = String(row[0] || '');
-        if (firstCell.match(/^\d{1,2}\/\d{1,2}\/\d{2,4}/)) {
-          headerRowIndex = i - 1;
+        const firstCell = row[0];
+        if (isValidDateCell(firstCell)) {
+          // This is a data row, header should be the previous row
+          headerRowIndex = Math.max(0, i - 1);
           break;
         }
       }
     }
   }
   
-  const startRow = headerRowIndex + 1;
+  const startRow = headerRowIndex >= 0 ? headerRowIndex + 1 : 0;
+  
+  console.log(`[LIS Parser] Found header at row ${headerRowIndex}, starting data at row ${startRow}`);
+  console.log(`[LIS Parser] Total rows in file: ${data.length}`);
   
   for (let i = startRow; i < data.length; i++) {
     const row = data[i];
     if (!row || !Array.isArray(row) || row.length < 5) continue;
     if (isSkipRow(row)) continue;
+    
+    // Extra check: skip if first cell is not a valid date
+    const firstCell = row[0];
+    if (!isValidDateCell(firstCell)) {
+      continue;
+    }
     
     const record = processRow(row, cardFees);
     if (!record) continue;
@@ -400,6 +458,8 @@ export function parseLisXls(
     
     records.push(record);
   }
+  
+  console.log(`[LIS Parser] Parsed ${records.length} records, period: ${periodStart} to ${periodEnd}`);
   
   const validRecords = records.filter(r => !r.error && !r.isDuplicate);
   
