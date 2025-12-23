@@ -55,6 +55,9 @@ export interface ParseResult {
     rowsSkippedInvalidDate: number;
     rowsSkippedBySkipRow: number;
     rowsSkippedTooFewColumns: number;
+    // Novos campos para debug
+    rawPreview?: string[][];
+    sheetsAttempted?: string[];
   };
 }
 
@@ -384,40 +387,30 @@ export function parseLisCsv(
   };
 }
 
-export function parseLisXls(
-  buffer: ArrayBuffer,
-  cardFees: CardFeeConfig[] = []
+// Helper to check if a value looks like a valid date - MORE PERMISSIVE
+function isValidDateCell(cell: unknown): boolean {
+  if (cell instanceof Date) return true;
+  // Excel serial: expand range to cover 1990-2050 (33000-55000)
+  if (typeof cell === 'number' && cell > 33000 && cell < 55000) return true;
+  if (typeof cell === 'string') {
+    const trimmed = cell.trim();
+    // Accept dates with or without time: "08/12/2025" or "08/12/2025 00:00:00"
+    if (/\d{1,2}\/\d{1,2}\/\d{2,4}/.test(trimmed)) return true;
+    // Also accept yyyy-mm-dd format
+    if (/\d{4}-\d{1,2}-\d{1,2}/.test(trimmed)) return true;
+  }
+  return false;
+}
+
+// Parse a single sheet and return result
+function parseSheet(
+  data: unknown[][],
+  sheetName: string,
+  cardFees: CardFeeConfig[]
 ): ParseResult {
-  // Use cellDates: true to get Date objects instead of serial numbers when possible
-  const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
-  const sheetName = workbook.SheetNames[0];
-  const sheet = workbook.Sheets[sheetName];
-  
-  // Use raw: false to get formatted values, defval for empty cells
-  const data: unknown[][] = XLSX.utils.sheet_to_json(sheet, { 
-    header: 1, 
-    raw: false, // Get formatted strings for dates
-    defval: '' 
-  });
-  
   const records: LisRecord[] = [];
   let periodStart: string | null = null;
   let periodEnd: string | null = null;
-  
-  // Helper to check if a value looks like a valid date - MORE PERMISSIVE
-  const isValidDateCell = (cell: unknown): boolean => {
-    if (cell instanceof Date) return true;
-    // Excel serial: expand range to cover 1990-2050 (33000-55000)
-    if (typeof cell === 'number' && cell > 33000 && cell < 55000) return true;
-    if (typeof cell === 'string') {
-      const trimmed = cell.trim();
-      // Accept dates with or without time: "08/12/2025" or "08/12/2025 00:00:00"
-      if (/\d{1,2}\/\d{1,2}\/\d{2,4}/.test(trimmed)) return true;
-      // Also accept yyyy-mm-dd format
-      if (/\d{4}-\d{1,2}-\d{1,2}/.test(trimmed)) return true;
-    }
-    return false;
-  };
   
   // Diagnostics counters
   let rowsSkippedInvalidDate = 0;
@@ -458,9 +451,6 @@ export function parseLisXls(
   const startRow = headerRowIndex >= 0 ? headerRowIndex + 1 : 0;
   const rowsScanned = data.length - startRow;
   
-  console.log(`[LIS Parser] Sheet: ${sheetName}, Header at row ${headerRowIndex}, starting data at row ${startRow}`);
-  console.log(`[LIS Parser] Total rows in file: ${data.length}, rows to scan: ${rowsScanned}`);
-  
   for (let i = startRow; i < data.length; i++) {
     const row = data[i];
     if (!row || !Array.isArray(row) || row.length < 5) {
@@ -476,10 +466,6 @@ export function parseLisXls(
     const firstCell = row[0];
     if (!isValidDateCell(firstCell)) {
       rowsSkippedInvalidDate++;
-      // Log the first few invalid cells for debugging
-      if (rowsSkippedInvalidDate <= 3) {
-        console.log(`[LIS Parser] Row ${i} skipped - invalid date cell:`, firstCell, typeof firstCell);
-      }
       continue;
     }
     
@@ -493,9 +479,6 @@ export function parseLisXls(
     
     records.push(record);
   }
-  
-  console.log(`[LIS Parser] Parsed ${records.length} records, period: ${periodStart} to ${periodEnd}`);
-  console.log(`[LIS Parser] Skipped: ${rowsSkippedInvalidDate} invalid date, ${rowsSkippedBySkipRow} skip patterns, ${rowsSkippedTooFewColumns} too few columns`);
   
   const validRecords = records.filter(r => !r.error && !r.isDuplicate);
   
@@ -515,6 +498,90 @@ export function parseLisXls(
       rowsSkippedInvalidDate,
       rowsSkippedBySkipRow,
       rowsSkippedTooFewColumns,
+    },
+  };
+}
+
+export function parseLisXls(
+  buffer: ArrayBuffer,
+  cardFees: CardFeeConfig[] = []
+): ParseResult {
+  // Use cellDates: true to get Date objects instead of serial numbers when possible
+  const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+  
+  // Capture raw preview from first sheet (for debugging)
+  const firstSheetName = workbook.SheetNames[0];
+  const firstSheet = workbook.Sheets[firstSheetName];
+  const firstSheetData: unknown[][] = XLSX.utils.sheet_to_json(firstSheet, { 
+    header: 1, 
+    raw: false,
+    defval: '' 
+  });
+  
+  // Raw preview: first 5 rows, first 10 columns
+  const rawPreview: string[][] = firstSheetData.slice(0, 5).map(row => 
+    (row as unknown[]).slice(0, 10).map(cell => String(cell ?? ''))
+  );
+  
+  // Try each sheet until we find one with valid records
+  let bestResult: ParseResult | null = null;
+  
+  console.log(`[LIS Parser] Workbook has ${workbook.SheetNames.length} sheets: ${workbook.SheetNames.join(', ')}`);
+  
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    const data: unknown[][] = XLSX.utils.sheet_to_json(sheet, { 
+      header: 1, 
+      raw: false,
+      defval: '' 
+    });
+    
+    console.log(`[LIS Parser] Trying sheet "${sheetName}" with ${data.length} rows`);
+    
+    const result = parseSheet(data, sheetName, cardFees);
+    
+    // If we found valid records, use this sheet
+    if (result.records.length > 0) {
+      console.log(`[LIS Parser] Found ${result.records.length} records in sheet "${sheetName}"`);
+      bestResult = result;
+      break;
+    }
+    
+    // Keep best result (for diagnostics even if no records)
+    if (!bestResult || (result.diagnostics?.rowsScanned || 0) > (bestResult.diagnostics?.rowsScanned || 0)) {
+      bestResult = result;
+    }
+  }
+  
+  // Fallback to empty result if nothing found
+  if (!bestResult) {
+    bestResult = {
+      records: [],
+      periodStart: null,
+      periodEnd: null,
+      totalRecords: 0,
+      validRecords: 0,
+      invalidRecords: 0,
+      duplicateRecords: 0,
+      diagnostics: {
+        sheetUsed: firstSheetName,
+        headerRowIndex: -1,
+        startRow: 0,
+        rowsScanned: 0,
+        rowsSkippedInvalidDate: 0,
+        rowsSkippedBySkipRow: 0,
+        rowsSkippedTooFewColumns: 0,
+      },
+    };
+  }
+  
+  // Add rawPreview and sheetsAttempted to diagnostics
+  return {
+    ...bestResult,
+    diagnostics: {
+      ...bestResult.diagnostics!,
+      rawPreview,
+      sheetsAttempted: workbook.SheetNames,
     },
   };
 }

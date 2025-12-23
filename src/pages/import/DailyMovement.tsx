@@ -161,11 +161,33 @@ export default function DailyMovement() {
       // Log de diagnóstico se houver
       if (result.diagnostics) {
         const d = result.diagnostics;
-        addLog('info', `📑 Planilha: "${d.sheetUsed}", Cabeçalho: linha ${d.headerRowIndex}, Dados: linha ${d.startRow}`);
+        
+        // Log se usou planilha diferente da primeira
+        if (d.sheetsAttempted && d.sheetsAttempted.length > 1 && d.sheetUsed !== d.sheetsAttempted[0]) {
+          addLog('info', `📑 Dados encontrados na planilha "${d.sheetUsed}" (não era a primeira)`);
+        } else {
+          addLog('info', `📑 Planilha: "${d.sheetUsed}", Cabeçalho: linha ${d.headerRowIndex}, Dados: linha ${d.startRow}`);
+        }
+        
         addLog('info', `📊 Linhas escaneadas: ${d.rowsScanned}`);
         
         if (d.rowsSkippedInvalidDate > 0 || d.rowsSkippedBySkipRow > 0 || d.rowsSkippedTooFewColumns > 0) {
           addLog('warn', `⏭️ Puladas: ${d.rowsSkippedInvalidDate} sem data, ${d.rowsSkippedBySkipRow} padrão skip, ${d.rowsSkippedTooFewColumns} poucas colunas`);
+        }
+        
+        // Se nenhum registro encontrado, mostrar preview das linhas brutas
+        if (result.totalRecords === 0 && d.rawPreview && d.rawPreview.length > 0) {
+          addLog('warn', '📋 Preview das primeiras linhas do arquivo:');
+          d.rawPreview.slice(0, 3).forEach((row, i) => {
+            const cells = row.slice(0, 6).join(' | ');
+            addLog('info', `   Linha ${i + 1}: ${cells}`);
+          });
+          
+          if (d.sheetsAttempted && d.sheetsAttempted.length > 1) {
+            addLog('info', `📑 Planilhas tentadas: ${d.sheetsAttempted.join(', ')}`);
+          }
+          
+          addLog('warn', '💡 Verifique se o arquivo é o "Relatório Movimento Diário Detalhado" do LIS');
         }
       }
 
