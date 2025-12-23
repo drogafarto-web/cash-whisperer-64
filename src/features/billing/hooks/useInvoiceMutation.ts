@@ -29,6 +29,11 @@ export function useInvoiceMutation() {
         description = 'Você não tem permissão para salvar notas fiscais. Verifique se possui role admin ou contabilidade.';
       }
       
+      // Detectar erro de tipo UUID inválido
+      if (error?.code === '22P02' && error?.message?.includes('uuid')) {
+        description = 'Dados inválidos. Verifique os campos e tente novamente.';
+      }
+      
       toast({
         title: 'Erro ao salvar',
         description,
