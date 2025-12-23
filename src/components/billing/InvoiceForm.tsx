@@ -6,10 +6,12 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useInvoiceMutation, usePayers } from '@/features/billing';
+import { checkDuplicateInvoice } from '@/features/billing/api/invoices.api';
 import { Invoice } from '@/types/billing';
 import { useAuth } from '@/hooks/useAuth';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface InvoiceFormProps {
   initialData?: Partial<Invoice>;
@@ -36,6 +38,7 @@ const currentYear = new Date().getFullYear();
 
 export default function InvoiceForm({ initialData, onSuccess, onCancel }: InvoiceFormProps) {
   const { user } = useAuth();
+  const { toast } = useToast();
   const invoiceMutation = useInvoiceMutation();
   const { data: payers = [] } = usePayers();
   const { data: units = [] } = useQuery({
@@ -96,16 +99,41 @@ export default function InvoiceForm({ initialData, onSuccess, onCancel }: Invoic
     }
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
-    await invoiceMutation.mutateAsync({
-      ...formData,
-      id: initialData?.id,
-      created_by: initialData?.id ? undefined : user?.id,
-    });
+    try {
+      // Verificar duplicata antes de salvar
+      const isDuplicate = await checkDuplicateInvoice(
+        formData.document_number,
+        formData.issuer_cnpj || null,
+        formData.competence_year,
+        formData.competence_month,
+        initialData?.id
+      );
 
-    onSuccess();
+      if (isDuplicate) {
+        toast({
+          title: 'Nota fiscal duplicada',
+          description: 'Já existe uma nota fiscal com este número de documento.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      await invoiceMutation.mutateAsync({
+        ...formData,
+        id: initialData?.id,
+        created_by: initialData?.id ? undefined : user?.id,
+      });
+
+      onSuccess();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -342,8 +370,8 @@ export default function InvoiceForm({ initialData, onSuccess, onCancel }: Invoic
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button type="submit" disabled={invoiceMutation.isPending}>
-          {invoiceMutation.isPending ? 'Salvando...' : 'Salvar Nota Fiscal'}
+        <Button type="submit" disabled={isSubmitting || invoiceMutation.isPending}>
+          {isSubmitting || invoiceMutation.isPending ? 'Salvando...' : 'Salvar Nota Fiscal'}
         </Button>
       </div>
     </form>

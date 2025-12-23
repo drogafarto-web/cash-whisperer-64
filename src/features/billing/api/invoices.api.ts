@@ -9,6 +9,34 @@ export interface InvoiceFilters {
   status?: string;
 }
 
+export async function checkDuplicateInvoice(
+  documentNumber: string,
+  issuerCnpj?: string | null,
+  competenceYear?: number,
+  competenceMonth?: number,
+  excludeId?: string
+): Promise<boolean> {
+  let query = supabase
+    .from('invoices')
+    .select('id')
+    .eq('document_number', documentNumber);
+
+  if (issuerCnpj) {
+    query = query.eq('issuer_cnpj', issuerCnpj);
+  } else if (competenceYear && competenceMonth) {
+    query = query
+      .eq('competence_year', competenceYear)
+      .eq('competence_month', competenceMonth);
+  }
+
+  if (excludeId) {
+    query = query.neq('id', excludeId);
+  }
+
+  const { data } = await query.limit(1);
+  return (data?.length ?? 0) > 0;
+}
+
 export async function fetchInvoices(filters?: InvoiceFilters): Promise<Invoice[]> {
   let query = supabase
     .from('invoices')
