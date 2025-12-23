@@ -158,6 +158,16 @@ export default function DailyMovement() {
       const buffer = await file.arrayBuffer();
       const result = parseLisXls(buffer);
 
+      // Log de tipo de relatório detectado
+      if (result.reportType) {
+        if (result.reportType.isSupported) {
+          addLog('success', `📋 Tipo detectado: ${result.reportType.reason} (confiança ${result.reportType.confidence})`);
+        } else {
+          addLog('error', `❌ Tipo incompatível: ${result.reportType.reason}`);
+          addLog('warn', '💡 Este importador requer o "Relatório Movimento Diário Detalhado" do LIS');
+        }
+      }
+
       // Log de diagnóstico se houver
       if (result.diagnostics) {
         const d = result.diagnostics;
@@ -186,8 +196,6 @@ export default function DailyMovement() {
           if (d.sheetsAttempted && d.sheetsAttempted.length > 1) {
             addLog('info', `📑 Planilhas tentadas: ${d.sheetsAttempted.join(', ')}`);
           }
-          
-          addLog('warn', '💡 Verifique se o arquivo é o "Relatório Movimento Diário Detalhado" do LIS');
         }
       }
 
@@ -443,6 +451,7 @@ export default function DailyMovement() {
           logs={parseLogs}
           isExpanded={showLogs}
           onToggleExpand={() => setShowLogs(!showLogs)}
+          fileName={fileName}
         />
 
         {/* Results */}
