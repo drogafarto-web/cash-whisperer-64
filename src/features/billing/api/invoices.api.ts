@@ -40,20 +40,40 @@ export async function fetchInvoices(filters?: InvoiceFilters): Promise<Invoice[]
   return data as Invoice[];
 }
 
+function sanitizeInvoiceData(invoice: Partial<Invoice>) {
+  const sanitized = { ...invoice };
+  
+  // Converter strings vazias para null em campos UUID
+  if (sanitized.payer_id === '' || sanitized.payer_id === 'manual') {
+    sanitized.payer_id = null;
+  }
+  if (sanitized.unit_id === '' || sanitized.unit_id === 'none') {
+    sanitized.unit_id = null;
+  }
+  if (sanitized.file_path === '') {
+    sanitized.file_path = null;
+  }
+  
+  return sanitized;
+}
+
 export async function upsertInvoice(invoice: Partial<Invoice> & { id?: string }) {
-  if (invoice.id) {
+  const sanitized = sanitizeInvoiceData(invoice);
+  
+  if (sanitized.id) {
     const { data, error } = await supabase
       .from('invoices')
-      .update(invoice as any)
-      .eq('id', invoice.id)
+      .update(sanitized as any)
+      .eq('id', sanitized.id)
       .select()
       .single();
     if (error) throw error;
     return data;
   } else {
+    const { id, ...insertData } = sanitized;
     const { data, error } = await supabase
       .from('invoices')
-      .insert(invoice as any)
+      .insert(insertData as any)
       .select()
       .single();
     if (error) throw error;
