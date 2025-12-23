@@ -88,6 +88,7 @@ const navigationGroups: NavGroup[] = [
     icon: FileText,
     items: [
       { name: 'Rel. Fechamentos', href: '/reports/cash-closings', icon: FileBarChart, roles: ['admin', 'contabilidade', 'gestor_unidade'] },
+      { name: 'Rel. Fecham. LIS', href: '/reports/lis-closures', icon: FileBarChart, roles: ['admin', 'contabilidade', 'gestor_unidade'] },
       { name: 'Rel. Transações', href: '/reports/transactions', icon: FileBarChart, roles: ['admin', 'contabilidade', 'gestor_unidade'] },
     ],
   },
