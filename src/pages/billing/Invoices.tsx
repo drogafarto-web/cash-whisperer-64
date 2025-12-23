@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useInvoices, usePayers, useInvoiceMutation } from '@/hooks/useBilling';
+import { useInvoices, usePayers, useInvoiceMutation } from '@/features/billing';
 import InvoiceUploadForm from '@/components/billing/InvoiceUploadForm';
 import InvoiceForm from '@/components/billing/InvoiceForm';
 import { Invoice } from '@/types/billing';

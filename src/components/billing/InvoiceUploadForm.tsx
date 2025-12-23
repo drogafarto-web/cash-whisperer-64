@@ -3,7 +3,7 @@ import { Upload, FileText, Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
-import { useInvoiceOcr } from '@/hooks/useBilling';
+import { useInvoiceOcr } from '@/features/billing';
 import { Invoice } from '@/types/billing';
 
 interface InvoiceUploadFormProps {
