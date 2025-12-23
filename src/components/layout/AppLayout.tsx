@@ -10,10 +10,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import labclinLogo from '@/assets/labclin-logo.png';
 import {
   LayoutDashboard,
   Receipt,
-  DollarSign,
   LogOut,
   Menu,
   X,
@@ -98,7 +98,7 @@ const navigationGroups: NavGroup[] = [
     icon: Wallet,
     badgeKey: 'caixaUnidades',
     items: [
-      { name: 'Fechamento de Caixa', href: '/cash-closing', icon: DollarSign, roles: ['admin', 'secretaria', 'gestor_unidade'] },
+      { name: 'Fechamento de Caixa', href: '/cash-closing', icon: Wallet, roles: ['admin', 'secretaria', 'gestor_unidade'] },
       { name: 'Fechamento LIS', href: '/lis/fechamento', icon: FileUp, roles: ['admin', 'secretaria', 'gestor_unidade'] },
       { name: 'Transações', href: '/transactions', icon: Receipt, roles: ['admin', 'secretaria', 'contabilidade', 'gestor_unidade'] },
       { name: 'Importar LIS', href: '/import/daily-movement', icon: FileUp, roles: ['admin', 'secretaria', 'gestor_unidade'] },
@@ -223,9 +223,11 @@ export function AppLayout({ children }: AppLayoutProps) {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center gap-3 px-6 py-5 border-b border-sidebar-border">
-            <div className="w-10 h-10 rounded-lg bg-sidebar-primary flex items-center justify-center">
-              <DollarSign className="w-6 h-6 text-sidebar-primary-foreground" />
-            </div>
+            <img 
+              src={labclinLogo} 
+              alt="LabClin Logo" 
+              className="h-10 w-auto object-contain"
+            />
             <div>
               <h1 className="font-semibold text-lg">Labclin</h1>
               <p className="text-xs text-sidebar-foreground/70">Gestão Financeira</p>
