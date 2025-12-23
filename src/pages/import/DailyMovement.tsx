@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { parseLisXls, LisRecord, ParseResult, getPaymentMethodIcon, formatCurrency, extractLisCodeFromDescription } from '@/utils/lisImport';
+import { ParseLogViewer, LogEntry } from '@/components/import/ParseLogViewer';
 import {
   Table,
   TableBody,
@@ -44,6 +45,14 @@ export default function DailyMovement() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [fileName, setFileName] = useState<string>('');
   const [unitAccounts, setUnitAccounts] = useState<Record<string, string>>({});
+  
+  // Visual logs state
+  const [parseLogs, setParseLogs] = useState<LogEntry[]>([]);
+  const [showLogs, setShowLogs] = useState(true);
+
+  const addLog = useCallback((level: LogEntry['level'], message: string) => {
+    setParseLogs(prev => [...prev, { timestamp: new Date(), level, message }]);
+  }, []);
 
   // Carregar contas de caixa por unidade
   const loadUnitAccounts = async () => {
@@ -112,6 +121,10 @@ export default function DailyMovement() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Clear previous logs
+    setParseLogs([]);
+    addLog('info', `📁 Arquivo selecionado: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
+
     const validTypes = [
       'application/vnd.ms-excel',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -124,6 +137,7 @@ export default function DailyMovement() {
       file.name.endsWith('.xlsx');
 
     if (!isValidType) {
+      addLog('error', '❌ Tipo de arquivo inválido. Apenas XLS/XLSX são aceitos.');
       toast({
         title: 'Arquivo inválido',
         description: 'Por favor, selecione um arquivo XLS ou XLSX.',
@@ -136,15 +150,49 @@ export default function DailyMovement() {
     setFileName(file.name);
 
     try {
+      addLog('info', '🔄 Carregando contas de unidades...');
       await loadUnitAccounts();
+      addLog('success', `✅ Contas carregadas`);
 
+      addLog('info', '📊 Processando arquivo Excel...');
       const buffer = await file.arrayBuffer();
       const result = parseLisXls(buffer);
 
+      addLog('info', `📅 Período detectado: ${result.periodStart || 'N/A'} a ${result.periodEnd || 'N/A'}`);
+      addLog('info', `📋 Total de linhas no arquivo: ${result.totalRecords}`);
+      
+      if (result.validRecords > 0) {
+        addLog('success', `✅ ${result.validRecords} registros válidos encontrados`);
+      } else {
+        addLog('warn', '⚠️ Nenhum registro válido encontrado');
+      }
+
+      if (result.invalidRecords > 0) {
+        addLog('warn', `⚠️ ${result.invalidRecords} registros com erro/ignorados`);
+      }
+
       // Verificar duplicatas
+      addLog('info', '🔍 Verificando duplicatas no banco de dados...');
       const recordsWithDuplicates = await checkDuplicates(result.records, result.periodStart, result.periodEnd);
       const duplicateCount = recordsWithDuplicates.filter(r => r.isDuplicate).length;
       
+      if (duplicateCount > 0) {
+        addLog('warn', `⚠️ ${duplicateCount} registros já importados anteriormente`);
+      } else {
+        addLog('success', '✅ Nenhuma duplicata encontrada');
+      }
+
+      // Breakdown por forma de pagamento
+      const byPayment = result.records.reduce((acc, r) => {
+        if (r.valorPago > 0) {
+          acc[r.paymentMethod] = (acc[r.paymentMethod] || 0) + 1;
+        }
+        return acc;
+      }, {} as Record<string, number>);
+      if (Object.keys(byPayment).length > 0) {
+        addLog('info', `💳 Por forma: ${Object.entries(byPayment).map(([k,v]) => `${k}=${v}`).join(', ')}`);
+      }
+
       const updatedResult: ParseResult = {
         ...result,
         records: recordsWithDuplicates,
@@ -163,6 +211,8 @@ export default function DailyMovement() {
       });
       setSelectedIds(preSelected);
 
+      addLog('success', `🎉 Processamento concluído! ${preSelected.size} registros pré-selecionados.`);
+
       const duplicateMsg = duplicateCount > 0 ? ` ${duplicateCount} duplicatas detectadas.` : '';
       toast({
         title: 'Arquivo processado',
@@ -170,6 +220,7 @@ export default function DailyMovement() {
       });
     } catch (error) {
       console.error('Erro ao processar arquivo:', error);
+      addLog('error', `❌ Erro ao processar: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
       toast({
         title: 'Erro ao processar arquivo',
         description: 'Não foi possível ler o arquivo. Verifique se é um relatório do LIS válido.',
@@ -350,6 +401,13 @@ export default function DailyMovement() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Parse Logs */}
+        <ParseLogViewer
+          logs={parseLogs}
+          isExpanded={showLogs}
+          onToggleExpand={() => setShowLogs(!showLogs)}
+        />
 
         {/* Results */}
         {parseResult && (
