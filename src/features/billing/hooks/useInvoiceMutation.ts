@@ -29,6 +29,11 @@ export function useInvoiceMutation() {
         description = 'Você não tem permissão para salvar notas fiscais. Verifique se possui role admin ou contabilidade.';
       }
       
+      // Detectar erro de constraint única (duplicata)
+      if (error?.code === '23505') {
+        description = 'Esta nota fiscal já foi cadastrada anteriormente.';
+      }
+      
       // Detectar erro de tipo UUID inválido
       if (error?.code === '22P02' && error?.message?.includes('uuid')) {
         description = 'Dados inválidos. Verifique os campos e tente novamente.';
