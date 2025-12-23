@@ -42,6 +42,11 @@ import ExtratoParticulares from "./pages/import/ExtratoParticulares";
 // Accounting pages
 import AccountingForm from "./pages/contabilidade/AccountingForm";
 
+// Billing pages
+import Invoices from "./pages/billing/Invoices";
+import Payers from "./pages/billing/Payers";
+import BillingSummary from "./pages/billing/Summary";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -80,6 +85,9 @@ const App = () => (
             <Route path="/import/extrato-particulares" element={<ExtratoParticulares />} />
             <Route path="/pendencias" element={<Pendencias />} />
             <Route path="/contabilidade/dados/:token" element={<AccountingForm />} />
+            <Route path="/billing/invoices" element={<Invoices />} />
+            <Route path="/billing/payers" element={<Payers />} />
+            <Route path="/billing/summary" element={<BillingSummary />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
