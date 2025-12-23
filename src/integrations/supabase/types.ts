@@ -582,6 +582,117 @@ export type Database = {
           },
         ]
       }
+      invoices: {
+        Row: {
+          cnae: string | null
+          competence_month: number
+          competence_year: number
+          created_at: string
+          created_by: string | null
+          customer_city: string | null
+          customer_cnpj: string | null
+          customer_name: string
+          deductions: number | null
+          description: string | null
+          document_full_number: string | null
+          document_number: string
+          file_name: string | null
+          file_path: string | null
+          id: string
+          iss_value: number | null
+          issue_date: string
+          issuer_cnpj: string | null
+          issuer_name: string | null
+          net_value: number
+          notes: string | null
+          payer_id: string | null
+          received_at: string | null
+          service_code: string | null
+          service_value: number
+          status: string
+          unit_id: string | null
+          updated_at: string
+          verification_code: string | null
+        }
+        Insert: {
+          cnae?: string | null
+          competence_month: number
+          competence_year: number
+          created_at?: string
+          created_by?: string | null
+          customer_city?: string | null
+          customer_cnpj?: string | null
+          customer_name: string
+          deductions?: number | null
+          description?: string | null
+          document_full_number?: string | null
+          document_number: string
+          file_name?: string | null
+          file_path?: string | null
+          id?: string
+          iss_value?: number | null
+          issue_date: string
+          issuer_cnpj?: string | null
+          issuer_name?: string | null
+          net_value: number
+          notes?: string | null
+          payer_id?: string | null
+          received_at?: string | null
+          service_code?: string | null
+          service_value: number
+          status?: string
+          unit_id?: string | null
+          updated_at?: string
+          verification_code?: string | null
+        }
+        Update: {
+          cnae?: string | null
+          competence_month?: number
+          competence_year?: number
+          created_at?: string
+          created_by?: string | null
+          customer_city?: string | null
+          customer_cnpj?: string | null
+          customer_name?: string
+          deductions?: number | null
+          description?: string | null
+          document_full_number?: string | null
+          document_number?: string
+          file_name?: string | null
+          file_path?: string | null
+          id?: string
+          iss_value?: number | null
+          issue_date?: string
+          issuer_cnpj?: string | null
+          issuer_name?: string | null
+          net_value?: number
+          notes?: string | null
+          payer_id?: string | null
+          received_at?: string | null
+          service_code?: string | null
+          service_value?: number
+          status?: string
+          unit_id?: string | null
+          updated_at?: string
+          verification_code?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_payer_id_fkey"
+            columns: ["payer_id"]
+            isOneToOne: false
+            referencedRelation: "payers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lis_closure_items: {
         Row: {
           amount: number
@@ -786,6 +897,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      payers: {
+        Row: {
+          active: boolean
+          address: string | null
+          city: string | null
+          cnpj: string | null
+          created_at: string
+          created_by: string | null
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+          state: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          address?: string | null
+          city?: string | null
+          cnpj?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+          state?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          address?: string | null
+          city?: string | null
+          cnpj?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          state?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
