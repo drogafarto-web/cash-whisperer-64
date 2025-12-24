@@ -49,6 +49,7 @@ import BillingSummary from "./pages/billing/Summary";
 
 // System pages
 import About from "./pages/About";
+import Changelog from "./pages/Changelog";
 
 const queryClient = new QueryClient();
 
@@ -92,6 +93,7 @@ const App = () => (
             <Route path="/billing/payers" element={<Payers />} />
             <Route path="/billing/summary" element={<BillingSummary />} />
             <Route path="/about" element={<About />} />
+            <Route path="/changelog" element={<Changelog />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
