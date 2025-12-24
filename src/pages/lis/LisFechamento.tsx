@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -48,6 +48,7 @@ import {
 } from '@/utils/zebraPrinter';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { ImportProgressOverlay, ImportStep } from '@/components/lis/ImportProgressOverlay';
 
 interface Unit {
   id: string;
@@ -159,6 +160,11 @@ export default function LisFechamento() {
   const [periodDialogOpen, setPeriodDialogOpen] = useState(false);
   const [detectedPeriod, setDetectedPeriod] = useState<{ start: string; end: string } | null>(null);
   const [pendingRecords, setPendingRecords] = useState<LisRecord[] | null>(null);
+
+  // Estados de progresso de importação
+  const [importSteps, setImportSteps] = useState<ImportStep[]>([]);
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [importStats, setImportStats] = useState({ total: 0, processed: 0, skipped: 0 });
 
   // Printer state
   const [printer, setPrinter] = useState<ZebraPrinterDevice | null>(null);
@@ -335,10 +341,57 @@ export default function LisFechamento() {
   const processImport = async (records: LisRecord[], pStart: string, pEnd: string) => {
     if (!user) return;
     
+    // Inicializar etapas de progresso
+    const steps: ImportStep[] = [
+      { id: 'duplicates', label: 'Verificando duplicatas...', status: 'pending' },
+      { id: 'closure', label: 'Criando fechamento...', status: 'pending' },
+      { id: 'insert', label: 'Inserindo registros...', status: 'pending' },
+      { id: 'totals', label: 'Calculando totais...', status: 'pending' },
+    ];
+    
+    setImportSteps(steps);
+    setCurrentStepIndex(0);
+    setImportStats({ total: records.length, processed: 0, skipped: 0 });
     setImporting(true);
+    
+    const updateStep = (index: number, status: 'running' | 'done') => {
+      setImportSteps(prev => prev.map((s, i) => 
+        i === index ? { ...s, status } : i < index ? { ...s, status: 'done' } : s
+      ));
+      setCurrentStepIndex(index + (status === 'done' ? 1 : 0));
+    };
+
     try {
-      // Criar ou atualizar fechamento
+      // Etapa 1: Verificar duplicatas
+      updateStep(0, 'running');
+      
       let closureId = currentClosure?.id;
+      let existingLisCodes: string[] = [];
+      
+      if (closureId) {
+        // Buscar códigos já existentes neste fechamento
+        const { data: existingItems } = await supabase
+          .from('lis_closure_items')
+          .select('lis_code, date')
+          .eq('closure_id', closureId);
+        
+        existingLisCodes = existingItems?.map(i => `${i.lis_code}_${i.date}`) || [];
+      }
+      
+      // Filtrar registros que não existem ainda
+      const newRecords = records.filter(r => {
+        const code = r.codigo || r.paciente?.substring(0, 10) || 'N/A';
+        const key = `${code}_${r.data}`;
+        return !existingLisCodes.includes(key);
+      });
+      
+      const skippedCount = records.length - newRecords.length;
+      setImportStats(prev => ({ ...prev, skipped: skippedCount }));
+      
+      updateStep(0, 'done');
+
+      // Etapa 2: Criar ou obter fechamento
+      updateStep(1, 'running');
 
       if (!closureId) {
         const { data: newClosure, error } = await supabase
@@ -356,39 +409,58 @@ export default function LisFechamento() {
         closureId = newClosure.id;
         setCurrentClosure(newClosure);
       }
+      
+      updateStep(1, 'done');
 
-      // Inserir itens
-      const itemsToInsert = records.map(record => ({
-        closure_id: closureId,
-        lis_code: record.codigo || record.paciente?.substring(0, 10) || 'N/A',
-        date: record.data,
-        patient_name: record.paciente,
-        convenio: record.convenio,
-        payment_method: record.paymentMethod,
-        amount: record.valorPago,
-        gross_amount: record.valorBruto || record.valorPago,
-        discount_value: record.valorDesconto || 0,
-        discount_percent: record.percentualDesconto || 0,
-        discount_reason: record.discountReason || null,
-        card_fee_value: record.cardFeeValue || 0,
-        card_fee_percent: record.cardFeePercent || 0,
-        net_amount: record.valorLiquido || record.valorPago,
-        status: record.isNaoPago ? 'NAO_PAGO' : 'NORMAL',
-      }));
+      // Etapa 3: Inserir itens (se houver novos)
+      updateStep(2, 'running');
+      
+      if (newRecords.length > 0) {
+        const itemsToInsert = newRecords.map(record => ({
+          closure_id: closureId,
+          lis_code: record.codigo || record.paciente?.substring(0, 10) || 'N/A',
+          date: record.data,
+          patient_name: record.paciente,
+          convenio: record.convenio,
+          payment_method: record.paymentMethod,
+          amount: record.valorPago,
+          gross_amount: record.valorBruto || record.valorPago,
+          discount_value: record.valorDesconto || 0,
+          discount_percent: record.percentualDesconto || 0,
+          discount_reason: record.discountReason || null,
+          card_fee_value: record.cardFeeValue || 0,
+          card_fee_percent: record.cardFeePercent || 0,
+          net_amount: record.valorLiquido || record.valorPago,
+          status: record.isNaoPago ? 'NAO_PAGO' : 'NORMAL',
+        }));
 
-      const { error: insertError } = await supabase
-        .from('lis_closure_items')
-        .insert(itemsToInsert);
+        const { error: insertError } = await supabase
+          .from('lis_closure_items')
+          .insert(itemsToInsert);
 
-      if (insertError) throw insertError;
+        if (insertError) throw insertError;
+      }
+      
+      setImportStats(prev => ({ ...prev, processed: newRecords.length }));
+      updateStep(2, 'done');
 
-      // Recalcular totais
+      // Etapa 4: Recalcular totais
+      updateStep(3, 'running');
       await updateClosureTotals(closureId);
+      updateStep(3, 'done');
 
       // Recarregar dados com período correto (passando explicitamente)
       await fetchExistingClosure(pStart, pEnd);
 
-      toast({ title: 'Sucesso', description: `${records.length} registros importados` });
+      // Mostrar resultado
+      if (skippedCount > 0) {
+        toast({ 
+          title: 'Importação concluída', 
+          description: `${newRecords.length} registros importados, ${skippedCount} duplicados ignorados` 
+        });
+      } else {
+        toast({ title: 'Sucesso', description: `${newRecords.length} registros importados` });
+      }
     } catch (error: unknown) {
       console.error('Erro ao processar importação:', error);
       toast({ 
@@ -398,6 +470,8 @@ export default function LisFechamento() {
       });
     } finally {
       setImporting(false);
+      setImportSteps([]);
+      setCurrentStepIndex(0);
     }
   };
 
@@ -690,6 +764,16 @@ export default function LisFechamento() {
 
   return (
     <AppLayout>
+      {/* Overlay de Progresso de Importação */}
+      <ImportProgressOverlay
+        isVisible={importing && importSteps.length > 0}
+        steps={importSteps}
+        currentStep={currentStepIndex}
+        totalRecords={importStats.total}
+        processedRecords={importStats.processed}
+        skippedRecords={importStats.skipped}
+      />
+      
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -774,12 +858,6 @@ export default function LisFechamento() {
                 </div>
               </div>
             </div>
-            {importing && (
-              <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                Importando arquivo...
-              </div>
-            )}
           </CardContent>
         </Card>
 
