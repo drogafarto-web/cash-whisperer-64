@@ -898,6 +898,128 @@ export type Database = {
           },
         ]
       }
+      payables: {
+        Row: {
+          banco_codigo: string | null
+          banco_nome: string | null
+          beneficiario: string | null
+          beneficiario_cnpj: string | null
+          category_id: string | null
+          codigo_barras: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          file_name: string | null
+          file_path: string | null
+          id: string
+          linha_digitavel: string | null
+          matched_bank_item_id: string | null
+          matched_transaction_id: string | null
+          ocr_confidence: number | null
+          paid_amount: number | null
+          paid_at: string | null
+          paid_method: string | null
+          parcela_numero: number | null
+          parcela_total: number | null
+          status: string
+          supplier_invoice_id: string | null
+          tipo: string
+          unit_id: string | null
+          updated_at: string
+          valor: number
+          vencimento: string
+        }
+        Insert: {
+          banco_codigo?: string | null
+          banco_nome?: string | null
+          beneficiario?: string | null
+          beneficiario_cnpj?: string | null
+          category_id?: string | null
+          codigo_barras?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          id?: string
+          linha_digitavel?: string | null
+          matched_bank_item_id?: string | null
+          matched_transaction_id?: string | null
+          ocr_confidence?: number | null
+          paid_amount?: number | null
+          paid_at?: string | null
+          paid_method?: string | null
+          parcela_numero?: number | null
+          parcela_total?: number | null
+          status?: string
+          supplier_invoice_id?: string | null
+          tipo?: string
+          unit_id?: string | null
+          updated_at?: string
+          valor: number
+          vencimento: string
+        }
+        Update: {
+          banco_codigo?: string | null
+          banco_nome?: string | null
+          beneficiario?: string | null
+          beneficiario_cnpj?: string | null
+          category_id?: string | null
+          codigo_barras?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          id?: string
+          linha_digitavel?: string | null
+          matched_bank_item_id?: string | null
+          matched_transaction_id?: string | null
+          ocr_confidence?: number | null
+          paid_amount?: number | null
+          paid_at?: string | null
+          paid_method?: string | null
+          parcela_numero?: number | null
+          parcela_total?: number | null
+          status?: string
+          supplier_invoice_id?: string | null
+          tipo?: string
+          unit_id?: string | null
+          updated_at?: string
+          valor?: number
+          vencimento?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payables_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payables_matched_transaction_id_fkey"
+            columns: ["matched_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payables_supplier_invoice_id_fkey"
+            columns: ["supplier_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payables_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payers: {
         Row: {
           active: boolean
@@ -1216,6 +1338,90 @@ export type Database = {
           updated_by?: string | null
         }
         Relationships: []
+      }
+      supplier_invoices: {
+        Row: {
+          category_id: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          document_number: string
+          document_series: string | null
+          due_date: string | null
+          file_name: string | null
+          file_path: string | null
+          id: string
+          installments_count: number | null
+          issue_date: string
+          ocr_confidence: number | null
+          payment_conditions: string | null
+          status: string
+          supplier_cnpj: string | null
+          supplier_name: string
+          total_value: number
+          unit_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          category_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          document_number: string
+          document_series?: string | null
+          due_date?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          id?: string
+          installments_count?: number | null
+          issue_date: string
+          ocr_confidence?: number | null
+          payment_conditions?: string | null
+          status?: string
+          supplier_cnpj?: string | null
+          supplier_name: string
+          total_value: number
+          unit_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          document_number?: string
+          document_series?: string | null
+          due_date?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          id?: string
+          installments_count?: number | null
+          issue_date?: string
+          ocr_confidence?: number | null
+          payment_conditions?: string | null
+          status?: string
+          supplier_cnpj?: string | null
+          supplier_name?: string
+          total_value?: number
+          unit_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_invoices_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_invoices_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       system_config: {
         Row: {
