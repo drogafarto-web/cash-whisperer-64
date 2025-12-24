@@ -246,10 +246,10 @@ export default function DailyMovement() {
 
       setParseResult(updatedResult);
 
-      // Pré-selecionar apenas registros particulares válidos com valor > 0 e NÃO duplicatas
+      // Pré-selecionar TODOS os registros válidos com valor > 0 (particular OU convênio) e NÃO duplicatas
       const preSelected = new Set<number>();
       updatedResult.records.forEach((record, index) => {
-        if (record.isParticular && !record.error && record.valorPago > 0 && !record.isDuplicate) {
+        if (!record.error && record.valorPago > 0 && !record.isDuplicate) {
           preSelected.add(index);
         }
       });
@@ -389,7 +389,7 @@ export default function DailyMovement() {
     if (record.isDuplicate) return 'bg-orange-500/20 text-orange-700 dark:text-orange-300';
     if (record.error) return 'bg-destructive/10 text-destructive';
     if (record.valorPago <= 0) return 'bg-muted text-muted-foreground';
-    if (!record.isParticular) return 'bg-yellow-500/10';
+    // Convênio com pagamento é válido, não precisa de destaque especial
     return '';
   };
 
@@ -518,11 +518,7 @@ export default function DailyMovement() {
             <div className="flex flex-wrap gap-4 text-sm">
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded bg-green-500/20 border border-green-500/50" />
-                <span>Particular (recomendado)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-yellow-500/20 border border-yellow-500/50" />
-                <span>Convênio</span>
+                <span>Com pagamento (válido)</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded bg-orange-500/20 border border-orange-500/50" />
@@ -530,7 +526,7 @@ export default function DailyMovement() {
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded bg-muted border" />
-                <span>Valor zero</span>
+                <span>Valor zero (ignorado)</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded bg-destructive/20 border border-destructive/50" />
@@ -547,6 +543,7 @@ export default function DailyMovement() {
                       <TableRow>
                         <TableHead className="w-12"></TableHead>
                         <TableHead>Data</TableHead>
+                        <TableHead>Código</TableHead>
                         <TableHead>Unidade</TableHead>
                         <TableHead>Paciente</TableHead>
                         <TableHead>Convênio</TableHead>
@@ -577,6 +574,9 @@ export default function DailyMovement() {
                             </TableCell>
                             <TableCell className="font-mono text-xs">
                               {record.data}
+                            </TableCell>
+                            <TableCell className="font-mono text-xs">
+                              {record.codigo}
                             </TableCell>
                             <TableCell>
                               <Badge variant="outline" className="text-xs">
@@ -620,15 +620,10 @@ export default function DailyMovement() {
                                 <Badge variant="secondary" className="text-xs">
                                   Ignorado
                                 </Badge>
-                              ) : record.isParticular ? (
+                              ) : (
                                 <Badge className="text-xs bg-green-600">
                                   <CheckCircle2 className="h-3 w-3 mr-1" />
                                   OK
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="text-xs text-yellow-600 border-yellow-500">
-                                  <AlertTriangle className="h-3 w-3 mr-1" />
-                                  Convênio
                                 </Badge>
                               )}
                             </TableCell>
