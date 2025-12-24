@@ -408,6 +408,47 @@ export type Database = {
           },
         ]
       }
+      cashflow_alerts: {
+        Row: {
+          alert_type: string | null
+          created_at: string | null
+          id: string
+          projected_balance: number | null
+          resolved_at: string | null
+          resolved_by: string | null
+          unit_id: string | null
+          week_start: string
+        }
+        Insert: {
+          alert_type?: string | null
+          created_at?: string | null
+          id?: string
+          projected_balance?: number | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          unit_id?: string | null
+          week_start: string
+        }
+        Update: {
+          alert_type?: string | null
+          created_at?: string | null
+          id?: string
+          projected_balance?: number | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          unit_id?: string | null
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cashflow_alerts_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           active: boolean
@@ -605,6 +646,8 @@ export type Database = {
           issuer_name: string | null
           net_value: number
           notes: string | null
+          parte_relacionada_nome: string | null
+          parte_relacionada_tipo: string | null
           payer_id: string | null
           received_at: string | null
           service_code: string | null
@@ -636,6 +679,8 @@ export type Database = {
           issuer_name?: string | null
           net_value: number
           notes?: string | null
+          parte_relacionada_nome?: string | null
+          parte_relacionada_tipo?: string | null
           payer_id?: string | null
           received_at?: string | null
           service_code?: string | null
@@ -667,6 +712,8 @@ export type Database = {
           issuer_name?: string | null
           net_value?: number
           notes?: string | null
+          parte_relacionada_nome?: string | null
+          parte_relacionada_tipo?: string | null
           payer_id?: string | null
           received_at?: string | null
           service_code?: string | null
@@ -898,6 +945,68 @@ export type Database = {
           },
         ]
       }
+      patrimony_items: {
+        Row: {
+          categoria: string
+          created_at: string | null
+          created_by: string | null
+          data_aquisicao: string | null
+          data_vencimento: string | null
+          descricao: string
+          id: string
+          observacoes: string | null
+          proprietario_nome: string | null
+          proprietario_tipo: string | null
+          tipo: string
+          unit_id: string | null
+          updated_at: string | null
+          valor_atual: number
+          valor_original: number | null
+        }
+        Insert: {
+          categoria: string
+          created_at?: string | null
+          created_by?: string | null
+          data_aquisicao?: string | null
+          data_vencimento?: string | null
+          descricao: string
+          id?: string
+          observacoes?: string | null
+          proprietario_nome?: string | null
+          proprietario_tipo?: string | null
+          tipo: string
+          unit_id?: string | null
+          updated_at?: string | null
+          valor_atual: number
+          valor_original?: number | null
+        }
+        Update: {
+          categoria?: string
+          created_at?: string | null
+          created_by?: string | null
+          data_aquisicao?: string | null
+          data_vencimento?: string | null
+          descricao?: string
+          id?: string
+          observacoes?: string | null
+          proprietario_nome?: string | null
+          proprietario_tipo?: string | null
+          tipo?: string
+          unit_id?: string | null
+          updated_at?: string | null
+          valor_atual?: number
+          valor_original?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patrimony_items_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payables: {
         Row: {
           banco_codigo: string | null
@@ -921,6 +1030,8 @@ export type Database = {
           paid_method: string | null
           parcela_numero: number | null
           parcela_total: number | null
+          parte_relacionada_nome: string | null
+          parte_relacionada_tipo: string | null
           status: string
           supplier_invoice_id: string | null
           tipo: string
@@ -951,6 +1062,8 @@ export type Database = {
           paid_method?: string | null
           parcela_numero?: number | null
           parcela_total?: number | null
+          parte_relacionada_nome?: string | null
+          parte_relacionada_tipo?: string | null
           status?: string
           supplier_invoice_id?: string | null
           tipo?: string
@@ -981,6 +1094,8 @@ export type Database = {
           paid_method?: string | null
           parcela_numero?: number | null
           parcela_total?: number | null
+          parte_relacionada_nome?: string | null
+          parte_relacionada_tipo?: string | null
           status?: string
           supplier_invoice_id?: string | null
           tipo?: string
