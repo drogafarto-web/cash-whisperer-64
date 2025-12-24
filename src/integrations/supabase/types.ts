@@ -1191,6 +1191,8 @@ export type Database = {
           created_at: string
           email: string
           id: string
+          is_active: boolean | null
+          last_access: string | null
           name: string
           unit_id: string | null
           updated_at: string
@@ -1199,6 +1201,8 @@ export type Database = {
           created_at?: string
           email: string
           id: string
+          is_active?: boolean | null
+          last_access?: string | null
           name: string
           unit_id?: string | null
           updated_at?: string
@@ -1207,6 +1211,8 @@ export type Database = {
           created_at?: string
           email?: string
           id?: string
+          is_active?: boolean | null
+          last_access?: string | null
           name?: string
           unit_id?: string | null
           updated_at?: string
