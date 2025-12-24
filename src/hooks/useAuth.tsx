@@ -16,6 +16,7 @@ interface AuthContextType {
   isSecretaria: boolean;
   isFinanceiro: boolean;
   isContador: boolean;
+  canAccessAllUnits: boolean;
   hasPermission: (permission: string) => boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, name: string) => Promise<{ error: Error | null }>;
@@ -149,6 +150,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isSecretaria = role === 'secretaria';
   const isFinanceiro = role === 'financeiro';
   const isContador = role === 'contador';
+  
+  // Usuários que podem acessar dados de todas as unidades (não têm unidade fixa)
+  const canAccessAllUnits = isAdmin || isContabilidade || isFinanceiro || isContador;
 
   // Verifica se o usuário tem acesso a uma determinada permissão
   const hasPermission = (permission: string): boolean => {
@@ -190,6 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isSecretaria,
       isFinanceiro,
       isContador,
+      canAccessAllUnits,
       hasPermission,
       signIn,
       signUp,

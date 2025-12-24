@@ -25,16 +25,19 @@ export interface LisClosureItem {
 /**
  * Tenta conciliar itens LIS com transações existentes no sistema
  * Critérios: código LIS na descrição/lis_protocol_id + valor + data (±tolerância)
+ * IMPORTANTE: Filtro por unitId obrigatório para isolamento de dados
  */
 export async function reconcileLisItems(
   closureId: string,
+  unitId: string,
   toleranceDays: number = 1
 ): Promise<ReconciliationResult[]> {
-  // 1. Buscar itens do fechamento
+  // 1. Buscar itens do fechamento (filtrado por unitId para isolamento)
   const { data: items, error: itemsError } = await supabase
     .from('lis_closure_items')
     .select('id, lis_code, date, patient_name, payment_method, amount, gross_amount, status, comprovante_status')
-    .eq('closure_id', closureId);
+    .eq('closure_id', closureId)
+    .eq('unit_id', unitId); // ISOLAMENTO: filtrar por unidade
 
   if (itemsError || !items) {
     console.error('Erro ao buscar itens do fechamento:', itemsError);

@@ -72,14 +72,16 @@ export async function getAvailableItemsForEnvelope(unitId: string): Promise<LisI
 
 /**
  * Busca items LIS por IDs específicos
+ * IMPORTANTE: Filtro por unitId obrigatório para isolamento de dados
  */
-export async function getItemsByIds(itemIds: string[]): Promise<LisItemForEnvelope[]> {
+export async function getItemsByIds(itemIds: string[], unitId: string): Promise<LisItemForEnvelope[]> {
   if (itemIds.length === 0) return [];
   
   const { data, error } = await supabase
     .from('lis_closure_items')
     .select('*')
-    .in('id', itemIds);
+    .in('id', itemIds)
+    .eq('unit_id', unitId); // ISOLAMENTO: filtrar por unidade
 
   if (error) throw error;
   return data as LisItemForEnvelope[];
@@ -87,14 +89,16 @@ export async function getItemsByIds(itemIds: string[]): Promise<LisItemForEnvelo
 
 /**
  * Valida que nenhum dos items já está associado a outro envelope
+ * IMPORTANTE: Filtro por unitId obrigatório para isolamento de dados
  */
-export async function validateItemsNotAssigned(itemIds: string[]): Promise<{ valid: boolean; conflictingIds: string[] }> {
+export async function validateItemsNotAssigned(itemIds: string[], unitId: string): Promise<{ valid: boolean; conflictingIds: string[] }> {
   if (itemIds.length === 0) return { valid: true, conflictingIds: [] };
 
   const { data, error } = await supabase
     .from('lis_closure_items')
     .select('id, envelope_id')
     .in('id', itemIds)
+    .eq('unit_id', unitId) // ISOLAMENTO: filtrar por unidade
     .not('envelope_id', 'is', null);
 
   if (error) throw error;
@@ -147,14 +151,14 @@ export async function createEnvelopeWithItems(params: {
 }): Promise<EnvelopeData> {
   const { closureId, unitId, selectedItemIds, countedCash, justificativa, userId } = params;
 
-  // 1. Validar que items não estão em outro envelope
-  const validation = await validateItemsNotAssigned(selectedItemIds);
+  // 1. Validar que items não estão em outro envelope (com unitId para isolamento)
+  const validation = await validateItemsNotAssigned(selectedItemIds, unitId);
   if (!validation.valid) {
     throw new Error(`Alguns códigos LIS já estão em outro envelope: ${validation.conflictingIds.join(', ')}`);
   }
 
-  // 2. Buscar items para calcular expected_cash
-  const items = await getItemsByIds(selectedItemIds);
+  // 2. Buscar items para calcular expected_cash (com unitId para isolamento)
+  const items = await getItemsByIds(selectedItemIds, unitId);
   const expectedCash = calculateExpectedCash(items);
   const lisCodes = items.map(item => item.lis_code);
 
@@ -245,12 +249,14 @@ export async function getEnvelopeById(envelopeId: string): Promise<EnvelopeData 
 
 /**
  * Busca items vinculados a um envelope
+ * IMPORTANTE: Filtro por unitId obrigatório para isolamento de dados
  */
-export async function getItemsByEnvelope(envelopeId: string): Promise<LisItemForEnvelope[]> {
+export async function getItemsByEnvelope(envelopeId: string, unitId: string): Promise<LisItemForEnvelope[]> {
   const { data, error } = await supabase
     .from('lis_closure_items')
     .select('*')
     .eq('envelope_id', envelopeId)
+    .eq('unit_id', unitId) // ISOLAMENTO: filtrar por unidade
     .order('lis_code', { ascending: true });
 
   if (error) throw error;
