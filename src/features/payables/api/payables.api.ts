@@ -218,3 +218,41 @@ export async function fetchPendingPayablesForReconciliation(unitId?: string) {
   if (error) throw error;
   return data as Payable[];
 }
+
+export async function checkDuplicatePayableByCodigoBarras(
+  codigoBarras: string,
+  excludeId?: string
+): Promise<boolean> {
+  if (!codigoBarras) return false;
+  
+  let query = supabase
+    .from('payables')
+    .select('id')
+    .eq('codigo_barras', codigoBarras);
+
+  if (excludeId) {
+    query = query.neq('id', excludeId);
+  }
+
+  const { data } = await query.limit(1);
+  return (data?.length ?? 0) > 0;
+}
+
+export async function checkDuplicatePayableByLinhaDigitavel(
+  linhaDigitavel: string,
+  excludeId?: string
+): Promise<boolean> {
+  if (!linhaDigitavel) return false;
+  
+  let query = supabase
+    .from('payables')
+    .select('id')
+    .eq('linha_digitavel', linhaDigitavel);
+
+  if (excludeId) {
+    query = query.neq('id', excludeId);
+  }
+
+  const { data } = await query.limit(1);
+  return (data?.length ?? 0) > 0;
+}
