@@ -501,8 +501,12 @@ export type Database = {
           envelope_id: string | null
           expected_cash: number
           id: string
+          label_emitted_at: string | null
+          label_sequence: number | null
           lis_closure_id: string
+          lis_codes_count: number | null
           notes: string | null
+          selected_lis_item_ids: string[] | null
           status: string
           unit_id: string
           updated_at: string
@@ -519,8 +523,12 @@ export type Database = {
           envelope_id?: string | null
           expected_cash?: number
           id?: string
+          label_emitted_at?: string | null
+          label_sequence?: number | null
           lis_closure_id: string
+          lis_codes_count?: number | null
           notes?: string | null
+          selected_lis_item_ids?: string[] | null
           status?: string
           unit_id: string
           updated_at?: string
@@ -537,8 +545,12 @@ export type Database = {
           envelope_id?: string | null
           expected_cash?: number
           id?: string
+          label_emitted_at?: string | null
+          label_sequence?: number | null
           lis_closure_id?: string
+          lis_codes_count?: number | null
           notes?: string | null
+          selected_lis_item_ids?: string[] | null
           status?: string
           unit_id?: string
           updated_at?: string
@@ -982,10 +994,12 @@ export type Database = {
           amount: number
           card_fee_percent: number | null
           card_fee_value: number | null
+          cash_component: number | null
           closure_id: string
           comprovante_status: string | null
           convenio: string | null
           created_at: string
+          daily_closing_id: string | null
           date: string
           discount_approval_channel: string | null
           discount_approved_at: string | null
@@ -1000,6 +1014,8 @@ export type Database = {
           net_amount: number | null
           patient_name: string | null
           payment_method: string
+          payment_status: string
+          receivable_component: number | null
           status: string
           transaction_id: string | null
         }
@@ -1007,10 +1023,12 @@ export type Database = {
           amount?: number
           card_fee_percent?: number | null
           card_fee_value?: number | null
+          cash_component?: number | null
           closure_id: string
           comprovante_status?: string | null
           convenio?: string | null
           created_at?: string
+          daily_closing_id?: string | null
           date: string
           discount_approval_channel?: string | null
           discount_approved_at?: string | null
@@ -1025,6 +1043,8 @@ export type Database = {
           net_amount?: number | null
           patient_name?: string | null
           payment_method: string
+          payment_status?: string
+          receivable_component?: number | null
           status?: string
           transaction_id?: string | null
         }
@@ -1032,10 +1052,12 @@ export type Database = {
           amount?: number
           card_fee_percent?: number | null
           card_fee_value?: number | null
+          cash_component?: number | null
           closure_id?: string
           comprovante_status?: string | null
           convenio?: string | null
           created_at?: string
+          daily_closing_id?: string | null
           date?: string
           discount_approval_channel?: string | null
           discount_approved_at?: string | null
@@ -1050,6 +1072,8 @@ export type Database = {
           net_amount?: number | null
           patient_name?: string | null
           payment_method?: string
+          payment_status?: string
+          receivable_component?: number | null
           status?: string
           transaction_id?: string | null
         }
@@ -1059,6 +1083,13 @@ export type Database = {
             columns: ["closure_id"]
             isOneToOne: false
             referencedRelation: "lis_closures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lis_closure_items_daily_closing_id_fkey"
+            columns: ["daily_closing_id"]
+            isOneToOne: false
+            referencedRelation: "daily_cash_closings"
             referencedColumns: ["id"]
           },
           {
