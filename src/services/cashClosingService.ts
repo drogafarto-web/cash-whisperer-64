@@ -36,7 +36,7 @@ export interface ClosingResult {
  * e atualiza seus payment_status para PAGO_NESTE_FECHAMENTO
  */
 export async function linkLisItemsToClosing(
-  dailyClosingId: string,
+  envelopeId: string,
   lisItemIds: string[]
 ): Promise<number> {
   if (lisItemIds.length === 0) return 0;
@@ -45,7 +45,7 @@ export async function linkLisItemsToClosing(
     .from('lis_closure_items')
     .update({
       payment_status: 'PAGO_NESTE_FECHAMENTO',
-      daily_closing_id: dailyClosingId,
+      envelope_id: envelopeId,
     })
     .in('id', lisItemIds);
 
@@ -61,9 +61,9 @@ export async function checkItemsNotLinked(lisItemIds: string[]): Promise<boolean
 
   const { data, error } = await supabase
     .from('lis_closure_items')
-    .select('id, daily_closing_id')
+    .select('id, envelope_id')
     .in('id', lisItemIds)
-    .not('daily_closing_id', 'is', null);
+    .not('envelope_id', 'is', null);
 
   if (error) throw error;
   return data?.length === 0;
@@ -229,7 +229,7 @@ export async function fetchLisItemsWithComponents(closureId: string) {
       payment_status,
       cash_component,
       receivable_component,
-      daily_closing_id
+      envelope_id
     `)
     .eq('closure_id', closureId)
     .order('date', { ascending: true });

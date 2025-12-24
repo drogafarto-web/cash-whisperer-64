@@ -87,6 +87,7 @@ export const navigationGroups: NavGroup[] = [
     icon: Wallet,
     badgeKey: 'caixaUnidades',
     items: [
+      { name: 'Envelope de Caixa', href: '/envelope-closing', icon: Wallet, roles: ['admin', 'secretaria', 'gestor_unidade'] },
       { name: 'Fechamento de Caixa', href: '/cash-closing', icon: Wallet, roles: ['admin', 'secretaria', 'gestor_unidade'] },
       { name: 'Caixa (Avançado)', href: '/cash-closing-advanced', icon: Calculator, roles: ['admin', 'gestor_unidade', 'financeiro'] },
       { name: 'Fechamento LIS', href: '/lis/fechamento', icon: FileUp, roles: ['admin', 'secretaria', 'gestor_unidade'] },

@@ -28,7 +28,7 @@ export interface LisClosureItemForSelection {
   payment_status: string;
   cash_component: number;
   receivable_component: number;
-  daily_closing_id: string | null;
+  envelope_id: string | null;
 }
 
 export interface SelectionState {
@@ -97,7 +97,7 @@ export function useCashClosingSelection(items: LisClosureItemForSelection[]) {
       item => 
         item.payment_status === 'PENDENTE' && 
         item.cash_component > 0 &&
-        !item.daily_closing_id
+        !item.envelope_id
     );
     const ids = new Set(eligibleItems.map(item => item.id));
     setSelectedIds(ids);
@@ -111,9 +111,9 @@ export function useCashClosingSelection(items: LisClosureItemForSelection[]) {
       if (next.has(itemId)) {
         next.delete(itemId);
       } else {
-        // Só permite selecionar itens que não estão vinculados a outro fechamento
+        // Só permite selecionar itens que não estão vinculados a outro envelope
         const item = items.find(i => i.id === itemId);
-        if (item && !item.daily_closing_id && item.payment_status !== 'A_RECEBER') {
+        if (item && !item.envelope_id && item.payment_status !== 'A_RECEBER') {
           next.add(itemId);
         }
       }
@@ -127,7 +127,7 @@ export function useCashClosingSelection(items: LisClosureItemForSelection[]) {
       item => 
         (item.payment_status === 'PENDENTE' || item.payment_status === 'PAGO_POSTERIOR') && 
         item.cash_component > 0 &&
-        !item.daily_closing_id
+        !item.envelope_id
     );
     setSelectedIds(new Set(eligibleItems.map(item => item.id)));
   }, [items]);
@@ -161,16 +161,16 @@ export function useCashClosingSelection(items: LisClosureItemForSelection[]) {
     const item = items.find(i => i.id === itemId);
     if (!item) return false;
     return (
-      !item.daily_closing_id && 
+      !item.envelope_id && 
       item.payment_status !== 'A_RECEBER' &&
       item.cash_component > 0
     );
   }, [items]);
 
-  // Verificar se item está vinculado a outro fechamento
+  // Verificar se item está vinculado a outro envelope
   const isItemLocked = useCallback((itemId: string): boolean => {
     const item = items.find(i => i.id === itemId);
-    return !!(item?.daily_closing_id);
+    return !!(item?.envelope_id);
   }, [items]);
 
   return {
