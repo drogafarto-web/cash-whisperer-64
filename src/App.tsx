@@ -16,6 +16,7 @@ import NotFound from "./pages/NotFound";
 
 // Settings pages
 import SettingsHub from "./pages/settings/SettingsHub";
+import FiscalBase from "./pages/settings/FiscalBase";
 import Units from "./pages/settings/Units";
 import Accounts from "./pages/settings/Accounts";
 import Categories from "./pages/settings/Categories";
@@ -77,6 +78,7 @@ const App = () => (
             <Route path="/cash-closing" element={<CashClosing />} />
             <Route path="/lis/fechamento" element={<LisFechamento />} />
             <Route path="/settings" element={<SettingsHub />} />
+            <Route path="/settings/fiscal-base" element={<FiscalBase />} />
             <Route path="/settings/users" element={<Users />} />
             <Route path="/settings/units" element={<Units />} />
             <Route path="/settings/accounts" element={<Accounts />} />

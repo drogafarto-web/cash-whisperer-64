@@ -67,7 +67,7 @@ export const navigationGroups: NavGroup[] = [
     name: 'Visão Geral',
     icon: LayoutDashboard,
     items: [
-      { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'secretaria', 'gestor_unidade'] },
+      { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'secretaria', 'gestor_unidade', 'financeiro', 'contador'] },
       { name: 'Pendências', href: '/pendencias', icon: AlertCircle, roles: ['admin', 'contabilidade', 'gestor_unidade'] },
     ],
   },
@@ -89,11 +89,21 @@ export const navigationGroups: NavGroup[] = [
     items: [
       { name: 'Fechamento de Caixa', href: '/cash-closing', icon: Wallet, roles: ['admin', 'secretaria', 'gestor_unidade'] },
       { name: 'Fechamento LIS', href: '/lis/fechamento', icon: FileUp, roles: ['admin', 'secretaria', 'gestor_unidade'] },
-      { name: 'Transações', href: '/transactions', icon: Receipt, roles: ['admin', 'secretaria', 'contabilidade', 'gestor_unidade'] },
+      { name: 'Transações', href: '/transactions', icon: Receipt, roles: ['admin', 'secretaria', 'contabilidade', 'gestor_unidade', 'financeiro'] },
       { name: 'Importar LIS', href: '/import/daily-movement', icon: FileUp, roles: ['admin', 'secretaria', 'gestor_unidade'] },
-      { name: 'Importar Extrato', href: '/import/bank-statement', icon: FileUp, roles: ['admin', 'secretaria', 'gestor_unidade'] },
+      { name: 'Importar Extrato', href: '/import/bank-statement', icon: FileUp, roles: ['admin', 'secretaria', 'gestor_unidade', 'financeiro'] },
       { name: 'Unidades', href: '/settings/units', icon: MapPin, roles: ['admin'] },
       { name: 'Contas', href: '/settings/accounts', icon: Building2, roles: ['admin'] },
+    ],
+  },
+  {
+    id: 'base-fiscal',
+    name: 'Base Fiscal & Folha',
+    icon: Calculator,
+    items: [
+      { name: 'Base Fiscal', href: '/settings/fiscal-base', icon: Calculator, roles: ['admin', 'contador'] },
+      { name: 'Povoação 2025', href: '/settings/data-2025', icon: Database, roles: ['admin', 'contador'] },
+      { name: 'Auditoria Fator R', href: '/settings/fator-r-audit', icon: Calculator, roles: ['admin', 'contador'] },
     ],
   },
   {
@@ -102,7 +112,7 @@ export const navigationGroups: NavGroup[] = [
     icon: Calculator,
     badgeKey: 'tributacao',
     items: [
-      { name: 'Cenários Tributários', href: '/reports/tax-scenarios', icon: Calculator, roles: ['admin', 'contabilidade'] },
+      { name: 'Cenários Tributários', href: '/reports/tax-scenarios', icon: Calculator, roles: ['admin', 'contabilidade', 'contador'] },
       { name: 'Fluxo de Caixa', href: '/reports/cashflow-projection', icon: TrendingUp, roles: ['admin', 'contabilidade'] },
       { name: 'Patrimônio', href: '/reports/patrimony', icon: Building2, roles: ['admin', 'contabilidade'] },
       { name: 'Config. Tributária', href: '/settings/tax-config', icon: Settings, roles: ['admin'] },
@@ -123,10 +133,10 @@ export const navigationGroups: NavGroup[] = [
     name: 'Contas a Pagar',
     icon: CreditCard,
     items: [
-      { name: 'Dashboard', href: '/payables/dashboard', icon: LayoutDashboard, roles: ['admin', 'contabilidade'] },
-      { name: 'Notas Fornecedor', href: '/payables/supplier-invoices', icon: FileInput, roles: ['admin', 'contabilidade'] },
-      { name: 'Boletos', href: '/payables/boletos', icon: Barcode, roles: ['admin', 'contabilidade', 'gestor_unidade'] },
-      { name: 'Conciliação', href: '/payables/reconciliation', icon: GitMerge, roles: ['admin', 'contabilidade'] },
+      { name: 'Dashboard', href: '/payables/dashboard', icon: LayoutDashboard, roles: ['admin', 'contabilidade', 'financeiro'] },
+      { name: 'Notas Fornecedor', href: '/payables/supplier-invoices', icon: FileInput, roles: ['admin', 'contabilidade', 'financeiro'] },
+      { name: 'Boletos', href: '/payables/boletos', icon: Barcode, roles: ['admin', 'contabilidade', 'gestor_unidade', 'financeiro'] },
+      { name: 'Conciliação', href: '/payables/reconciliation', icon: GitMerge, roles: ['admin', 'contabilidade', 'financeiro'] },
     ],
   },
   {
@@ -145,9 +155,7 @@ export const navigationGroups: NavGroup[] = [
     icon: ShieldAlert,
     badgeKey: 'riscoEstrategia',
     items: [
-      { name: 'Povoação 2025', href: '/settings/data-2025', icon: Database, roles: ['admin', 'contabilidade'] },
       { name: 'Real x Oficial', href: '/reports/personnel-real-vs-official', icon: Users, roles: ['admin'] },
-      { name: 'Auditoria Fator R', href: '/settings/fator-r-audit', icon: Calculator, roles: ['admin', 'contabilidade'] },
       { name: 'Alertas', href: '/settings/alerts', icon: Bell, roles: ['admin'] },
       { name: 'Usuários', href: '/settings/users', icon: Users, roles: ['admin'] },
     ],
