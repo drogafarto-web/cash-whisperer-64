@@ -78,6 +78,7 @@ export default function EnvelopeCashClosingPage() {
     selectedIds,
     expectedCash,
     selectedCount,
+    selectableCount,
     allSelected,
     toggleItem,
     selectAll,
@@ -357,7 +358,7 @@ export default function EnvelopeCashClosingPage() {
             <CardHeader>
               <CardTitle className="text-lg">Códigos LIS Disponíveis</CardTitle>
               <CardDescription>
-                {availableItems.length} código(s) com valor em dinheiro disponível para envelope
+                {selectableCount} código(s) em dinheiro selecionáveis • {availableItems.length - selectableCount} outros pagamentos (apenas visualização)
               </CardDescription>
             </CardHeader>
             <CardContent>

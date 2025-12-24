@@ -22,6 +22,10 @@ interface EnvelopeItemsTableProps {
   allSelected: boolean;
 }
 
+// Apenas DINHEIRO pode ser selecionado para envelope físico
+const isItemSelectable = (item: LisItemForEnvelope) => 
+  item.payment_method === 'DINHEIRO';
+
 export function EnvelopeItemsTable({
   items,
   selectedIds,
@@ -37,6 +41,11 @@ export function EnvelopeItemsTable({
       onClearSelection();
     }
   };
+
+  // Contar quantos são selecionáveis
+  const selectableCount = items.filter(isItemSelectable).length;
+  const allSelectableSelected = selectableCount > 0 && 
+    items.filter(isItemSelectable).every(item => selectedIds.has(item.id));
 
   const formatCurrency = (value: number | null) => {
     if (value === null || value === undefined) return '-';
@@ -138,9 +147,10 @@ export function EnvelopeItemsTable({
           <TableRow className="bg-muted/50">
             <TableHead className="w-[50px]">
               <Checkbox
-                checked={allSelected}
+                checked={allSelectableSelected}
                 onCheckedChange={handleSelectAllChange}
-                aria-label="Selecionar todos"
+                disabled={selectableCount === 0}
+                aria-label="Selecionar todos em dinheiro"
               />
             </TableHead>
             <TableHead>Data</TableHead>
@@ -161,15 +171,24 @@ export function EnvelopeItemsTable({
               </TableCell>
             </TableRow>
           ) : (
-            items.map((item) => (
+            items.map((item) => {
+              const selectable = isItemSelectable(item);
+              return (
               <TableRow 
                 key={item.id}
-                className={selectedIds.has(item.id) ? 'bg-primary/5' : ''}
+                className={
+                  selectedIds.has(item.id) 
+                    ? 'bg-primary/5' 
+                    : !selectable 
+                      ? 'opacity-50' 
+                      : ''
+                }
               >
                 <TableCell>
                   <Checkbox
                     checked={selectedIds.has(item.id)}
                     onCheckedChange={() => onToggleItem(item.id)}
+                    disabled={!selectable}
                     aria-label={`Selecionar ${item.lis_code}`}
                   />
                 </TableCell>
@@ -196,7 +215,8 @@ export function EnvelopeItemsTable({
                   {getStatusBadge(item)}
                 </TableCell>
               </TableRow>
-            ))
+              );
+            })
           )}
         </TableBody>
       </Table>
