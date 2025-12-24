@@ -413,7 +413,7 @@ export type Database = {
           {
             foreignKeyName: "cash_envelopes_closure_id_fkey"
             columns: ["closure_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "lis_closures"
             referencedColumns: ["id"]
           },

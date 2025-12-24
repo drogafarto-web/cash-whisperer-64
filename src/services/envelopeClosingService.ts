@@ -146,13 +146,8 @@ export async function createEnvelopeWithItems(params: {
   const expectedCash = calculateExpectedCash(items);
   const lisCodes = items.map(item => item.lis_code);
 
-  // 3. Buscar ou criar um closure_id se necessário (para compatibilidade)
-  let finalClosureId = closureId;
-  if (!finalClosureId) {
-    // Buscar closure existente da unidade, ou usar o primeiro item
-    const itemWithClosure = items.find(item => item.closure_id);
-    finalClosureId = itemWithClosure?.closure_id || null;
-  }
+  // 3. Envelopes são independentes - closure_id é sempre null para novos envelopes
+  const finalClosureId = closureId || null;
 
   // 4. Criar envelope
   const { data: envelope, error: envelopeError } = await supabase
