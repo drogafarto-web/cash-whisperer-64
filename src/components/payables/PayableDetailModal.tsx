@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { FileText, Check, Download, ExternalLink, Pencil, X, Copy, Save, Loader2, Upload } from 'lucide-react';
+import { FileText, Check, Download, ExternalLink, Pencil, X, Copy, Save, Loader2, Upload, Sparkles } from 'lucide-react';
 
 import {
   Dialog,
@@ -10,6 +10,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -20,9 +30,10 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { supabase } from '@/integrations/supabase/client';
 import { useUpdatePayable } from '@/features/payables/hooks/usePayables';
+import { useBoletoOcr } from '@/features/payables/hooks/usePayableOcr';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import type { Payable } from '@/types/payables';
+import type { Payable, BoletoOcrResult } from '@/types/payables';
 import { Calendar as CalendarIcon } from 'lucide-react';
 
 interface PayableDetailModalProps {
@@ -54,6 +65,8 @@ export function PayableDetailModal({
   const [isEditing, setIsEditing] = useState(false);
   const [newFile, setNewFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [ocrSuggestion, setOcrSuggestion] = useState<BoletoOcrResult | null>(null);
+  const [showOcrDialog, setShowOcrDialog] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     beneficiario: '',
     valor: 0,
@@ -64,11 +77,14 @@ export function PayableDetailModal({
   });
 
   const updatePayable = useUpdatePayable();
+  const { processFile: processOcr, isProcessing: isOcrProcessing } = useBoletoOcr();
 
   useEffect(() => {
     if (!open) {
       setIsEditing(false);
       setNewFile(null);
+      setOcrSuggestion(null);
+      setShowOcrDialog(false);
     }
     if (payable) {
       setFormData({
@@ -116,6 +132,64 @@ export function PayableDetailModal({
       });
     }
   };
+
+  // Check if OCR result has relevant changes compared to current form data
+  const hasRelevantChanges = (ocr: BoletoOcrResult): boolean => {
+    const valorDiff = ocr.valor && Math.abs(ocr.valor - formData.valor) > 0.01;
+    const vencimentoDiff = ocr.vencimento && ocr.vencimento !== format(formData.vencimento, 'yyyy-MM-dd');
+    const beneficiarioDiff = ocr.beneficiario && ocr.beneficiario.toLowerCase() !== formData.beneficiario.toLowerCase();
+    return !!(valorDiff || vencimentoDiff || beneficiarioDiff);
+  };
+
+  // Handle file selection with automatic OCR
+  const handleFileChange = async (file: File | null) => {
+    if (!file) {
+      setNewFile(null);
+      return;
+    }
+    
+    setNewFile(file);
+
+    // Trigger OCR automatically
+    try {
+      const result = await processOcr(file);
+      if (result && hasRelevantChanges(result)) {
+        setOcrSuggestion(result);
+        setShowOcrDialog(true);
+      } else if (result) {
+        toast({
+          title: 'OCR concluído',
+          description: 'Nenhuma alteração detectada no documento.',
+        });
+      }
+    } catch (error) {
+      console.log('OCR failed, user can fill manually:', error);
+      // Don't show error, OCR is optional enhancement
+    }
+  };
+
+  // Apply OCR suggestions to form
+  const applyOcrSuggestion = () => {
+    if (ocrSuggestion) {
+      setFormData({
+        ...formData,
+        ...(ocrSuggestion.valor && { valor: ocrSuggestion.valor }),
+        ...(ocrSuggestion.vencimento && { vencimento: new Date(ocrSuggestion.vencimento) }),
+        ...(ocrSuggestion.beneficiario && { beneficiario: ocrSuggestion.beneficiario }),
+        ...(ocrSuggestion.beneficiario_cnpj && { beneficiario_cnpj: ocrSuggestion.beneficiario_cnpj }),
+        ...(ocrSuggestion.linha_digitavel && { linha_digitavel: ocrSuggestion.linha_digitavel }),
+      });
+      toast({
+        title: 'Dados atualizados',
+        description: 'Os campos foram preenchidos com os dados do documento.',
+      });
+    }
+    setShowOcrDialog(false);
+    setOcrSuggestion(null);
+  };
+
+  const formatCurrencyCompare = (value: number) =>
+    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   const handleSave = async () => {
     if (!payable) return;
@@ -224,6 +298,7 @@ export function PayableDetailModal({
     value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -339,20 +414,32 @@ export function PayableDetailModal({
                 <Label>Documento Anexo</Label>
                 <div className="flex items-center gap-2">
                   <label className="flex-1">
-                    <div className="flex items-center gap-2 px-3 py-2 border rounded-md cursor-pointer hover:bg-muted/50 transition-colors">
-                      <Upload className="h-4 w-4 text-muted-foreground" />
+                    <div className={cn(
+                      "flex items-center gap-2 px-3 py-2 border rounded-md cursor-pointer hover:bg-muted/50 transition-colors",
+                      isOcrProcessing && "opacity-50 pointer-events-none"
+                    )}>
+                      {isOcrProcessing ? (
+                        <Loader2 className="h-4 w-4 text-muted-foreground animate-spin" />
+                      ) : (
+                        <Upload className="h-4 w-4 text-muted-foreground" />
+                      )}
                       <span className="text-sm text-muted-foreground">
-                        {newFile ? newFile.name : 'Selecionar novo arquivo...'}
+                        {isOcrProcessing 
+                          ? 'Processando OCR...' 
+                          : newFile 
+                            ? newFile.name 
+                            : 'Selecionar novo arquivo...'}
                       </span>
                     </div>
                     <input
                       type="file"
                       accept="image/*,application/pdf"
-                      onChange={(e) => setNewFile(e.target.files?.[0] || null)}
+                      onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
                       className="hidden"
+                      disabled={isOcrProcessing}
                     />
                   </label>
-                  {newFile && (
+                  {newFile && !isOcrProcessing && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -366,6 +453,12 @@ export function PayableDetailModal({
                 {payable.file_name && !newFile && (
                   <p className="text-sm text-muted-foreground">
                     Arquivo atual: {payable.file_name}
+                  </p>
+                )}
+                {isOcrProcessing && (
+                  <p className="text-sm text-primary flex items-center gap-1">
+                    <Sparkles className="h-3 w-3" />
+                    Extraindo dados automaticamente...
                   </p>
                 )}
               </div>
@@ -538,5 +631,70 @@ export function PayableDetailModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+      {/* OCR Suggestion Dialog */}
+      <AlertDialog open={showOcrDialog} onOpenChange={setShowOcrDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Dados Detectados no Documento
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>Detectamos informações diferentes no documento enviado:</p>
+                {ocrSuggestion && (
+                  <div className="bg-muted p-3 rounded-md space-y-2 text-sm">
+                    {ocrSuggestion.valor && Math.abs(ocrSuggestion.valor - formData.valor) > 0.01 && (
+                      <div className="flex justify-between">
+                        <span>Valor:</span>
+                        <span>
+                          <span className="text-muted-foreground line-through mr-2">
+                            {formatCurrencyCompare(formData.valor)}
+                          </span>
+                          <span className="text-primary font-medium">
+                            {formatCurrencyCompare(ocrSuggestion.valor)}
+                          </span>
+                        </span>
+                      </div>
+                    )}
+                    {ocrSuggestion.vencimento && ocrSuggestion.vencimento !== format(formData.vencimento, 'yyyy-MM-dd') && (
+                      <div className="flex justify-between">
+                        <span>Vencimento:</span>
+                        <span>
+                          <span className="text-muted-foreground line-through mr-2">
+                            {format(formData.vencimento, 'dd/MM/yyyy')}
+                          </span>
+                          <span className="text-primary font-medium">
+                            {format(new Date(ocrSuggestion.vencimento), 'dd/MM/yyyy')}
+                          </span>
+                        </span>
+                      </div>
+                    )}
+                    {ocrSuggestion.beneficiario && ocrSuggestion.beneficiario.toLowerCase() !== formData.beneficiario.toLowerCase() && (
+                      <div className="flex justify-between">
+                        <span>Beneficiário:</span>
+                        <span className="text-primary font-medium text-right max-w-[200px] truncate">
+                          {ocrSuggestion.beneficiario}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <p className="text-muted-foreground">Deseja atualizar os campos com os novos dados?</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setOcrSuggestion(null)}>
+              Manter Dados Atuais
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={applyOcrSuggestion}>
+              Atualizar Campos
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

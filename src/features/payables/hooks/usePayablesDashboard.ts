@@ -3,6 +3,7 @@ import {
   fetchPayablesDashboardSummary, 
   fetchUnreconciledOutgoingTransactions,
   fetchMonthlyPayablesHistory,
+  fetchPayablesByCategory,
 } from '../api/transactions.api';
 
 export function usePayablesDashboard(unitId?: string) {
@@ -26,5 +27,13 @@ export function usePayablesMonthlyHistory(unitId?: string, months: number = 6) {
     queryKey: ['payables-monthly-history', unitId, months],
     queryFn: () => fetchMonthlyPayablesHistory(unitId, months),
     staleTime: 1000 * 60 * 10, // 10 minutes
+  });
+}
+
+export function usePayablesByCategory(unitId?: string) {
+  return useQuery({
+    queryKey: ['payables-by-category', unitId],
+    queryFn: () => fetchPayablesByCategory(unitId),
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
 }

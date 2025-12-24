@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.monthly-accounting-reminder]
 verify_jwt = false
+
+[functions.check-payable-alerts]
+verify_jwt = false
