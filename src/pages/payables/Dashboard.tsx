@@ -9,6 +9,7 @@ import {
   Clock,
   ArrowRight,
   BarChart3,
+  TrendingUp,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
@@ -19,6 +20,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Cell,
+  Legend,
 } from 'recharts';
 
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -28,15 +30,16 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UnitSelector } from '@/components/UnitSelector';
 import { useAuth } from '@/hooks/useAuth';
-import { usePayablesDashboard } from '@/features/payables/hooks/usePayablesDashboard';
+import { usePayablesDashboard, usePayablesMonthlyHistory } from '@/features/payables/hooks/usePayablesDashboard';
 
 export default function PayablesDashboard() {
   const { isAdmin, unit: userUnit } = useAuth();
   const [selectedUnitId, setSelectedUnitId] = useState<string>(userUnit?.id || '');
 
-  const { data: summary, isLoading } = usePayablesDashboard(
-    isAdmin ? selectedUnitId || undefined : userUnit?.id
-  );
+  const effectiveUnitId = isAdmin ? selectedUnitId || undefined : userUnit?.id;
+
+  const { data: summary, isLoading } = usePayablesDashboard(effectiveUnitId);
+  const { data: monthlyHistory, isLoading: loadingHistory } = usePayablesMonthlyHistory(effectiveUnitId, 6);
 
   const formatCurrency = (value: number) =>
     value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -251,6 +254,71 @@ export default function PayablesDashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Monthly Evolution Chart */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" />
+                  Evolução: Pagos vs Vencidos
+                </CardTitle>
+                <CardDescription>Últimos 6 meses - Comparativo de gestão de pagamentos</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingHistory ? (
+                  <div className="flex items-center justify-center h-[300px]">
+                    <Skeleton className="h-full w-full" />
+                  </div>
+                ) : monthlyHistory && monthlyHistory.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={monthlyHistory} barGap={4}>
+                      <XAxis 
+                        dataKey="month" 
+                        fontSize={12} 
+                        tickLine={false} 
+                        axisLine={false} 
+                      />
+                      <YAxis
+                        fontSize={12}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(value) => `R$${(value / 1000).toFixed(0)}k`}
+                      />
+                      <Tooltip
+                        formatter={(value: number, name: string) => [
+                          formatCurrency(value),
+                          name === 'pagos' ? 'Pagos' : 'Vencidos/Pendentes'
+                        ]}
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                        }}
+                      />
+                      <Legend 
+                        formatter={(value) => value === 'pagos' ? 'Pagos' : 'Vencidos/Pendentes'}
+                      />
+                      <Bar 
+                        dataKey="pagos" 
+                        fill="hsl(142, 76%, 36%)" 
+                        radius={[4, 4, 0, 0]} 
+                        name="pagos"
+                      />
+                      <Bar 
+                        dataKey="vencidos" 
+                        fill="hsl(0, 84%, 60%)" 
+                        radius={[4, 4, 0, 0]} 
+                        name="vencidos"
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                    Nenhum dado histórico disponível
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Overdue List */}
             {summary?.overdue.items && summary.overdue.items.length > 0 && (
