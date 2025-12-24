@@ -96,3 +96,29 @@ export async function updateSupplierInvoiceStatus(id: string, status: string) {
   if (error) throw error;
   return data as SupplierInvoice;
 }
+
+export async function checkDuplicateSupplierInvoice(
+  documentNumber: string,
+  supplierCnpj: string | undefined,
+  issueDate: string,
+  excludeId?: string
+): Promise<boolean> {
+  if (!documentNumber) return false;
+
+  let query = supabase
+    .from('supplier_invoices')
+    .select('id')
+    .eq('document_number', documentNumber)
+    .eq('issue_date', issueDate);
+
+  if (supplierCnpj) {
+    query = query.eq('supplier_cnpj', supplierCnpj);
+  }
+
+  if (excludeId) {
+    query = query.neq('id', excludeId);
+  }
+
+  const { data } = await query.limit(1);
+  return (data?.length ?? 0) > 0;
+}

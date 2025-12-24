@@ -30,7 +30,9 @@ import { Badge } from '@/components/ui/badge';
 import { useSupplierInvoiceOcr } from '@/features/payables/hooks/usePayableOcr';
 import { useCreateSupplierInvoice } from '@/features/payables/hooks/useSupplierInvoices';
 import { useCreatePayablesFromParcelas } from '@/features/payables/hooks/usePayables';
+import { checkDuplicateSupplierInvoice } from '@/features/payables/api/supplier-invoices.api';
 import { SupplierInvoiceFormData, Parcela } from '@/types/payables';
+import { toast } from '@/hooks/use-toast';
 
 const formSchema = z.object({
   document_number: z.string().min(1, 'Número do documento é obrigatório'),
@@ -146,6 +148,22 @@ export function SupplierInvoiceUploadForm({ units, categories, onSuccess, onCanc
 
   const onSubmit = async (data: SupplierInvoiceFormData) => {
     try {
+      // Validar duplicata antes de salvar
+      const isDuplicate = await checkDuplicateSupplierInvoice(
+        data.document_number,
+        data.supplier_cnpj,
+        data.issue_date
+      );
+
+      if (isDuplicate) {
+        toast({
+          variant: 'destructive',
+          title: 'Nota fiscal duplicada',
+          description: 'Já existe uma nota fiscal com este número, fornecedor e data de emissão.',
+        });
+        return;
+      }
+
       // Criar nota fiscal
       const invoice = await createInvoice.mutateAsync({
         data: {

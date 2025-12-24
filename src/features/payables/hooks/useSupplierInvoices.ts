@@ -49,11 +49,17 @@ export function useCreateSupplierInvoice() {
         description: 'A nota fiscal foi salva com sucesso.',
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      let description = error.message;
+
+      if (error?.code === '23505') {
+        description = 'Esta nota fiscal já foi cadastrada anteriormente (mesmo número/fornecedor/data).';
+      }
+
       toast({
         variant: 'destructive',
         title: 'Erro ao cadastrar nota fiscal',
-        description: error.message,
+        description,
       });
     },
   });
