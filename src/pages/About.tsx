@@ -3,11 +3,52 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 import labclinLogo from '@/assets/labclin-logo.png';
-import { Info, Code, Calendar, Mail, Phone, HelpCircle, History, ExternalLink } from 'lucide-react';
+import { Info, Code, Calendar, Mail, Phone, HelpCircle, History, ExternalLink, MessageCircleQuestion } from 'lucide-react';
+
+const faqs = [
+  {
+    question: "Como faço para realizar o fechamento de caixa?",
+    answer: "Acesse o menu 'Fechamento' no painel lateral e clique em 'Novo Fechamento'. Preencha os valores de entrada e saída do dia e confirme. O sistema calculará automaticamente as diferenças e gerará o relatório."
+  },
+  {
+    question: "Como importar arquivos do sistema LIS?",
+    answer: "Na seção 'Importar', selecione 'Movimento Diário' ou 'Fechamento LIS'. Escolha o arquivo .xlsx gerado pelo sistema LIS e clique em 'Processar'. O sistema irá validar e importar os dados automaticamente."
+  },
+  {
+    question: "O que é o Fator R e como afeta minha empresa?",
+    answer: "O Fator R é o percentual da folha de pagamento em relação à receita bruta dos últimos 12 meses. Se for igual ou superior a 28%, sua empresa pode se enquadrar no Anexo III do Simples Nacional, com alíquotas menores. O sistema monitora esse indicador e alerta quando há oportunidades de otimização."
+  },
+  {
+    question: "Como funciona o sistema de alertas?",
+    answer: "O sistema monitora automaticamente indicadores críticos como Fator R abaixo do limite, pendências de fechamento e vencimentos de notas fiscais. Alertas são exibidos no dashboard e podem ser configurados em 'Configurações > Alertas' para receber notificações por email."
+  },
+  {
+    question: "Quais perfis de acesso existem no sistema?",
+    answer: "Existem 4 perfis: Admin (acesso total ao sistema), Contabilidade (relatórios e análise tributária), Gestor de Unidade (operações completas da unidade) e Secretaria/Atendente (fechamento de caixa e operações básicas do dia a dia)."
+  },
+  {
+    question: "Como a contabilidade externa acessa o sistema?",
+    answer: "A contabilidade pode acessar através do portal externo com link seguro e temporário. Configure o acesso em 'Configurações > Contabilidade Externa' para gerar links de acesso. Os links podem ser configurados para expirar após um período determinado."
+  },
+  {
+    question: "Como funciona o OCR para notas fiscais?",
+    answer: "Ao fazer upload de uma nota fiscal em PDF ou imagem, o sistema utiliza reconhecimento óptico de caracteres (OCR) para extrair automaticamente dados como valor, data, CNPJ e descrição. Você pode revisar e ajustar os dados antes de salvar."
+  },
+  {
+    question: "Posso exportar relatórios do sistema?",
+    answer: "Sim! Os principais relatórios podem ser exportados em formato PDF ou Excel. Acesse a seção de Relatórios, configure os filtros desejados e clique no botão de exportação. Em breve, novas opções de exportação estarão disponíveis."
+  },
+];
 
 export default function About() {
-  const version = "1.0.0";
+  const version = "1.0.1";
   const buildDate = "Dezembro 2024";
 
   return (
@@ -98,6 +139,28 @@ export default function About() {
                   </Button>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* FAQ */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageCircleQuestion className="w-5 h-5 text-primary" />
+                Perguntas Frequentes (FAQ)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Accordion type="single" collapsible className="w-full">
+                {faqs.map((faq, index) => (
+                  <AccordionItem key={index} value={`item-${index}`}>
+                    <AccordionTrigger className="text-left">{faq.question}</AccordionTrigger>
+                    <AccordionContent className="text-muted-foreground">
+                      {faq.answer}
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
             </CardContent>
           </Card>
         </div>
