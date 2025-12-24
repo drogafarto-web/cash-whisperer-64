@@ -359,11 +359,17 @@ export type Database = {
           cash_total: number
           closure_id: string
           conferencia_checkbox: boolean
+          counted_cash: number | null
           created_at: string
+          created_by: string | null
+          difference: number | null
+          expected_cash: number | null
           id: string
+          justificativa: string | null
           label_printed_at: string | null
           label_printed_by: string | null
           lis_codes: string[]
+          lis_codes_count: number | null
           status: string
           unit_id: string | null
         }
@@ -371,11 +377,17 @@ export type Database = {
           cash_total?: number
           closure_id: string
           conferencia_checkbox?: boolean
+          counted_cash?: number | null
           created_at?: string
+          created_by?: string | null
+          difference?: number | null
+          expected_cash?: number | null
           id?: string
+          justificativa?: string | null
           label_printed_at?: string | null
           label_printed_by?: string | null
           lis_codes?: string[]
+          lis_codes_count?: number | null
           status?: string
           unit_id?: string | null
         }
@@ -383,11 +395,17 @@ export type Database = {
           cash_total?: number
           closure_id?: string
           conferencia_checkbox?: boolean
+          counted_cash?: number | null
           created_at?: string
+          created_by?: string | null
+          difference?: number | null
+          expected_cash?: number | null
           id?: string
+          justificativa?: string | null
           label_printed_at?: string | null
           label_printed_by?: string | null
           lis_codes?: string[]
+          lis_codes_count?: number | null
           status?: string
           unit_id?: string | null
         }
@@ -999,7 +1017,6 @@ export type Database = {
           comprovante_status: string | null
           convenio: string | null
           created_at: string
-          daily_closing_id: string | null
           date: string
           discount_approval_channel: string | null
           discount_approved_at: string | null
@@ -1007,6 +1024,7 @@ export type Database = {
           discount_percent: number | null
           discount_reason: string | null
           discount_value: number | null
+          envelope_id: string | null
           gross_amount: number | null
           id: string
           justificativa: string | null
@@ -1028,7 +1046,6 @@ export type Database = {
           comprovante_status?: string | null
           convenio?: string | null
           created_at?: string
-          daily_closing_id?: string | null
           date: string
           discount_approval_channel?: string | null
           discount_approved_at?: string | null
@@ -1036,6 +1053,7 @@ export type Database = {
           discount_percent?: number | null
           discount_reason?: string | null
           discount_value?: number | null
+          envelope_id?: string | null
           gross_amount?: number | null
           id?: string
           justificativa?: string | null
@@ -1057,7 +1075,6 @@ export type Database = {
           comprovante_status?: string | null
           convenio?: string | null
           created_at?: string
-          daily_closing_id?: string | null
           date?: string
           discount_approval_channel?: string | null
           discount_approved_at?: string | null
@@ -1065,6 +1082,7 @@ export type Database = {
           discount_percent?: number | null
           discount_reason?: string | null
           discount_value?: number | null
+          envelope_id?: string | null
           gross_amount?: number | null
           id?: string
           justificativa?: string | null
@@ -1079,17 +1097,17 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_lis_closure_items_envelope"
+            columns: ["envelope_id"]
+            isOneToOne: false
+            referencedRelation: "cash_envelopes"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "lis_closure_items_closure_id_fkey"
             columns: ["closure_id"]
             isOneToOne: false
             referencedRelation: "lis_closures"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "lis_closure_items_daily_closing_id_fkey"
-            columns: ["daily_closing_id"]
-            isOneToOne: false
-            referencedRelation: "daily_cash_closings"
             referencedColumns: ["id"]
           },
           {

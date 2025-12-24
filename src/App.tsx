@@ -13,6 +13,7 @@ import CashClosing from "./pages/CashClosing";
 import CashClosingSimple from "./pages/CashClosingSimple";
 import LisFechamento from "./pages/lis/LisFechamento";
 import CashClosingWithSelection from "./pages/lis/CashClosingWithSelection";
+import EnvelopeCashClosing from "./pages/EnvelopeCashClosing";
 import Pendencias from "./pages/Pendencias";
 import NotFound from "./pages/NotFound";
 
@@ -81,6 +82,7 @@ const App = () => (
             <Route path="/cash-closing-advanced" element={<CashClosing />} />
             <Route path="/lis/fechamento" element={<LisFechamento />} />
             <Route path="/lis/cash-closing-select" element={<CashClosingWithSelection />} />
+            <Route path="/envelope-closing" element={<EnvelopeCashClosing />} />
             <Route path="/settings" element={<SettingsHub />} />
             <Route path="/settings/fiscal-base" element={<FiscalBase />} />
             <Route path="/settings/users" element={<Users />} />
