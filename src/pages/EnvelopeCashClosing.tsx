@@ -1,26 +1,27 @@
 /**
  * Página de Fechamento de Caixa por Envelope
  * 
- * Conceito principal:
+ * REGRA DE NEGÓCIO PRINCIPAL:
  * - O fechamento NÃO é por dia, mas por envelope
  * - Cada código LIS pode estar em no máximo um envelope
- * - A recepcionista cria envelopes quando quiser, selecionando códigos pagos
+ * - Códigos LIS ficam disponíveis até serem vinculados a um envelope (envelope_id IS NULL)
+ * - Não há filtro por data - códigos de dias anteriores continuam visíveis
  * 
  * Fluxo:
- * 1. Selecionar códigos LIS disponíveis (cash_component > 0, envelope_id IS NULL)
- * 2. Sistema calcula expectedCash = soma dos selecionados
- * 3. Recepcionista digita countedCash
- * 4. Confirmar e gerar etiqueta única
+ * 1. Buscar códigos LIS onde: unit_id = X AND cash_component > 0 AND envelope_id IS NULL
+ * 2. Recepcionista seleciona quais códigos foram pagos
+ * 3. Digita o valor contado
+ * 4. Confirma e gera etiqueta única
+ * 5. Códigos selecionados recebem envelope_id e somem da lista
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -32,6 +33,7 @@ import {
   ArrowRight,
   Package,
   Mail,
+  FileUp,
 } from 'lucide-react';
 import { useEnvelopeSelection } from '@/hooks/useEnvelopeSelection';
 import {
@@ -50,24 +52,14 @@ import {
 } from '@/services/envelopeClosingService';
 import { generateEnvelopeZpl, downloadZplFile } from '@/utils/zpl';
 
-type PageStep = 'loading' | 'no_closure' | 'selection' | 'comparison' | 'success';
-
-interface LisClosureData {
-  id: string;
-  period_start: string;
-  period_end: string;
-  status: string;
-  unit_id: string;
-}
+type PageStep = 'loading' | 'no_items' | 'selection' | 'comparison' | 'success';
 
 export default function EnvelopeCashClosingPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const { user, profile, unit: userUnit, isLoading: authLoading } = useAuth();
   
   // Estados principais
   const [step, setStep] = useState<PageStep>('loading');
-  const [lisClosure, setLisClosure] = useState<LisClosureData | null>(null);
   const [availableItems, setAvailableItems] = useState<LisItemForEnvelope[]>([]);
   const [createdEnvelope, setCreatedEnvelope] = useState<EnvelopeData | null>(null);
   
@@ -77,7 +69,6 @@ export default function EnvelopeCashClosingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [labelAlreadyPrinted, setLabelAlreadyPrinted] = useState(false);
   
-  const today = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
   const todayFormatted = useMemo(() => 
     format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR }), 
   []);
@@ -92,7 +83,6 @@ export default function EnvelopeCashClosingPage() {
     selectAll,
     clearSelection,
     getSelectedIds,
-    getSelectedItems,
   } = useEnvelopeSelection(availableItems);
 
   // Auth check
@@ -102,52 +92,37 @@ export default function EnvelopeCashClosingPage() {
     }
   }, [user, authLoading, navigate]);
 
-  // Carregar dados
+  // Carregar dados quando tiver unidade
   useEffect(() => {
-    if (user && userUnit) {
+    if (user && userUnit && !authLoading) {
       loadData();
     } else if (user && !userUnit && !authLoading) {
-      setStep('no_closure');
+      setStep('no_items');
     }
   }, [user, userUnit, authLoading]);
 
+  /**
+   * Carrega itens LIS disponíveis para envelope
+   * Query: unit_id = X AND cash_component > 0 AND envelope_id IS NULL
+   */
   const loadData = async () => {
     if (!userUnit) return;
     
     setStep('loading');
     try {
-      // Buscar fechamento LIS mais recente da unidade
-      const { data: closures, error: closureError } = await supabase
-        .from('lis_closures')
-        .select('id, period_start, period_end, status, unit_id')
-        .eq('unit_id', userUnit.id)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (closureError) throw closureError;
-
-      if (!closures || closures.length === 0) {
-        setStep('no_closure');
-        return;
-      }
-
-      const closure = closures[0];
-      setLisClosure(closure);
-
-      // Buscar itens disponíveis para envelope
-      const items = await getAvailableItemsForEnvelope(closure.id);
+      // Buscar itens diretamente por unit_id (não mais por closure_id)
+      const items = await getAvailableItemsForEnvelope(userUnit.id);
       setAvailableItems(items);
 
       if (items.length === 0) {
-        // Sem itens disponíveis - talvez todos já em envelopes
-        setStep('selection'); // Mostrar mesmo assim para informar
+        setStep('no_items');
       } else {
         setStep('selection');
       }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
-      toast.error('Erro ao carregar dados do fechamento');
-      setStep('no_closure');
+      toast.error('Erro ao carregar códigos LIS disponíveis');
+      setStep('no_items');
     }
   };
 
@@ -164,7 +139,7 @@ export default function EnvelopeCashClosingPage() {
   };
 
   const handleConfirmEnvelope = async () => {
-    if (!user || !lisClosure || !userUnit) return;
+    if (!user || !userUnit) return;
     
     const countedValue = parseFloat(countedCash.replace(',', '.')) || 0;
     const difference = Math.abs(countedValue - expectedCash);
@@ -178,7 +153,6 @@ export default function EnvelopeCashClosingPage() {
     setIsSubmitting(true);
     try {
       const envelope = await createEnvelopeWithItems({
-        closureId: lisClosure.id,
         unitId: userUnit.id,
         selectedItemIds: getSelectedIds(),
         countedCash: countedValue,
@@ -254,37 +228,39 @@ export default function EnvelopeCashClosingPage() {
     );
   }
 
-  // No closure data
-  if (step === 'no_closure') {
+  // No items available
+  if (step === 'no_items') {
     return (
       <AppLayout>
         <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
           <Card className="max-w-lg w-full">
             <CardContent className="pt-8 pb-8 text-center space-y-6">
-              <div className="mx-auto w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
-                <XCircle className="w-8 h-8 text-destructive" />
+              <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+                <CheckCircle className="w-8 h-8 text-muted-foreground" />
               </div>
               <div className="space-y-2">
                 <h2 className="text-xl font-semibold text-foreground">
-                  Nenhum fechamento LIS encontrado
+                  Nenhum código disponível para envelope
                 </h2>
                 <p className="text-muted-foreground">
-                  Ainda não existe movimento do LIS importado
+                  Não há códigos LIS com pagamento em dinheiro pendente
                   {userUnit ? ` na unidade ${userUnit.name}` : ''}.
                 </p>
               </div>
               <div className="bg-muted/50 rounded-lg p-4 text-left">
                 <p className="text-sm text-muted-foreground">
                   <strong>O que fazer?</strong><br />
-                  Acesse "Fechamento LIS" para importar o relatório do movimento.
+                  1. Importe o movimento do LIS em "Importar Movimento"<br />
+                  2. Códigos com pagamento em dinheiro aparecerão aqui automaticamente
                 </p>
               </div>
               <div className="flex gap-2 justify-center">
                 <Button variant="outline" onClick={() => navigate('/dashboard')}>
                   Voltar ao Dashboard
                 </Button>
-                <Button onClick={() => navigate('/lis/fechamento')}>
-                  Ir para Fechamento LIS
+                <Button onClick={() => navigate('/import/daily-movement')}>
+                  <FileUp className="h-4 w-4 mr-2" />
+                  Importar Movimento
                 </Button>
               </div>
             </CardContent>
@@ -371,67 +347,48 @@ export default function EnvelopeCashClosingPage() {
             <AlertTitle>Selecione os códigos para este envelope</AlertTitle>
             <AlertDescription>
               Marque os códigos LIS que foram pagos e vão entrar neste envelope de dinheiro.
-              Cada código só pode estar em um envelope.
+              Cada código só pode estar em um envelope. Códigos permanecem disponíveis até serem fechados.
             </AlertDescription>
           </Alert>
 
-          {availableItems.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
-                  <CheckCircle className="w-6 h-6 text-muted-foreground" />
-                </div>
-                <h3 className="text-lg font-medium mb-2">Todos os códigos já estão em envelopes</h3>
-                <p className="text-muted-foreground mb-4">
-                  Não há códigos LIS disponíveis para um novo envelope neste momento.
-                </p>
-                <Button variant="outline" onClick={() => navigate('/dashboard')}>
-                  Voltar ao Dashboard
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              {/* Tabela de seleção */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Códigos LIS Disponíveis</CardTitle>
-                  <CardDescription>
-                    {availableItems.length} código(s) com valor em dinheiro disponível
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <EnvelopeItemsTable
-                    items={availableItems}
-                    selectedIds={selectedIds}
-                    onToggleItem={toggleItem}
-                    onSelectAll={selectAll}
-                    onClearSelection={clearSelection}
-                    allSelected={allSelected}
-                  />
-                </CardContent>
-              </Card>
-
-              {/* Resumo dinâmico */}
-              <EnvelopeSummaryCard
-                expectedCash={expectedCash}
-                selectedCount={selectedCount}
-                totalAvailable={availableItems.length}
+          {/* Tabela de seleção */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Códigos LIS Disponíveis</CardTitle>
+              <CardDescription>
+                {availableItems.length} código(s) com valor em dinheiro disponível para envelope
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <EnvelopeItemsTable
+                items={availableItems}
+                selectedIds={selectedIds}
+                onToggleItem={toggleItem}
+                onSelectAll={selectAll}
+                onClearSelection={clearSelection}
+                allSelected={allSelected}
               />
+            </CardContent>
+          </Card>
 
-              {/* Botão de prosseguir */}
-              <div className="flex justify-end">
-                <Button 
-                  size="lg" 
-                  onClick={handleProceedToComparison}
-                  disabled={selectedCount === 0}
-                >
-                  Contar Dinheiro
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </Button>
-              </div>
-            </>
-          )}
+          {/* Resumo dinâmico */}
+          <EnvelopeSummaryCard
+            expectedCash={expectedCash}
+            selectedCount={selectedCount}
+            totalAvailable={availableItems.length}
+          />
+
+          {/* Botão de prosseguir */}
+          <div className="flex justify-end">
+            <Button 
+              size="lg" 
+              onClick={handleProceedToComparison}
+              disabled={selectedCount === 0}
+            >
+              Contar Dinheiro
+              <ArrowRight className="h-4 w-4 ml-2" />
+            </Button>
+          </div>
         </div>
       </AppLayout>
     );

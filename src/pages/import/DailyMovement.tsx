@@ -446,13 +446,72 @@ export default function DailyMovement() {
         };
       });
 
-      // Inserir transações em lote
+      // Inserir transações em lote (para uso contábil)
       const { error: txError } = await supabase
         .from('transactions')
         .insert(transactions);
 
       if (txError) {
         throw txError;
+      }
+
+      /**
+       * REGRA DE NEGÓCIO CRÍTICA:
+       * Também criar registros em lis_closure_items para cada código importado.
+       * Isso disponibiliza os códigos para seleção em "Fechar Envelope".
+       * 
+       * - cash_component: valor em dinheiro (se paymentMethod = DINHEIRO)
+       * - receivable_component: valor a receber (cartão, convênio, etc.)
+       * - envelope_id: NULL (ainda não está em nenhum envelope)
+       * - payment_status: 'PENDENTE' (ainda não fechado em envelope)
+       */
+      const lisClosureItems = selectedRecords.map((record) => {
+        const originalIndex = parseResult?.records.indexOf(record);
+        const resolution = originalIndex !== undefined ? resolvedRecords.get(originalIndex) : undefined;
+        
+        const amount = resolution ? resolution.amount : record.valorPago;
+        const paymentMethod = resolution ? resolution.paymentMethod : record.paymentMethod;
+        
+        // Determinar componente de caixa vs recebível
+        const isDinheiro = paymentMethod === 'DINHEIRO';
+        const cashComponent = isDinheiro ? amount : 0;
+        const receivableComponent = isDinheiro ? 0 : amount;
+
+        return {
+          lis_code: record.codigo,
+          date: record.data,
+          patient_name: record.paciente,
+          convenio: record.convenio,
+          payment_method: paymentMethod,
+          amount: amount,
+          gross_amount: record.valorBruto,
+          net_amount: record.valorLiquido || amount,
+          cash_component: cashComponent,
+          receivable_component: receivableComponent,
+          card_fee_percent: record.cardFeePercent || null,
+          card_fee_value: record.cardFeeValue || null,
+          discount_percent: record.percentualDesconto || null,
+          discount_value: record.valorDesconto || null,
+          discount_reason: record.discountReason || null,
+          discount_approved_by: record.discountApprovedBy || null,
+          discount_approved_at: record.discountApprovedAt || null,
+          discount_approval_channel: record.discountApprovalChannel || null,
+          unit_id: record.unitId,
+          envelope_id: null, // CRÍTICO: Fica NULL até ser fechado em envelope
+          payment_status: 'PENDENTE',
+          status: 'importado',
+          closure_id: null, // Não depende mais de closure
+        };
+      });
+
+      // Inserir em lis_closure_items (para fluxo de envelopes)
+      const { error: lisError } = await supabase
+        .from('lis_closure_items')
+        .insert(lisClosureItems);
+
+      if (lisError) {
+        console.warn('Erro ao criar itens LIS para envelope:', lisError);
+        // Não falhar a importação por isso, apenas logar
       }
 
       // Registrar importação
@@ -475,7 +534,7 @@ export default function DailyMovement() {
 
       toast({
         title: 'Importação concluída',
-        description: `${selectedIds.size} transações importadas com sucesso.`,
+        description: `${selectedIds.size} transações importadas. Códigos em dinheiro disponíveis para envelope.`,
       });
 
       navigate('/transactions');
@@ -508,9 +567,9 @@ export default function DailyMovement() {
       <div className="space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Importar Movimento Diário</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Importar Movimento</h1>
           <p className="text-muted-foreground">
-            Importe relatórios do sistema LIS para criar transações automaticamente
+            Importe relatórios do LIS para disponibilizar códigos para fechamento de envelope
           </p>
         </div>
 

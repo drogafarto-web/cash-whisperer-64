@@ -1013,7 +1013,7 @@ export type Database = {
           card_fee_percent: number | null
           card_fee_value: number | null
           cash_component: number | null
-          closure_id: string
+          closure_id: string | null
           comprovante_status: string | null
           convenio: string | null
           created_at: string
@@ -1036,13 +1036,14 @@ export type Database = {
           receivable_component: number | null
           status: string
           transaction_id: string | null
+          unit_id: string | null
         }
         Insert: {
           amount?: number
           card_fee_percent?: number | null
           card_fee_value?: number | null
           cash_component?: number | null
-          closure_id: string
+          closure_id?: string | null
           comprovante_status?: string | null
           convenio?: string | null
           created_at?: string
@@ -1065,13 +1066,14 @@ export type Database = {
           receivable_component?: number | null
           status?: string
           transaction_id?: string | null
+          unit_id?: string | null
         }
         Update: {
           amount?: number
           card_fee_percent?: number | null
           card_fee_value?: number | null
           cash_component?: number | null
-          closure_id?: string
+          closure_id?: string | null
           comprovante_status?: string | null
           convenio?: string | null
           created_at?: string
@@ -1094,6 +1096,7 @@ export type Database = {
           receivable_component?: number | null
           status?: string
           transaction_id?: string | null
+          unit_id?: string | null
         }
         Relationships: [
           {
@@ -1115,6 +1118,13 @@ export type Database = {
             columns: ["transaction_id"]
             isOneToOne: false
             referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lis_closure_items_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
             referencedColumns: ["id"]
           },
         ]
