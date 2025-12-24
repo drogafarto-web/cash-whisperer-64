@@ -10,6 +10,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import Transactions from "./pages/Transactions";
 import CashClosing from "./pages/CashClosing";
+import CashClosingSimple from "./pages/CashClosingSimple";
 import LisFechamento from "./pages/lis/LisFechamento";
 import Pendencias from "./pages/Pendencias";
 import NotFound from "./pages/NotFound";
@@ -75,7 +76,8 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/transactions" element={<Transactions />} />
-            <Route path="/cash-closing" element={<CashClosing />} />
+            <Route path="/cash-closing" element={<CashClosingSimple />} />
+            <Route path="/cash-closing-advanced" element={<CashClosing />} />
             <Route path="/lis/fechamento" element={<LisFechamento />} />
             <Route path="/settings" element={<SettingsHub />} />
             <Route path="/settings/fiscal-base" element={<FiscalBase />} />
