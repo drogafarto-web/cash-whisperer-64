@@ -357,7 +357,7 @@ export type Database = {
       cash_envelopes: {
         Row: {
           cash_total: number
-          closure_id: string
+          closure_id: string | null
           conferencia_checkbox: boolean
           counted_cash: number | null
           created_at: string
@@ -375,7 +375,7 @@ export type Database = {
         }
         Insert: {
           cash_total?: number
-          closure_id: string
+          closure_id?: string | null
           conferencia_checkbox?: boolean
           counted_cash?: number | null
           created_at?: string
@@ -393,7 +393,7 @@ export type Database = {
         }
         Update: {
           cash_total?: number
-          closure_id?: string
+          closure_id?: string | null
           conferencia_checkbox?: boolean
           counted_cash?: number | null
           created_at?: string
