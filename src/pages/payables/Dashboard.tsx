@@ -10,6 +10,7 @@ import {
   ArrowRight,
   BarChart3,
   TrendingUp,
+  PieChart as PieChartIcon,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
@@ -21,6 +22,8 @@ import {
   ResponsiveContainer,
   Cell,
   Legend,
+  PieChart,
+  Pie,
 } from 'recharts';
 
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -30,7 +33,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UnitSelector } from '@/components/UnitSelector';
 import { useAuth } from '@/hooks/useAuth';
-import { usePayablesDashboard, usePayablesMonthlyHistory } from '@/features/payables/hooks/usePayablesDashboard';
+import { usePayablesDashboard, usePayablesMonthlyHistory, usePayablesByCategory } from '@/features/payables/hooks/usePayablesDashboard';
 
 export default function PayablesDashboard() {
   const { isAdmin, unit: userUnit } = useAuth();
@@ -40,6 +43,7 @@ export default function PayablesDashboard() {
 
   const { data: summary, isLoading } = usePayablesDashboard(effectiveUnitId);
   const { data: monthlyHistory, isLoading: loadingHistory } = usePayablesMonthlyHistory(effectiveUnitId, 6);
+  const { data: categoryData, isLoading: loadingCategory } = usePayablesByCategory(effectiveUnitId);
 
   const formatCurrency = (value: number) =>
     value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -162,9 +166,9 @@ export default function PayablesDashboard() {
               </Card>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Weekly Chart */}
-              <Card>
+              <Card className="lg:col-span-2">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <BarChart3 className="h-5 w-5" />
@@ -208,6 +212,86 @@ export default function PayablesDashboard() {
                   )}
                 </CardContent>
               </Card>
+
+              {/* Category Pie Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <PieChartIcon className="h-5 w-5" />
+                    Por Categoria
+                  </CardTitle>
+                  <CardDescription>Distribuição de valores</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {loadingCategory ? (
+                    <div className="flex items-center justify-center h-[250px]">
+                      <Skeleton className="h-40 w-40 rounded-full" />
+                    </div>
+                  ) : categoryData && categoryData.length > 0 ? (
+                    <div className="space-y-4">
+                      <ResponsiveContainer width="100%" height={180}>
+                        <PieChart>
+                          <Pie
+                            data={categoryData}
+                            dataKey="total"
+                            nameKey="category_name"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={40}
+                            outerRadius={70}
+                            paddingAngle={2}
+                          >
+                            {categoryData.map((entry, index) => (
+                              <Cell key={`pie-cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(value: number) => formatCurrency(value)}
+                            contentStyle={{
+                              backgroundColor: 'hsl(var(--card))',
+                              border: '1px solid hsl(var(--border))',
+                              borderRadius: '8px',
+                              fontSize: '12px',
+                            }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      {/* Legend */}
+                      <div className="space-y-1">
+                        {categoryData.slice(0, 5).map((item, index) => (
+                          <div key={index} className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="w-3 h-3 rounded-full"
+                                style={{ backgroundColor: item.color }}
+                              />
+                              <span className="text-muted-foreground truncate max-w-[120px]">
+                                {item.category_name}
+                              </span>
+                            </div>
+                            <span className="font-medium text-xs">
+                              {formatCurrency(item.total)}
+                            </span>
+                          </div>
+                        ))}
+                        {categoryData.length > 5 && (
+                          <p className="text-xs text-muted-foreground text-center">
+                            +{categoryData.length - 5} outras
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-[250px] text-muted-foreground">
+                      <PieChartIcon className="h-12 w-12 mb-2 opacity-50" />
+                      <p className="text-sm">Nenhum dado por categoria</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
               {/* Upcoming Payments */}
               <Card>

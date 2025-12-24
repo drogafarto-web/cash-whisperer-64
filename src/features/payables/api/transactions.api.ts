@@ -216,3 +216,75 @@ export async function fetchMonthlyPayablesHistory(
       };
     });
 }
+
+export interface CategoryDistribution {
+  category_id: string | null;
+  category_name: string;
+  count: number;
+  total: number;
+  color: string;
+}
+
+const CATEGORY_COLORS = [
+  'hsl(220, 70%, 50%)',  // Blue
+  'hsl(160, 60%, 45%)',  // Green
+  'hsl(340, 75%, 55%)',  // Pink
+  'hsl(40, 90%, 50%)',   // Orange
+  'hsl(280, 60%, 55%)',  // Purple
+  'hsl(190, 80%, 45%)',  // Cyan
+  'hsl(0, 70%, 55%)',    // Red
+  'hsl(60, 80%, 45%)',   // Yellow
+];
+
+/**
+ * Fetch payables grouped by category for pie chart
+ */
+export async function fetchPayablesByCategory(unitId?: string): Promise<CategoryDistribution[]> {
+  // Fetch payables with category info
+  let query = supabase
+    .from('payables')
+    .select(`
+      id,
+      valor,
+      category_id,
+      categories (
+        id,
+        name
+      )
+    `)
+    .in('status', ['pendente', 'vencido']);
+
+  if (unitId) {
+    query = query.eq('unit_id', unitId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+
+  // Group by category
+  const categoryMap = new Map<string | null, { name: string; count: number; total: number }>();
+
+  for (const p of data || []) {
+    const categoryId = p.category_id;
+    const categoryName = (p.categories as { id: string; name: string } | null)?.name || 'Sem categoria';
+    
+    const existing = categoryMap.get(categoryId) || { name: categoryName, count: 0, total: 0 };
+    existing.count += 1;
+    existing.total += p.valor;
+    categoryMap.set(categoryId, existing);
+  }
+
+  // Convert to array and sort by total descending
+  const result: CategoryDistribution[] = Array.from(categoryMap.entries())
+    .map(([category_id, data], index) => ({
+      category_id,
+      category_name: data.name,
+      count: data.count,
+      total: data.total,
+      color: CATEGORY_COLORS[index % CATEGORY_COLORS.length],
+    }))
+    .sort((a, b) => b.total - a.total);
+
+  return result;
+}
