@@ -213,6 +213,7 @@ export default function EnvelopeCashClosingPage() {
     setCountedCash('');
     setJustificativa('');
     setLabelAlreadyPrinted(false);
+    clearSelection(); // Limpar IDs selecionados ao criar novo envelope
     loadData();
   };
 
