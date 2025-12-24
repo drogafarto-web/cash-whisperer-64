@@ -167,7 +167,7 @@ export async function createEnvelopeWithItems(params: {
       justificativa: justificativa || null,
       lis_codes: lisCodes,
       lis_codes_count: lisCodes.length,
-      status: 'fechado',
+      status: 'PENDENTE',
       created_by: userId,
     })
     .select()
@@ -211,7 +211,8 @@ export async function markLabelPrinted(envelopeId: string, userId: string): Prom
     .from('cash_envelopes')
     .update({ 
       label_printed_at: new Date().toISOString(),
-      label_printed_by: userId
+      label_printed_by: userId,
+      status: 'EMITIDO'
     })
     .eq('id', envelopeId);
 
