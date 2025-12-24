@@ -11,9 +11,11 @@ export interface LisItemForEnvelope {
   receivable_component: number | null;
   payment_method: string;
   payment_status: string;
+  status: string;
   closure_id: string | null;
   unit_id: string | null;
   envelope_id: string | null;
+  unit_name?: string;
 }
 
 export interface EnvelopeData {
@@ -47,7 +49,10 @@ export interface EnvelopeData {
 export async function getAvailableItemsForEnvelope(unitId: string): Promise<LisItemForEnvelope[]> {
   const { data, error } = await supabase
     .from('lis_closure_items')
-    .select('*')
+    .select(`
+      *,
+      unit:units(name)
+    `)
     .eq('unit_id', unitId)
     .gt('cash_component', 0)
     .is('envelope_id', null)
@@ -55,7 +60,13 @@ export async function getAvailableItemsForEnvelope(unitId: string): Promise<LisI
     .order('lis_code', { ascending: true });
 
   if (error) throw error;
-  return data as LisItemForEnvelope[];
+  
+  // Map unit name from join
+  return (data || []).map(item => ({
+    ...item,
+    unit_name: item.unit?.name || null,
+    unit: undefined, // Remove nested object
+  })) as LisItemForEnvelope[];
 }
 
 /**
