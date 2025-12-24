@@ -416,24 +416,36 @@ export default function LisFechamento() {
       updateStep(2, 'running');
       
       if (newRecords.length > 0) {
-        const itemsToInsert = newRecords.map(record => ({
-          closure_id: closureId,
-          unit_id: selectedUnitId, // CRÍTICO: necessário para índice único
-          lis_code: record.codigo || record.paciente?.substring(0, 10) || 'N/A',
-          date: record.data,
-          patient_name: record.paciente,
-          convenio: record.convenio,
-          payment_method: record.paymentMethod,
-          amount: record.valorPago,
-          gross_amount: record.valorBruto || record.valorPago,
-          discount_value: record.valorDesconto || 0,
-          discount_percent: record.percentualDesconto || 0,
-          discount_reason: record.discountReason || null,
-          card_fee_value: record.cardFeeValue || 0,
-          card_fee_percent: record.cardFeePercent || 0,
-          net_amount: record.valorLiquido || record.valorPago,
-          status: record.isNaoPago ? 'NAO_PAGO' : 'NORMAL',
-        }));
+        const itemsToInsert = newRecords.map(record => {
+          // CRÍTICO: Calcular cash_component e receivable_component corretamente
+          // Pagamentos na recepção (DINHEIRO, PIX, CARTAO) geram caixa no dia
+          // Convênios, boletos, transferências são recebíveis
+          const isPaymentAtReception = ['DINHEIRO', 'PIX', 'CARTAO'].includes(record.paymentMethod);
+          const cashComponent = isPaymentAtReception ? record.valorPago : 0;
+          const receivableComponent = isPaymentAtReception ? 0 : record.valorPago;
+          
+          return {
+            closure_id: closureId,
+            unit_id: selectedUnitId, // CRÍTICO: necessário para índice único
+            lis_code: record.codigo || record.paciente?.substring(0, 10) || 'N/A',
+            date: record.data,
+            patient_name: record.paciente,
+            convenio: record.convenio,
+            payment_method: record.paymentMethod,
+            amount: record.valorPago,
+            gross_amount: record.valorBruto || record.valorPago,
+            discount_value: record.valorDesconto || 0,
+            discount_percent: record.percentualDesconto || 0,
+            discount_reason: record.discountReason || null,
+            card_fee_value: record.cardFeeValue || 0,
+            card_fee_percent: record.cardFeePercent || 0,
+            net_amount: record.valorLiquido || record.valorPago,
+            cash_component: cashComponent,           // NOVO: valor de caixa
+            receivable_component: receivableComponent, // NOVO: valor a receber
+            status: record.isNaoPago ? 'NAO_PAGO' : 'NORMAL',
+            payment_status: record.isNaoPago ? 'PENDENTE' : 'PENDENTE', // Sempre começa pendente
+          };
+        });
 
         // Usa upsert com índice único (unit_id, date, lis_code) para evitar duplicados
         const { error: insertError } = await supabase

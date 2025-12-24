@@ -473,9 +473,11 @@ export default function DailyMovement() {
         const paymentMethod = resolution ? resolution.paymentMethod : record.paymentMethod;
         
         // Determinar componente de caixa vs recebível
-        const isDinheiro = paymentMethod === 'DINHEIRO';
-        const cashComponent = isDinheiro ? amount : 0;
-        const receivableComponent = isDinheiro ? 0 : amount;
+        // CRÍTICO: DINHEIRO, PIX e CARTAO geram caixa no dia (são pagos na recepção)
+        // Convênios, boletos, transferências são recebíveis (não geram caixa imediato)
+        const isPaymentAtReception = ['DINHEIRO', 'PIX', 'CARTAO'].includes(paymentMethod);
+        const cashComponent = isPaymentAtReception ? amount : 0;
+        const receivableComponent = isPaymentAtReception ? 0 : amount;
 
         return {
           lis_code: record.codigo,
