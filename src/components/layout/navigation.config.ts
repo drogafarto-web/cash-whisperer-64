@@ -56,6 +56,8 @@ export const ROLE_LABELS: Record<AppRole, string> = {
   contabilidade: 'Contabilidade',
   gestor_unidade: 'Gestor',
   secretaria: 'Atendente',
+  financeiro: 'Financeiro',
+  contador: 'Contador',
 };
 
 // Navegação organizada por objetivos estratégicos
