@@ -47,6 +47,9 @@ import Invoices from "./pages/billing/Invoices";
 import Payers from "./pages/billing/Payers";
 import BillingSummary from "./pages/billing/Summary";
 
+// System pages
+import About from "./pages/About";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -88,6 +91,7 @@ const App = () => (
             <Route path="/billing/invoices" element={<Invoices />} />
             <Route path="/billing/payers" element={<Payers />} />
             <Route path="/billing/summary" element={<BillingSummary />} />
+            <Route path="/about" element={<About />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
