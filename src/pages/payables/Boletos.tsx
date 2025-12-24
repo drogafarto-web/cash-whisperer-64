@@ -27,6 +27,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
+import { ScreenGuide } from '@/components/ui/ScreenGuide';
 
 import { BoletoUploadForm } from '@/components/payables/BoletoUploadForm';
 import { PayablesFilters } from '@/components/payables/PayablesFilters';
@@ -215,6 +216,18 @@ export default function BoletosPage() {
             </Button>
           </div>
         </div>
+
+        {/* Micro-onboarding */}
+        <ScreenGuide
+          purpose="Nesta tela você gerencia todos os boletos e títulos a pagar da empresa."
+          steps={[
+            "Clique em 'Novo Boleto' para cadastrar. Você pode escanear o PDF para preencher automaticamente.",
+            "Revise boletos vencidos na aba vermelha - eles precisam de atenção imediata.",
+            "Marque como 'Pago' clicando no ✓ quando confirmar o pagamento."
+          ]}
+          storageKey="boletos-guide"
+          className="mb-2"
+        />
 
         {/* Filters */}
         <PayablesFilters
