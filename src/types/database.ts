@@ -87,7 +87,7 @@ export interface PersonnelCostSummary {
 }
 
 export type TransactionStatus = 'PENDENTE' | 'APROVADO' | 'REJEITADO';
-export type PaymentMethod = 'DINHEIRO' | 'CARTAO' | 'TRANSFERENCIA' | 'PIX' | 'BOLETO' | 'NAO_PAGO';
+export type PaymentMethod = 'DINHEIRO' | 'CARTAO' | 'TRANSFERENCIA' | 'PIX' | 'BOLETO' | 'NAO_PAGO' | 'CONVENIO';
 export type TransactionType = 'ENTRADA' | 'SAIDA';
 
 export interface Partner {

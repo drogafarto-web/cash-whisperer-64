@@ -99,16 +99,53 @@ const unitNameMapping: Record<string, string> = {
 };
 
 // Mapeamento de formas de pagamento do LIS para o sistema
+// CRÍTICO: NUNCA usar fallback que assume forma de pagamento
 const paymentMethodMapping: Record<string, PaymentMethod> = {
+  // Dinheiro
   'Dinheiro': 'DINHEIRO',
+  'DINHEIRO': 'DINHEIRO',
+  'dinheiro': 'DINHEIRO',
+  // PIX
   'Pix': 'PIX',
+  'PIX': 'PIX',
+  'pix': 'PIX',
+  // Cartão
   'Cartão de crédito': 'CARTAO',
   'Cartão de débito': 'CARTAO',
+  'Cartao de credito': 'CARTAO',
+  'Cartao de debito': 'CARTAO',
   'C. credito': 'CARTAO',
   'C. debito': 'CARTAO',
+  'C. Credito': 'CARTAO',
+  'C. Debito': 'CARTAO',
+  'Cartao': 'CARTAO',
+  'Cartão': 'CARTAO',
+  'CARTAO': 'CARTAO',
+  'cartao': 'CARTAO',
+  'Credito': 'CARTAO',
+  'Debito': 'CARTAO',
+  'credito': 'CARTAO',
+  'debito': 'CARTAO',
+  // Boleto / Transferência
   'Boleto': 'BOLETO',
+  'BOLETO': 'BOLETO',
+  'boleto': 'BOLETO',
+  'Transferência': 'TRANSFERENCIA',
+  'Transferencia': 'TRANSFERENCIA',
+  'TRANSFERENCIA': 'TRANSFERENCIA',
+  'TED': 'TRANSFERENCIA',
+  'DOC': 'TRANSFERENCIA',
+  // Convênio (não gera caixa)
+  'Convênio': 'CONVENIO',
+  'Convenio': 'CONVENIO',
+  'CONVENIO': 'CONVENIO',
+  'convenio': 'CONVENIO',
+  // Não informado / Não pago - NUNCA assumir como outra forma
   'Não informado': 'NAO_PAGO',
   'N. informado': 'NAO_PAGO',
+  'Nao informado': 'NAO_PAGO',
+  'N/A': 'NAO_PAGO',
+  'N.A.': 'NAO_PAGO',
   '': 'NAO_PAGO',
 };
 
@@ -289,9 +326,14 @@ function processRow(
       paymentMethod = 'CARTAO';
     } else if (formaPagLower.includes('boleto')) {
       paymentMethod = 'BOLETO';
+    } else if (formaPagLower.includes('transf') || formaPagLower.includes('ted') || formaPagLower.includes('doc')) {
+      paymentMethod = 'TRANSFERENCIA';
+    } else if (formaPagLower.includes('conv') || formaPagLower.includes('plano') || formaPagLower.includes('saude')) {
+      paymentMethod = 'CONVENIO';
     } else {
-      // Fallback: se não identificou e valor pago é 0, marca como NAO_PAGO
-      paymentMethod = valorPago === 0 ? 'NAO_PAGO' : 'PIX';
+      // CRÍTICO: NUNCA assumir forma de pagamento - sempre marcar como NAO_PAGO
+      // O atendente deve resolver manualmente via modal de resolução
+      paymentMethod = 'NAO_PAGO';
     }
   }
   
