@@ -14,6 +14,8 @@ interface AuthContextType {
   isContabilidade: boolean;
   isGestorUnidade: boolean;
   isSecretaria: boolean;
+  isFinanceiro: boolean;
+  isContador: boolean;
   hasPermission: (permission: string) => boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, name: string) => Promise<{ error: Error | null }>;
@@ -135,23 +137,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isContabilidade = role === 'contabilidade';
   const isGestorUnidade = role === 'gestor_unidade';
   const isSecretaria = role === 'secretaria';
+  const isFinanceiro = role === 'financeiro';
+  const isContador = role === 'contador';
 
   // Verifica se o usuário tem acesso a uma determinada permissão
   const hasPermission = (permission: string): boolean => {
     if (isAdmin) return true; // Admin tem acesso total
     
     const permissions: Record<string, AppRole[]> = {
-      'dashboard': ['admin', 'gestor_unidade'],
-      'transactions': ['admin', 'secretaria', 'contabilidade', 'gestor_unidade'],
+      'dashboard': ['admin', 'gestor_unidade', 'financeiro', 'contador'],
+      'transactions': ['admin', 'secretaria', 'contabilidade', 'gestor_unidade', 'financeiro'],
       'cash_closing': ['admin', 'secretaria', 'gestor_unidade'],
-      'imports': ['admin', 'secretaria', 'gestor_unidade'],
-      'reports': ['admin', 'contabilidade', 'gestor_unidade'],
-      'tax_scenarios': ['admin', 'contabilidade'],
+      'imports': ['admin', 'secretaria', 'gestor_unidade', 'financeiro'],
+      'reports': ['admin', 'contabilidade', 'gestor_unidade', 'contador'],
+      'tax_scenarios': ['admin', 'contabilidade', 'contador'],
       'personnel_real_vs_official': ['admin'],
-      'fator_r_audit': ['admin', 'contabilidade'],
+      'fator_r_audit': ['admin', 'contabilidade', 'contador'],
+      'fiscal_base': ['admin', 'contador'],
       'tax_config': ['admin'],
       'users': ['admin'],
       'settings': ['admin'],
+      'payables': ['admin', 'financeiro', 'contabilidade'],
+      'billing': ['admin', 'financeiro', 'contabilidade'],
     };
     
     const allowedRoles = permissions[permission];
@@ -171,6 +178,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isContabilidade,
       isGestorUnidade,
       isSecretaria,
+      isFinanceiro,
+      isContador,
       hasPermission,
       signIn,
       signUp,

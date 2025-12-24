@@ -58,6 +58,16 @@ const ROLE_CONFIG: Record<AppRole, { label: string; description: string; variant
     description: 'Acesso a relatórios, cenários tributários, Fator R e exportações. Sem acesso a config.',
     variant: 'secondary'
   },
+  financeiro: { 
+    label: 'Financeiro', 
+    description: 'Contas a pagar, conciliação, extratos bancários. Sem acesso a config tributária.',
+    variant: 'secondary'
+  },
+  contador: { 
+    label: 'Contador/Consultor', 
+    description: 'Base fiscal: folha, impostos, parâmetros tributários. Sem acesso à operação diária.',
+    variant: 'secondary'
+  },
   gestor_unidade: { 
     label: 'Gestor de Unidade', 
     description: 'Visão completa da própria unidade: transações, caixa, relatórios filtrados',

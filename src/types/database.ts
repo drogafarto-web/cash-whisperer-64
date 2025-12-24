@@ -1,4 +1,4 @@
-export type AppRole = 'admin' | 'secretaria' | 'contabilidade' | 'gestor_unidade';
+export type AppRole = 'admin' | 'secretaria' | 'contabilidade' | 'gestor_unidade' | 'financeiro' | 'contador';
 export type AccountType = 'CAIXA' | 'CONTA_BANCARIA' | 'OPERADORA_CARTAO';
 export type PartnerType = 'CLIENTE' | 'FORNECEDOR';
 
