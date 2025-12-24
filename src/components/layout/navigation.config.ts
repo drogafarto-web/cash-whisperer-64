@@ -20,6 +20,10 @@ import {
   Database,
   Info,
   History,
+  CreditCard,
+  FileInput,
+  Barcode,
+  GitMerge,
 } from 'lucide-react';
 import { AppRole } from '@/types/database';
 
@@ -108,6 +112,16 @@ export const navigationGroups: NavGroup[] = [
       { name: 'Notas Fiscais', href: '/billing/invoices', icon: FileText, roles: ['admin', 'contabilidade'] },
       { name: 'Convênios', href: '/billing/payers', icon: Handshake, roles: ['admin', 'contabilidade'] },
       { name: 'Resumo Mensal', href: '/billing/summary', icon: TrendingUp, roles: ['admin', 'contabilidade'] },
+    ],
+  },
+  {
+    id: 'contas-pagar',
+    name: 'Contas a Pagar',
+    icon: CreditCard,
+    items: [
+      { name: 'Notas Fornecedor', href: '/payables/supplier-invoices', icon: FileInput, roles: ['admin', 'contabilidade'] },
+      { name: 'Boletos', href: '/payables/boletos', icon: Barcode, roles: ['admin', 'contabilidade', 'gestor_unidade'] },
+      { name: 'Conciliação', href: '/payables/reconciliation', icon: GitMerge, roles: ['admin', 'contabilidade'] },
     ],
   },
   {
