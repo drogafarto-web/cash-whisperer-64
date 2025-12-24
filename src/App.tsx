@@ -47,6 +47,11 @@ import Invoices from "./pages/billing/Invoices";
 import Payers from "./pages/billing/Payers";
 import BillingSummary from "./pages/billing/Summary";
 
+// Payables pages
+import SupplierInvoices from "./pages/payables/SupplierInvoices";
+import Boletos from "./pages/payables/Boletos";
+import PayablesReconciliation from "./pages/payables/Reconciliation";
+
 // System pages
 import About from "./pages/About";
 import Changelog from "./pages/Changelog";

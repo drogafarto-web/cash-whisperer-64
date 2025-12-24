@@ -50,7 +50,7 @@ const formSchema = z.object({
 interface Props {
   units: Array<{ id: string; name: string }>;
   categories: Array<{ id: string; name: string }>;
-  supplierInvoices?: SupplierInvoice[];
+  supplierInvoices?: Array<{ id: string; document_number: string; supplier_name: string }>;
   onSuccess?: () => void;
   onCancel?: () => void;
 }
