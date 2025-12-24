@@ -18,6 +18,7 @@ import {
   ShieldAlert,
   Cog,
   Database,
+  Info,
 } from 'lucide-react';
 import { AppRole } from '@/types/database';
 
@@ -129,6 +130,14 @@ export const navigationGroups: NavGroup[] = [
       { name: 'Auditoria Fator R', href: '/settings/fator-r-audit', icon: Calculator, roles: ['admin', 'contabilidade'] },
       { name: 'Alertas', href: '/settings/alerts', icon: Bell, roles: ['admin'] },
       { name: 'Usuários', href: '/settings/users', icon: Users, roles: ['admin'] },
+    ],
+  },
+  {
+    id: 'sistema',
+    name: 'Sistema',
+    icon: Cog,
+    items: [
+      { name: 'Sobre', href: '/about', icon: Info, roles: ['admin', 'contabilidade', 'gestor_unidade', 'secretaria'] },
     ],
   },
 ];
