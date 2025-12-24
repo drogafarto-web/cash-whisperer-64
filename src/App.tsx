@@ -51,6 +51,7 @@ import BillingSummary from "./pages/billing/Summary";
 import SupplierInvoices from "./pages/payables/SupplierInvoices";
 import Boletos from "./pages/payables/Boletos";
 import PayablesReconciliation from "./pages/payables/Reconciliation";
+import PayablesDashboard from "./pages/payables/Dashboard";
 
 // System pages
 import About from "./pages/About";
@@ -97,6 +98,7 @@ const App = () => (
             <Route path="/billing/invoices" element={<Invoices />} />
             <Route path="/billing/payers" element={<Payers />} />
             <Route path="/billing/summary" element={<BillingSummary />} />
+            <Route path="/payables/dashboard" element={<PayablesDashboard />} />
             <Route path="/payables/supplier-invoices" element={<SupplierInvoices />} />
             <Route path="/payables/boletos" element={<Boletos />} />
             <Route path="/payables/reconciliation" element={<PayablesReconciliation />} />
