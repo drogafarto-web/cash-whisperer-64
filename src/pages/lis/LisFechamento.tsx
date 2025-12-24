@@ -418,6 +418,7 @@ export default function LisFechamento() {
       if (newRecords.length > 0) {
         const itemsToInsert = newRecords.map(record => ({
           closure_id: closureId,
+          unit_id: selectedUnitId, // CRÍTICO: necessário para índice único
           lis_code: record.codigo || record.paciente?.substring(0, 10) || 'N/A',
           date: record.data,
           patient_name: record.paciente,
@@ -434,9 +435,13 @@ export default function LisFechamento() {
           status: record.isNaoPago ? 'NAO_PAGO' : 'NORMAL',
         }));
 
+        // Usa upsert com índice único (unit_id, date, lis_code) para evitar duplicados
         const { error: insertError } = await supabase
           .from('lis_closure_items')
-          .insert(itemsToInsert);
+          .upsert(itemsToInsert, {
+            onConflict: 'unit_id,date,lis_code',
+            ignoreDuplicates: true
+          });
 
         if (insertError) throw insertError;
       }

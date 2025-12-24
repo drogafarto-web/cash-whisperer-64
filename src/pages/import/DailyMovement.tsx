@@ -504,10 +504,14 @@ export default function DailyMovement() {
         };
       });
 
-      // Inserir em lis_closure_items (para fluxo de envelopes)
+      // Inserir/atualizar em lis_closure_items (para fluxo de envelopes)
+      // Usa upsert com índice único (unit_id, date, lis_code) para evitar duplicados
       const { error: lisError } = await supabase
         .from('lis_closure_items')
-        .insert(lisClosureItems);
+        .upsert(lisClosureItems, {
+          onConflict: 'unit_id,date,lis_code',
+          ignoreDuplicates: true
+        });
 
       if (lisError) {
         console.warn('Erro ao criar itens LIS para envelope:', lisError);
