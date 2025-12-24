@@ -648,6 +648,171 @@ export type Database = {
           },
         ]
       }
+      import_sessions: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          file_name: string
+          id: string
+          imported_count: number | null
+          pending_count: number | null
+          period_end: string | null
+          period_start: string | null
+          status: string | null
+          total_records: number | null
+          unit_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          file_name: string
+          id?: string
+          imported_count?: number | null
+          pending_count?: number | null
+          period_end?: string | null
+          period_start?: string | null
+          status?: string | null
+          total_records?: number | null
+          unit_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          file_name?: string
+          id?: string
+          imported_count?: number | null
+          pending_count?: number | null
+          period_end?: string | null
+          period_start?: string | null
+          status?: string | null
+          total_records?: number | null
+          unit_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_sessions_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      import_staging: {
+        Row: {
+          codigo: string
+          convenio: string | null
+          created_at: string | null
+          created_by: string | null
+          date: string
+          error_message: string | null
+          has_error: boolean | null
+          id: string
+          import_session_id: string
+          is_duplicate: boolean | null
+          is_nao_pago: boolean | null
+          is_particular: boolean | null
+          paciente: string | null
+          payment_method: string
+          resolution_amount: number | null
+          resolution_justification: string | null
+          resolution_payment_method: string | null
+          resolved: boolean | null
+          resolved_at: string | null
+          resolved_by: string | null
+          selected: boolean | null
+          status: string | null
+          transaction_id: string | null
+          unit_id: string | null
+          updated_at: string | null
+          valor_bruto: number | null
+          valor_pago: number | null
+        }
+        Insert: {
+          codigo: string
+          convenio?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          date: string
+          error_message?: string | null
+          has_error?: boolean | null
+          id?: string
+          import_session_id: string
+          is_duplicate?: boolean | null
+          is_nao_pago?: boolean | null
+          is_particular?: boolean | null
+          paciente?: string | null
+          payment_method: string
+          resolution_amount?: number | null
+          resolution_justification?: string | null
+          resolution_payment_method?: string | null
+          resolved?: boolean | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          selected?: boolean | null
+          status?: string | null
+          transaction_id?: string | null
+          unit_id?: string | null
+          updated_at?: string | null
+          valor_bruto?: number | null
+          valor_pago?: number | null
+        }
+        Update: {
+          codigo?: string
+          convenio?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          date?: string
+          error_message?: string | null
+          has_error?: boolean | null
+          id?: string
+          import_session_id?: string
+          is_duplicate?: boolean | null
+          is_nao_pago?: boolean | null
+          is_particular?: boolean | null
+          paciente?: string | null
+          payment_method?: string
+          resolution_amount?: number | null
+          resolution_justification?: string | null
+          resolution_payment_method?: string | null
+          resolved?: boolean | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          selected?: boolean | null
+          status?: string | null
+          transaction_id?: string | null
+          unit_id?: string | null
+          updated_at?: string | null
+          valor_bruto?: number | null
+          valor_pago?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_staging_import_session_id_fkey"
+            columns: ["import_session_id"]
+            isOneToOne: false
+            referencedRelation: "import_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "import_staging_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "import_staging_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       imports: {
         Row: {
           created_at: string | null
