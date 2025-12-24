@@ -6,6 +6,12 @@ verify_jwt = true
 [functions.ocr-invoice]
 verify_jwt = true
 
+[functions.ocr-boleto]
+verify_jwt = true
+
+[functions.ocr-supplier-invoice]
+verify_jwt = true
+
 [functions.send-fator-r-alert]
 verify_jwt = false
 
