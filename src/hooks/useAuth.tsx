@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { AppRole, Profile, Unit } from '@/types/database';
-import { canAccess, canPerform, SystemArea } from '@/lib/access-policy';
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -150,15 +150,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isFinanceiro = role === 'financeiro';
   const isContador = role === 'contador';
 
-  // Verifica se o usuário tem acesso a uma determinada área/permissão
-  // Usa a matriz centralizada em access-policy.ts
+  // Verifica se o usuário tem acesso a uma determinada permissão
   const hasPermission = (permission: string): boolean => {
-    // Tenta usar como SystemArea primeiro
-    if (canAccess(role, permission as SystemArea)) {
-      return true;
-    }
-    // Fallback para canPerform (ações específicas)
-    return canPerform(role, permission);
+    if (isAdmin) return true; // Admin tem acesso total
+    
+    const permissions: Record<string, AppRole[]> = {
+      'dashboard': ['admin', 'gestor_unidade', 'financeiro', 'contador'],
+      'transactions': ['admin', 'secretaria', 'contabilidade', 'gestor_unidade', 'financeiro'],
+      'cash_closing': ['admin', 'secretaria', 'gestor_unidade'],
+      'imports': ['admin', 'secretaria', 'gestor_unidade', 'financeiro'],
+      'reports': ['admin', 'contabilidade', 'gestor_unidade', 'contador'],
+      'tax_scenarios': ['admin', 'contabilidade', 'contador'],
+      'personnel_real_vs_official': ['admin'],
+      'fator_r_audit': ['admin', 'contabilidade', 'contador'],
+      'fiscal_base': ['admin', 'contador'],
+      'tax_config': ['admin'],
+      'users': ['admin'],
+      'settings': ['admin'],
+      'payables': ['admin', 'financeiro', 'contabilidade'],
+      'billing': ['admin', 'financeiro', 'contabilidade'],
+    };
+    
+    const allowedRoles = permissions[permission];
+    if (!allowedRoles || !role) return false;
+    return allowedRoles.includes(role);
   };
 
   return (
