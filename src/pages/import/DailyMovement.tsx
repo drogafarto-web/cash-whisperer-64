@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { parseLisXls, LisRecord, ParseResult, getPaymentMethodIcon, formatCurrency, extractLisCodeFromDescription } from '@/utils/lisImport';
 import { ParseLogViewer, LogEntry } from '@/components/import/ParseLogViewer';
+import { FinancialResolutionModal, ResolutionData } from '@/components/import/FinancialResolutionModal';
 import {
   Table,
   TableBody,
@@ -29,6 +30,13 @@ import {
   Copy,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PaymentMethod } from '@/types/database';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 // ID da categoria "Recebimento de Clientes" 
 const CATEGORY_RECEBIMENTO_CLIENTES = '7ee0b99b-92a7-4e8f-bd71-337dbf0baf7e';
@@ -49,6 +57,16 @@ export default function DailyMovement() {
   // Visual logs state
   const [parseLogs, setParseLogs] = useState<LogEntry[]>([]);
   const [showLogs, setShowLogs] = useState(true);
+
+  // Financial resolution state
+  const [resolutionModal, setResolutionModal] = useState<{
+    open: boolean;
+    recordIndex: number | null;
+    record: LisRecord | null;
+  }>({ open: false, recordIndex: null, record: null });
+  
+  // Resolved records with payment method and justification
+  const [resolvedRecords, setResolvedRecords] = useState<Map<number, ResolutionData>>(new Map());
 
   const addLog = useCallback((level: LogEntry['level'], message: string) => {
     setParseLogs(prev => [...prev, { timestamp: new Date(), level, message }]);
@@ -275,9 +293,64 @@ export default function DailyMovement() {
     }
   };
 
+  // Check if a record requires financial resolution (isNaoPago but has valorBruto > 0)
+  const requiresResolution = (record: LisRecord): boolean => {
+    return record.isNaoPago && record.valorBruto > 0 && !record.error && !record.isDuplicate;
+  };
+
+  // Check if a record has been resolved
+  const isRecordResolved = (index: number): boolean => {
+    return resolvedRecords.has(index);
+  };
+
+  const handleRecordClick = (index: number, record: LisRecord) => {
+    // If record requires resolution and is not yet resolved, open modal
+    if (requiresResolution(record) && !isRecordResolved(index)) {
+      setResolutionModal({ open: true, recordIndex: index, record });
+      return;
+    }
+    
+    // Otherwise, toggle selection normally
+    toggleRecord(index);
+  };
+
+  const handleResolution = (data: ResolutionData) => {
+    if (resolutionModal.recordIndex === null) return;
+    
+    // Save resolution data
+    const newResolved = new Map(resolvedRecords);
+    newResolved.set(resolutionModal.recordIndex, data);
+    setResolvedRecords(newResolved);
+    
+    // Select the record
+    const newSelected = new Set(selectedIds);
+    newSelected.add(resolutionModal.recordIndex);
+    setSelectedIds(newSelected);
+    
+    // Close modal
+    setResolutionModal({ open: false, recordIndex: null, record: null });
+    
+    toast({
+      title: 'Pendência resolvida',
+      description: 'O registro foi marcado como resolvido e incluído na seleção.',
+    });
+  };
+
   const toggleRecord = (index: number) => {
+    const record = parseResult?.records[index];
+    if (!record) return;
+    
+    // Prevent deselecting a resolved record (they need to stay selected once resolved)
+    // But allow deselecting if it's not a resolved pending record
     const newSelected = new Set(selectedIds);
     if (newSelected.has(index)) {
+      // If it's a resolved pending record, just remove it
+      if (isRecordResolved(index)) {
+        // Also remove from resolved records
+        const newResolved = new Map(resolvedRecords);
+        newResolved.delete(index);
+        setResolvedRecords(newResolved);
+      }
       newSelected.delete(index);
     } else {
       newSelected.add(index);
@@ -288,13 +361,28 @@ export default function DailyMovement() {
   const toggleAll = () => {
     if (!parseResult) return;
     
-    const validCount = parseResult.records.filter(r => !r.error && r.valorPago > 0 && !r.isDuplicate).length;
-    if (selectedIds.size === validCount) {
+    // Count valid records (excluding those that require resolution and aren't resolved)
+    const validRecords = parseResult.records.filter((r, i) => {
+      if (r.error || r.isDuplicate) return false;
+      // For pending records, only count if resolved
+      if (requiresResolution(r)) return isRecordResolved(i);
+      // Normal records with payment
+      return r.valorPago > 0;
+    });
+    
+    if (selectedIds.size === validRecords.length && selectedIds.size > 0) {
       setSelectedIds(new Set());
     } else {
       const allValid = new Set<number>();
       parseResult.records.forEach((record, index) => {
-        if (!record.error && record.valorPago > 0 && !record.isDuplicate) {
+        if (record.error || record.isDuplicate) return;
+        // For pending records, only select if resolved
+        if (requiresResolution(record)) {
+          if (isRecordResolved(index)) allValid.add(index);
+          return;
+        }
+        // Normal records with payment
+        if (record.valorPago > 0) {
           allValid.add(index);
         }
       });
@@ -308,8 +396,15 @@ export default function DailyMovement() {
   }, [parseResult, selectedIds]);
 
   const totalSelectedValue = useMemo(() => {
-    return selectedRecords.reduce((sum, r) => sum + r.valorPago, 0);
-  }, [selectedRecords]);
+    return selectedRecords.reduce((sum, r, i) => {
+      // For resolved records, use the resolved amount
+      const originalIndex = parseResult?.records.indexOf(r);
+      if (originalIndex !== undefined && resolvedRecords.has(originalIndex)) {
+        return sum + resolvedRecords.get(originalIndex)!.amount;
+      }
+      return sum + r.valorPago;
+    }, 0);
+  }, [selectedRecords, parseResult, resolvedRecords]);
 
   const handleImport = async () => {
     if (!user || !parseResult || selectedIds.size === 0) return;
@@ -317,22 +412,33 @@ export default function DailyMovement() {
     setIsImporting(true);
 
     try {
-      const transactions = selectedRecords.map(record => {
+      const transactions = selectedRecords.map((record, idx) => {
         // Encontrar conta de caixa para a unidade
         let accountId = record.unitId ? unitAccounts[record.unitId] : null;
         if (!accountId) {
           accountId = unitAccounts['__fallback__'] || Object.values(unitAccounts)[0];
         }
 
+        // Check if this is a resolved pending record
+        const originalIndex = parseResult?.records.indexOf(record);
+        const resolution = originalIndex !== undefined ? resolvedRecords.get(originalIndex) : undefined;
+        
+        // Use resolved data if available
+        const amount = resolution ? resolution.amount : record.valorPago;
+        const paymentMethod = resolution ? resolution.paymentMethod : record.paymentMethod;
+        const description = resolution 
+          ? `[LIS ${record.codigo}] ${record.paciente} - ${record.convenio} | PENDÊNCIA RESOLVIDA: ${resolution.justification}`
+          : `[LIS ${record.codigo}] ${record.paciente} - ${record.convenio}`;
+
         return {
           date: record.data,
-          amount: record.valorPago,
+          amount,
           type: 'ENTRADA',
-          payment_method: record.paymentMethod,
+          payment_method: paymentMethod,
           account_id: accountId,
           category_id: CATEGORY_RECEBIMENTO_CLIENTES,
           unit_id: record.unitId,
-          description: `[LIS ${record.codigo}] ${record.paciente} - ${record.convenio}`,
+          description,
           status: 'APROVADO',
           approved_by: user.id,
           approved_at: new Date().toISOString(),
@@ -385,11 +491,15 @@ export default function DailyMovement() {
     }
   };
 
-  const getRowClassName = (record: LisRecord) => {
+  const getRowClassName = (record: LisRecord, isResolved?: boolean) => {
     if (record.isDuplicate) return 'bg-orange-500/20 text-orange-700 dark:text-orange-300';
     if (record.error) return 'bg-destructive/10 text-destructive';
+    // Pending financial record
+    if (requiresResolution(record)) {
+      if (isResolved) return 'bg-blue-500/10 text-blue-700 dark:text-blue-300';
+      return 'bg-destructive/10 text-destructive';
+    }
     if (record.valorPago <= 0) return 'bg-muted text-muted-foreground';
-    // Convênio com pagamento é válido, não precisa de destaque especial
     return '';
   };
 
@@ -521,16 +631,20 @@ export default function DailyMovement() {
                 <span>Com pagamento (válido)</span>
               </div>
               <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-destructive/20 border border-destructive/50" />
+                <span>Pendente financeiro</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded bg-blue-500/20 border border-blue-500/50" />
+                <span>Resolvido</span>
+              </div>
+              <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded bg-orange-500/20 border border-orange-500/50" />
                 <span>Duplicata</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 rounded bg-muted border" />
-                <span>Valor zero (ignorado)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-destructive/20 border border-destructive/50" />
-                <span>Erro</span>
+                <span>Ignorado</span>
               </div>
             </div>
 
@@ -555,22 +669,46 @@ export default function DailyMovement() {
                     <TableBody>
                       {parseResult.records.map((record, index) => {
                         const isSelected = selectedIds.has(index);
-                        const isDisabled = !!record.error || record.valorPago <= 0 || record.isDuplicate;
+                        const isPending = requiresResolution(record);
+                        const isResolved = isRecordResolved(index);
+                        const resolution = resolvedRecords.get(index);
+                        
+                        // Disable if: error, duplicate, or (value is 0 AND not a pending record)
+                        const isDisabled = !!record.error || record.isDuplicate || 
+                          (record.valorPago <= 0 && !isPending);
 
                         return (
                           <TableRow
                             key={index}
                             className={cn(
-                              getRowClassName(record),
-                              isSelected && !isDisabled && 'bg-primary/5'
+                              getRowClassName(record, isResolved),
+                              isSelected && !isDisabled && 'bg-primary/5',
+                              isPending && !isResolved && 'cursor-pointer hover:bg-destructive/5'
                             )}
+                            onClick={isPending && !isResolved ? () => handleRecordClick(index, record) : undefined}
                           >
-                            <TableCell>
-                              <Checkbox
-                                checked={isSelected}
-                                onCheckedChange={() => toggleRecord(index)}
-                                disabled={isDisabled}
-                              />
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              {isPending && !isResolved ? (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="w-6 h-6 rounded bg-destructive/20 flex items-center justify-center cursor-pointer hover:bg-destructive/30"
+                                           onClick={() => handleRecordClick(index, record)}>
+                                        <AlertTriangle className="h-4 w-4 text-destructive" />
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      Clique para resolver a pendência
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              ) : (
+                                <Checkbox
+                                  checked={isSelected}
+                                  onCheckedChange={() => toggleRecord(index)}
+                                  disabled={isDisabled}
+                                />
+                              )}
                             </TableCell>
                             <TableCell className="font-mono text-xs">
                               {record.data}
@@ -598,12 +736,33 @@ export default function DailyMovement() {
                               </Badge>
                             </TableCell>
                             <TableCell className="text-right font-mono">
-                              {formatCurrency(record.valorPago)}
+                              {isResolved && resolution ? (
+                                <span className="text-blue-600 font-semibold">
+                                  {formatCurrency(resolution.amount)}
+                                </span>
+                              ) : (
+                                formatCurrency(record.valorPago)
+                              )}
                             </TableCell>
                             <TableCell>
-                              <span title={record.formaPagamento}>
-                                {getPaymentMethodIcon(record.paymentMethod)}
-                              </span>
+                              {isResolved && resolution ? (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <span className="text-blue-600">
+                                        {getPaymentMethodIcon(resolution.paymentMethod)}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      {resolution.justification}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              ) : (
+                                <span title={record.formaPagamento}>
+                                  {getPaymentMethodIcon(record.paymentMethod)}
+                                </span>
+                              )}
                             </TableCell>
                             <TableCell>
                               {record.isDuplicate ? (
@@ -615,6 +774,17 @@ export default function DailyMovement() {
                                 <Badge variant="destructive" className="text-xs">
                                   <XCircle className="h-3 w-3 mr-1" />
                                   Erro
+                                </Badge>
+                              ) : isPending && !isResolved ? (
+                                <Badge variant="destructive" className="text-xs cursor-pointer"
+                                       onClick={() => handleRecordClick(index, record)}>
+                                  <AlertTriangle className="h-3 w-3 mr-1" />
+                                  Pendente
+                                </Badge>
+                              ) : isResolved ? (
+                                <Badge className="text-xs bg-blue-600">
+                                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                                  Resolvido
                                 </Badge>
                               ) : record.valorPago <= 0 ? (
                                 <Badge variant="secondary" className="text-xs">
@@ -638,6 +808,13 @@ export default function DailyMovement() {
           </>
         )}
       </div>
+      {/* Financial Resolution Modal */}
+      <FinancialResolutionModal
+        record={resolutionModal.record}
+        open={resolutionModal.open}
+        onClose={() => setResolutionModal({ open: false, recordIndex: null, record: null })}
+        onResolve={handleResolution}
+      />
     </AppLayout>
   );
 }
