@@ -1,5 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchPayablesDashboardSummary, fetchUnreconciledOutgoingTransactions } from '../api/transactions.api';
+import { 
+  fetchPayablesDashboardSummary, 
+  fetchUnreconciledOutgoingTransactions,
+  fetchMonthlyPayablesHistory,
+} from '../api/transactions.api';
 
 export function usePayablesDashboard(unitId?: string) {
   return useQuery({
@@ -14,5 +18,13 @@ export function useUnreconciledTransactions(unitId?: string) {
     queryKey: ['unreconciled-transactions', unitId],
     queryFn: () => fetchUnreconciledOutgoingTransactions(unitId),
     staleTime: 1000 * 60 * 2, // 2 minutes
+  });
+}
+
+export function usePayablesMonthlyHistory(unitId?: string, months: number = 6) {
+  return useQuery({
+    queryKey: ['payables-monthly-history', unitId, months],
+    queryFn: () => fetchMonthlyPayablesHistory(unitId, months),
+    staleTime: 1000 * 60 * 10, // 10 minutes
   });
 }

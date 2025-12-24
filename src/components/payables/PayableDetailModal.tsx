@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { FileText, Check, Download, ExternalLink } from 'lucide-react';
+import { FileText, Check, Download, ExternalLink, Pencil, X, Copy, Save, Loader2 } from 'lucide-react';
 
 import {
   Dialog,
@@ -13,14 +13,33 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { supabase } from '@/integrations/supabase/client';
+import { useUpdatePayable } from '@/features/payables/hooks/usePayables';
+import { toast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 import type { Payable } from '@/types/payables';
+import { Calendar as CalendarIcon } from 'lucide-react';
 
 interface PayableDetailModalProps {
   payable: Payable | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onMarkAsPaid?: (payable: Payable) => void;
+  onPayableUpdated?: () => void;
+}
+
+interface FormData {
+  beneficiario: string;
+  valor: number;
+  vencimento: Date;
+  beneficiario_cnpj: string;
+  description: string;
+  linha_digitavel: string;
 }
 
 export function PayableDetailModal({
@@ -28,9 +47,38 @@ export function PayableDetailModal({
   open,
   onOpenChange,
   onMarkAsPaid,
+  onPayableUpdated,
 }: PayableDetailModalProps) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState<FormData>({
+    beneficiario: '',
+    valor: 0,
+    vencimento: new Date(),
+    beneficiario_cnpj: '',
+    description: '',
+    linha_digitavel: '',
+  });
+
+  const updatePayable = useUpdatePayable();
+
+  // Reset editing state when modal closes or payable changes
+  useEffect(() => {
+    if (!open) {
+      setIsEditing(false);
+    }
+    if (payable) {
+      setFormData({
+        beneficiario: payable.beneficiario || '',
+        valor: payable.valor,
+        vencimento: new Date(payable.vencimento),
+        beneficiario_cnpj: payable.beneficiario_cnpj || '',
+        description: payable.description || '',
+        linha_digitavel: payable.linha_digitavel || '',
+      });
+    }
+  }, [payable, open]);
 
   useEffect(() => {
     if (payable?.file_path && open) {
@@ -55,6 +103,54 @@ export function PayableDetailModal({
     } finally {
       setLoadingPdf(false);
     }
+  };
+
+  const handleCopyLinhaDigitavel = () => {
+    if (payable?.linha_digitavel) {
+      navigator.clipboard.writeText(payable.linha_digitavel);
+      toast({
+        title: 'Copiado!',
+        description: 'Linha digitável copiada para a área de transferência.',
+      });
+    }
+  };
+
+  const handleSave = () => {
+    if (!payable) return;
+
+    updatePayable.mutate(
+      {
+        id: payable.id,
+        data: {
+          beneficiario: formData.beneficiario,
+          valor: formData.valor,
+          vencimento: format(formData.vencimento, 'yyyy-MM-dd'),
+          beneficiario_cnpj: formData.beneficiario_cnpj || undefined,
+          description: formData.description || undefined,
+          linha_digitavel: formData.linha_digitavel || undefined,
+        },
+      },
+      {
+        onSuccess: () => {
+          setIsEditing(false);
+          onPayableUpdated?.();
+        },
+      }
+    );
+  };
+
+  const handleCancelEdit = () => {
+    if (payable) {
+      setFormData({
+        beneficiario: payable.beneficiario || '',
+        valor: payable.valor,
+        vencimento: new Date(payable.vencimento),
+        beneficiario_cnpj: payable.beneficiario_cnpj || '',
+        description: payable.description || '',
+        linha_digitavel: payable.linha_digitavel || '',
+      });
+    }
+    setIsEditing(false);
   };
 
   if (!payable) return null;
@@ -85,90 +181,209 @@ export function PayableDetailModal({
     </div>
   );
 
+  const formatCurrency = (value: number) =>
+    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
-            <span>Detalhes do Boleto</span>
-            {getStatusBadge()}
+            <span>{isEditing ? 'Editar Boleto' : 'Detalhes do Boleto'}</span>
+            <div className="flex items-center gap-2">
+              {getStatusBadge()}
+              {!isEditing && payable.status === 'pendente' && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsEditing(true)}
+                  title="Editar"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Header Info */}
-          <div className="bg-muted/50 rounded-lg p-4">
-            <h3 className="text-lg font-semibold mb-1">{payable.beneficiario || 'Beneficiário não informado'}</h3>
-            <p className="text-2xl font-bold text-primary">
-              {payable.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-            </p>
-          </div>
-
-          {/* Basic Info */}
-          <div className="divide-y">
-            <InfoRow 
-              label="Vencimento" 
-              value={format(new Date(payable.vencimento), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })} 
-            />
-            {payable.parcela_numero && payable.parcela_total && (
-              <InfoRow 
-                label="Parcela" 
-                value={`${payable.parcela_numero} de ${payable.parcela_total}`} 
-              />
-            )}
-            {payable.beneficiario_cnpj && (
-              <InfoRow label="CNPJ" value={payable.beneficiario_cnpj} />
-            )}
-            {payable.banco_nome && (
-              <InfoRow 
-                label="Banco" 
-                value={`${payable.banco_nome}${payable.banco_codigo ? ` (${payable.banco_codigo})` : ''}`} 
-              />
-            )}
-            {payable.description && (
-              <InfoRow label="Descrição" value={payable.description} />
-            )}
-          </div>
-
-          {/* Linha Digitável */}
-          {payable.linha_digitavel && (
-            <div className="space-y-1">
-              <label className="text-sm text-muted-foreground">Linha digitável</label>
-              <div className="bg-muted p-3 rounded-md font-mono text-sm break-all">
-                {payable.linha_digitavel}
-              </div>
-            </div>
-          )}
-
-          {/* Payment Info (if paid) */}
-          {payable.status === 'pago' && payable.paid_at && (
-            <>
-              <Separator />
+          {isEditing ? (
+            // Edit Mode
+            <div className="space-y-4">
               <div className="space-y-2">
-                <h4 className="font-semibold text-green-600 flex items-center gap-2">
-                  <Check className="h-4 w-4" />
-                  Pagamento Realizado
-                </h4>
-                <div className="divide-y">
-                  <InfoRow 
-                    label="Data do pagamento" 
-                    value={format(new Date(payable.paid_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })} 
+                <Label htmlFor="beneficiario">Beneficiário</Label>
+                <Input
+                  id="beneficiario"
+                  value={formData.beneficiario}
+                  onChange={(e) => setFormData({ ...formData, beneficiario: e.target.value })}
+                  placeholder="Nome do beneficiário"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="valor">Valor</Label>
+                  <Input
+                    id="valor"
+                    type="number"
+                    step="0.01"
+                    value={formData.valor}
+                    onChange={(e) => setFormData({ ...formData, valor: parseFloat(e.target.value) || 0 })}
+                    placeholder="0,00"
                   />
-                  {payable.paid_amount && (
-                    <InfoRow 
-                      label="Valor pago" 
-                      value={payable.paid_amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} 
-                    />
-                  )}
-                  {payable.paid_method && (
-                    <InfoRow label="Método" value={payable.paid_method} />
-                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Vencimento</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          'w-full justify-start text-left font-normal',
+                          !formData.vencimento && 'text-muted-foreground'
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {formData.vencimento
+                          ? format(formData.vencimento, 'dd/MM/yyyy', { locale: ptBR })
+                          : 'Selecione'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={formData.vencimento}
+                        onSelect={(date) => date && setFormData({ ...formData, vencimento: date })}
+                        locale={ptBR}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="cnpj">CNPJ do Beneficiário</Label>
+                <Input
+                  id="cnpj"
+                  value={formData.beneficiario_cnpj}
+                  onChange={(e) => setFormData({ ...formData, beneficiario_cnpj: e.target.value })}
+                  placeholder="00.000.000/0000-00"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="description">Descrição</Label>
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Descrição ou observações"
+                  rows={2}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="linha_digitavel">Linha Digitável</Label>
+                <Input
+                  id="linha_digitavel"
+                  value={formData.linha_digitavel}
+                  onChange={(e) => setFormData({ ...formData, linha_digitavel: e.target.value })}
+                  placeholder="Digite a linha digitável do boleto"
+                  className="font-mono"
+                />
+              </div>
+            </div>
+          ) : (
+            // View Mode
+            <>
+              {/* Header Info */}
+              <div className="bg-muted/50 rounded-lg p-4">
+                <h3 className="text-lg font-semibold mb-1">{payable.beneficiario || 'Beneficiário não informado'}</h3>
+                <p className="text-2xl font-bold text-primary">
+                  {formatCurrency(payable.valor)}
+                </p>
+              </div>
+
+              {/* Basic Info */}
+              <div className="divide-y">
+                <InfoRow 
+                  label="Vencimento" 
+                  value={format(new Date(payable.vencimento), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })} 
+                />
+                {payable.parcela_numero && payable.parcela_total && (
+                  <InfoRow 
+                    label="Parcela" 
+                    value={`${payable.parcela_numero} de ${payable.parcela_total}`} 
+                  />
+                )}
+                {payable.beneficiario_cnpj && (
+                  <InfoRow label="CNPJ" value={payable.beneficiario_cnpj} />
+                )}
+                {payable.banco_nome && (
+                  <InfoRow 
+                    label="Banco" 
+                    value={`${payable.banco_nome}${payable.banco_codigo ? ` (${payable.banco_codigo})` : ''}`} 
+                  />
+                )}
+                {payable.description && (
+                  <InfoRow label="Descrição" value={payable.description} />
+                )}
+              </div>
+
+              {/* Linha Digitável */}
+              {payable.linha_digitavel && (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm text-muted-foreground">Linha digitável</label>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCopyLinhaDigitavel}
+                      className="h-8 gap-1"
+                    >
+                      <Copy className="h-3 w-3" />
+                      Copiar
+                    </Button>
+                  </div>
+                  <div className="bg-muted p-3 rounded-md font-mono text-sm break-all">
+                    {payable.linha_digitavel}
+                  </div>
+                </div>
+              )}
+
+              {/* Payment Info (if paid) */}
+              {payable.status === 'pago' && payable.paid_at && (
+                <>
+                  <Separator />
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-green-600 flex items-center gap-2">
+                      <Check className="h-4 w-4" />
+                      Pagamento Realizado
+                    </h4>
+                    <div className="divide-y">
+                      <InfoRow 
+                        label="Data do pagamento" 
+                        value={format(new Date(payable.paid_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })} 
+                      />
+                      {payable.paid_amount && (
+                        <InfoRow 
+                          label="Valor pago" 
+                          value={formatCurrency(payable.paid_amount)} 
+                        />
+                      )}
+                      {payable.paid_method && (
+                        <InfoRow label="Método" value={payable.paid_method} />
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </>
           )}
 
-          {/* PDF Viewer */}
+          {/* PDF Viewer - shown in both modes */}
           {payable.file_path && (
             <>
               <Separator />
@@ -217,15 +432,34 @@ export function PayableDetailModal({
         </div>
 
         <DialogFooter>
-          {payable.status === 'pendente' && onMarkAsPaid && (
-            <Button onClick={() => onMarkAsPaid(payable)} className="gap-2">
-              <Check className="h-4 w-4" />
-              Marcar como Pago
-            </Button>
+          {isEditing ? (
+            <>
+              <Button variant="outline" onClick={handleCancelEdit} disabled={updatePayable.isPending}>
+                <X className="h-4 w-4 mr-1" />
+                Cancelar
+              </Button>
+              <Button onClick={handleSave} disabled={updatePayable.isPending}>
+                {updatePayable.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-1" />
+                )}
+                Salvar
+              </Button>
+            </>
+          ) : (
+            <>
+              {payable.status === 'pendente' && onMarkAsPaid && (
+                <Button onClick={() => onMarkAsPaid(payable)} className="gap-2">
+                  <Check className="h-4 w-4" />
+                  Marcar como Pago
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Fechar
+              </Button>
+            </>
           )}
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Fechar
-          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

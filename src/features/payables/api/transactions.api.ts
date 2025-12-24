@@ -125,3 +125,94 @@ function groupPayablesByWeek(payables: Array<{ vencimento: string; valor: number
 
   return Object.entries(weeks).map(([name, value]) => ({ name, value }));
 }
+
+export interface MonthlyPayablesHistoryPoint {
+  month: string;
+  pagos: number;
+  vencidos: number;
+}
+
+/**
+ * Fetch monthly history of paid vs overdue payables for the last N months
+ */
+export async function fetchMonthlyPayablesHistory(
+  unitId?: string,
+  months: number = 6
+): Promise<MonthlyPayablesHistoryPoint[]> {
+  const today = new Date();
+  const startDate = new Date(today.getFullYear(), today.getMonth() - months + 1, 1);
+  const startDateStr = startDate.toISOString().split('T')[0];
+
+  // Fetch paid payables (using paid_at for the month they were paid)
+  let paidQuery = supabase
+    .from('payables')
+    .select('paid_at, paid_amount, valor')
+    .eq('status', 'pago')
+    .gte('paid_at', startDateStr);
+
+  if (unitId) {
+    paidQuery = paidQuery.eq('unit_id', unitId);
+  }
+
+  // Fetch overdue/pending payables (using vencimento for when they were due)
+  let overdueQuery = supabase
+    .from('payables')
+    .select('vencimento, valor, status')
+    .in('status', ['pendente', 'vencido'])
+    .gte('vencimento', startDateStr)
+    .lte('vencimento', today.toISOString().split('T')[0]);
+
+  if (unitId) {
+    overdueQuery = overdueQuery.eq('unit_id', unitId);
+  }
+
+  const [paidResult, overdueResult] = await Promise.all([paidQuery, overdueQuery]);
+
+  if (paidResult.error) throw paidResult.error;
+  if (overdueResult.error) throw overdueResult.error;
+
+  // Group by month
+  const monthlyData: Record<string, { pagos: number; vencidos: number }> = {};
+
+  // Initialize all months
+  for (let i = 0; i < months; i++) {
+    const d = new Date(today.getFullYear(), today.getMonth() - months + 1 + i, 1);
+    const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    monthlyData[monthKey] = { pagos: 0, vencidos: 0 };
+  }
+
+  // Sum paid amounts by month
+  for (const p of paidResult.data || []) {
+    if (p.paid_at) {
+      const paidDate = new Date(p.paid_at);
+      const monthKey = `${paidDate.getFullYear()}-${String(paidDate.getMonth() + 1).padStart(2, '0')}`;
+      if (monthlyData[monthKey]) {
+        monthlyData[monthKey].pagos += p.paid_amount || p.valor;
+      }
+    }
+  }
+
+  // Sum overdue amounts by month
+  for (const p of overdueResult.data || []) {
+    const dueDate = new Date(p.vencimento);
+    const monthKey = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}`;
+    if (monthlyData[monthKey]) {
+      monthlyData[monthKey].vencidos += p.valor;
+    }
+  }
+
+  // Format month labels (MMM/YY)
+  const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  
+  return Object.entries(monthlyData)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, data]) => {
+      const [year, month] = key.split('-');
+      const monthLabel = `${monthNames[parseInt(month) - 1]}/${year.slice(2)}`;
+      return {
+        month: monthLabel,
+        pagos: data.pagos,
+        vencidos: data.vencidos,
+      };
+    });
+}
