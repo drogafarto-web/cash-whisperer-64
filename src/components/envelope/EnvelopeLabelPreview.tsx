@@ -15,6 +15,7 @@ interface EnvelopeLabelPreviewProps {
   createdAt: string;
   lisCodes: string[];
   labelAlreadyPrinted: boolean;
+  reprintCount: number;
   onPrintLabel: () => void;
   onDownloadZpl: () => void;
 }
@@ -29,6 +30,7 @@ export function EnvelopeLabelPreview({
   createdAt,
   lisCodes,
   labelAlreadyPrinted,
+  reprintCount,
   onPrintLabel,
   onDownloadZpl,
 }: EnvelopeLabelPreviewProps) {
@@ -59,7 +61,12 @@ export function EnvelopeLabelPreview({
   return (
     <div className="space-y-4">
       {/* Preview da etiqueta */}
-      <Card className="border-2 border-dashed">
+      <Card className="border-2 border-dashed relative">
+        {reprintCount > 0 && (
+          <div className="absolute top-2 right-2 bg-amber-500 text-white px-2 py-1 rounded text-xs font-bold z-10">
+            CÓPIA {reprintCount}
+          </div>
+        )}
         <CardHeader className="bg-muted/50 pb-2">
           <CardTitle className="text-center text-lg">ENVELOPE DE DINHEIRO</CardTitle>
         </CardHeader>
@@ -139,7 +146,10 @@ export function EnvelopeLabelPreview({
 
       {labelAlreadyPrinted && (
         <p className="text-sm text-center text-muted-foreground">
-          ⚠️ Etiqueta já impressa anteriormente. Reimprimir marcará como CÓPIA.
+          ⚠️ Etiqueta já impressa anteriormente. 
+          {reprintCount > 0 
+            ? ` Já foram feitas ${reprintCount} cópia(s).` 
+            : ' Reimprimir marcará como CÓPIA 1.'}
         </p>
       )}
     </div>

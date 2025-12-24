@@ -370,6 +370,7 @@ export type Database = {
           label_printed_by: string | null
           lis_codes: string[]
           lis_codes_count: number | null
+          reprint_count: number
           status: string
           unit_id: string | null
         }
@@ -388,6 +389,7 @@ export type Database = {
           label_printed_by?: string | null
           lis_codes?: string[]
           lis_codes_count?: number | null
+          reprint_count?: number
           status?: string
           unit_id?: string | null
         }
@@ -406,6 +408,7 @@ export type Database = {
           label_printed_by?: string | null
           lis_codes?: string[]
           lis_codes_count?: number | null
+          reprint_count?: number
           status?: string
           unit_id?: string | null
         }

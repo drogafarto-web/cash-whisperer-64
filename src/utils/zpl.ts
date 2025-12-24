@@ -16,6 +16,7 @@ export interface ZplEnvelopeData {
   lisCodes: string[];
   closedByName: string;
   closureId: string;
+  copyNumber?: number; // Número da cópia para reimpressões
 }
 
 /**
@@ -97,6 +98,14 @@ export function generateEnvelopeZpl(data: ZplEnvelopeData): string {
 ^CF0,35
 ^FO20,${yPos}^FDENVELOPE DE DINHEIRO^FS
 `;
+
+  // Se for cópia, adicionar indicador no canto superior direito
+  if (data.copyNumber && data.copyNumber > 0) {
+    zpl += `^CF0,25
+^FO400,${yPos}^FR^FB180,1,0,R^FD*** COPIA ${data.copyNumber} ***^FS
+`;
+  }
+
   yPos += 45;
 
   zpl += `
