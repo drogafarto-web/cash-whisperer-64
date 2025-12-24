@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.check-payable-alerts]
 verify_jwt = false
+
+[functions.check-cashflow-alerts]
+verify_jwt = false

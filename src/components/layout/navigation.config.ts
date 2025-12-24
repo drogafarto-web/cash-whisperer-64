@@ -101,6 +101,8 @@ export const navigationGroups: NavGroup[] = [
     badgeKey: 'tributacao',
     items: [
       { name: 'Cenários Tributários', href: '/reports/tax-scenarios', icon: Calculator, roles: ['admin', 'contabilidade'] },
+      { name: 'Fluxo de Caixa', href: '/reports/cashflow-projection', icon: TrendingUp, roles: ['admin', 'contabilidade'] },
+      { name: 'Patrimônio', href: '/reports/patrimony', icon: Building2, roles: ['admin', 'contabilidade'] },
       { name: 'Config. Tributária', href: '/settings/tax-config', icon: Settings, roles: ['admin'] },
     ],
   },
