@@ -68,9 +68,12 @@ export function useEnvelopeSelection(availableItems: LisItemForEnvelope[]) {
     });
   }, []);
 
-  // Selecionar todos os items
+  // Selecionar todos os items que são DINHEIRO
   const selectAll = useCallback(() => {
-    setSelectedIds(new Set(availableItems.map(item => item.id)));
+    const selectableItems = availableItems.filter(
+      item => item.payment_method === 'DINHEIRO'
+    );
+    setSelectedIds(new Set(selectableItems.map(item => item.id)));
   }, [availableItems]);
 
   // Desmarcar todos os items
@@ -93,12 +96,18 @@ export function useEnvelopeSelection(availableItems: LisItemForEnvelope[]) {
     return Array.from(selectedIds);
   }, [selectedIds]);
 
+  // Calcular quantos são selecionáveis (apenas DINHEIRO)
+  const selectableCount = useMemo(() => 
+    availableItems.filter(item => item.payment_method === 'DINHEIRO').length,
+  [availableItems]);
+
   return {
     // Estado
     selectedIds: selectionState.selectedIds,
     expectedCash: selectionState.expectedCash,
     selectedCount: selectionState.selectedCount,
-    allSelected: availableItems.length > 0 && selectionState.selectedCount === availableItems.length,
+    selectableCount,
+    allSelected: selectableCount > 0 && selectionState.selectedCount === selectableCount,
     
     // Ações
     toggleItem,
