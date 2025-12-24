@@ -107,7 +107,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    
+    // Update last_access on successful login
+    if (data?.user && !error) {
+      supabase
+        .from('profiles')
+        .update({ last_access: new Date().toISOString() })
+        .eq('id', data.user.id)
+        .then(() => {});
+    }
+    
     return { error: error as Error | null };
   };
 
