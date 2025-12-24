@@ -48,6 +48,8 @@ import {
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { HelpCircle } from 'lucide-react';
 import { AttendantDashboard } from '@/components/dashboard/AttendantDashboard';
+import { FinanceiroDashboard } from '@/components/dashboard/FinanceiroDashboard';
+import { ContadorDashboard } from '@/components/dashboard/ContadorDashboard';
 
 // Thresholds configuráveis
 const THRESHOLDS = {
@@ -111,7 +113,7 @@ interface PartnerDependency {
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { user, role, isLoading: authLoading, isSecretaria } = useAuth();
+  const { user, role, isLoading: authLoading, isSecretaria, isFinanceiro, isContador } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   
   // Filtros
@@ -167,9 +169,17 @@ export default function Dashboard() {
     // secretaria e admin ficam no dashboard (secretaria vê AttendantDashboard)
   }, [user, role, authLoading, navigate]);
 
-  // Se for secretaria, renderizar dashboard simplificado
+  // Renderizar dashboard específico por papel
   if (!authLoading && isSecretaria) {
     return <AttendantDashboard />;
+  }
+
+  if (!authLoading && isFinanceiro) {
+    return <FinanceiroDashboard />;
+  }
+
+  if (!authLoading && isContador) {
+    return <ContadorDashboard />;
   }
 
   // Fetch units
