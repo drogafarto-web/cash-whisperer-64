@@ -33,6 +33,8 @@ import TransactionsReport from "./pages/reports/TransactionsReport";
 import TaxScenarios from "./pages/reports/TaxScenarios";
 import PersonnelRealVsOfficial from "./pages/reports/PersonnelRealVsOfficial";
 import LisClosuresReport from "./pages/reports/LisClosuresReport";
+import CashflowProjection from "./pages/reports/CashflowProjection";
+import Patrimony from "./pages/reports/Patrimony";
 
 // Import pages
 import DailyMovement from "./pages/import/DailyMovement";
@@ -90,6 +92,8 @@ const App = () => (
             <Route path="/reports/tax-scenarios" element={<TaxScenarios />} />
             <Route path="/reports/personnel-real-vs-official" element={<PersonnelRealVsOfficial />} />
             <Route path="/reports/lis-closures" element={<LisClosuresReport />} />
+            <Route path="/reports/cashflow-projection" element={<CashflowProjection />} />
+            <Route path="/reports/patrimony" element={<Patrimony />} />
             <Route path="/import/daily-movement" element={<DailyMovement />} />
             <Route path="/import/bank-statement" element={<BankStatement />} />
             <Route path="/import/extrato-particulares" element={<ExtratoParticulares />} />
