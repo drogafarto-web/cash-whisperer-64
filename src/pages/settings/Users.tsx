@@ -4,7 +4,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -50,7 +49,13 @@ import { Profile, AppRole, Unit } from '@/types/database';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { Plus, Loader2, UserCog, HelpCircle, Building2, Search, UserX, UserCheck, Clock } from 'lucide-react';
+import { Plus, Loader2, UserCog, Building2, Search, UserX, UserCheck, Clock, Mail, MailPlus } from 'lucide-react';
+
+// Componentes RBAC
+import { RoleSummaryPanel } from '@/components/users/RoleSummaryPanel';
+import { RoleGuideModal } from '@/components/users/RoleGuideModal';
+import { UserFormAdaptive } from '@/components/users/UserFormAdaptive';
+import { ROLE_CONFIG } from '@/lib/access-policy';
 
 interface UserWithRole extends Profile {
   role?: AppRole;
@@ -59,39 +64,25 @@ interface UserWithRole extends Profile {
   last_access?: string | null;
 }
 
-// Configuração de papéis com labels e descrições
-const ROLE_CONFIG: Record<AppRole, { label: string; description: string; variant: 'default' | 'secondary' | 'outline' }> = {
-  admin: { 
-    label: 'Administrador', 
-    description: 'Acesso total ao sistema: todos os módulos, configurações e dados sensíveis',
-    variant: 'default'
-  },
-  contabilidade: { 
-    label: 'Contabilidade', 
-    description: 'Acesso a relatórios, cenários tributários, Fator R e exportações. Sem acesso a config.',
-    variant: 'secondary'
-  },
-  financeiro: { 
-    label: 'Financeiro', 
-    description: 'Contas a pagar, conciliação, extratos bancários. Sem acesso a config tributária.',
-    variant: 'secondary'
-  },
-  contador: { 
-    label: 'Contador/Consultor', 
-    description: 'Base fiscal: folha, impostos, parâmetros tributários. Sem acesso à operação diária.',
-    variant: 'secondary'
-  },
-  gestor_unidade: { 
-    label: 'Gestor de Unidade', 
-    description: 'Visão completa da própria unidade: transações, caixa, relatórios filtrados',
-    variant: 'secondary'
-  },
-  secretaria: { 
-    label: 'Atendente', 
-    description: 'Operacional: registra transações, fechamento de caixa, uploads. Dashboard simplificado',
-    variant: 'outline'
-  },
-};
+// Tipo de status para UI
+type UserStatus = 'active' | 'inactive' | 'invited';
+
+function getUserStatus(user: UserWithRole): UserStatus {
+  if (user.is_active === false) return 'inactive';
+  if (!user.last_access) return 'invited';
+  return 'active';
+}
+
+function getStatusConfig(status: UserStatus) {
+  switch (status) {
+    case 'active':
+      return { label: 'Ativo', variant: 'default' as const };
+    case 'inactive':
+      return { label: 'Suspenso', variant: 'secondary' as const };
+    case 'invited':
+      return { label: 'Convidado', variant: 'outline' as const };
+  }
+}
 
 export default function UsersSettings() {
   const navigate = useNavigate();
@@ -110,13 +101,7 @@ export default function UsersSettings() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deactivateUser, setDeactivateUser] = useState<UserWithRole | null>(null);
-  
-  // Form state
-  const [email, setEmail] = useState('');
-  const [name, setName] = useState('');
-  const [password, setPassword] = useState('');
-  const [role, setRole] = useState<AppRole>('secretaria');
-  const [unitId, setUnitId] = useState<string>('');
+  const [resendingInvite, setResendingInvite] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -185,8 +170,12 @@ export default function UsersSettings() {
       }
       
       // Role filter
-      if (filterRole !== 'all' && u.role !== filterRole) {
-        return false;
+      if (filterRole !== 'all') {
+        if (filterRole === 'sem_perfil') {
+          if (u.role) return false;
+        } else if (u.role !== filterRole) {
+          return false;
+        }
       }
       
       // Unit filter
@@ -197,27 +186,31 @@ export default function UsersSettings() {
       
       // Status filter
       if (filterStatus !== 'all') {
-        const isActive = u.is_active !== false;
-        if (filterStatus === 'active' && !isActive) return false;
-        if (filterStatus === 'inactive' && isActive) return false;
+        const status = getUserStatus(u);
+        if (filterStatus !== status) return false;
       }
       
       return true;
     });
   }, [users, searchTerm, filterRole, filterUnit, filterStatus]);
 
-  const handleCreateUser = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreateUser = async (data: {
+    email: string;
+    name: string;
+    password: string;
+    role: AppRole;
+    unitId: string;
+  }) => {
     if (!user) return;
 
     setIsSubmitting(true);
     try {
       // Create user via auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
+        email: data.email,
+        password: data.password,
         options: {
-          data: { name },
+          data: { name: data.name },
           emailRedirectTo: `${window.location.origin}/`,
         }
       });
@@ -230,7 +223,7 @@ export default function UsersSettings() {
           .from('user_roles')
           .insert({
             user_id: authData.user.id,
-            role: role,
+            role: data.role,
           });
 
         if (roleError) {
@@ -238,21 +231,16 @@ export default function UsersSettings() {
         }
 
         // Update profile with unit_id if selected
-        if (unitId) {
+        if (data.unitId) {
           await supabase
             .from('profiles')
-            .update({ unit_id: unitId })
+            .update({ unit_id: data.unitId })
             .eq('id', authData.user.id);
         }
       }
 
       toast.success('Usuário criado com sucesso!');
       setIsDialogOpen(false);
-      setEmail('');
-      setName('');
-      setPassword('');
-      setRole('secretaria');
-      setUnitId('');
       fetchUsers();
     } catch (error: any) {
       console.error('Error creating user:', error);
@@ -314,12 +302,35 @@ export default function UsersSettings() {
 
       if (error) throw error;
       
-      toast.success(newStatus ? 'Usuário reativado!' : 'Usuário desativado!');
+      toast.success(newStatus ? 'Usuário reativado!' : 'Usuário suspenso!');
       setDeactivateUser(null);
       fetchUsers();
     } catch (error) {
       console.error('Error toggling user status:', error);
       toast.error('Erro ao alterar status do usuário');
+    }
+  };
+
+  const handleResendInvite = async (targetUser: UserWithRole) => {
+    setResendingInvite(targetUser.id);
+    try {
+      // Reenvia o email de convite
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: targetUser.email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+        }
+      });
+
+      if (error) throw error;
+      
+      toast.success('Convite reenviado!');
+    } catch (error: any) {
+      console.error('Error resending invite:', error);
+      toast.error('Erro ao reenviar convite');
+    } finally {
+      setResendingInvite(null);
     }
   };
 
@@ -345,142 +356,47 @@ export default function UsersSettings() {
   return (
     <AppLayout>
       <TooltipProvider>
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-4 animate-fade-in">
+          {/* Header */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h1 className="text-2xl font-bold text-foreground">Usuários</h1>
               <p className="text-muted-foreground">Gerencie os usuários e permissões do sistema</p>
             </div>
             
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Novo Usuário
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Criar Novo Usuário</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleCreateUser} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Nome</Label>
-                    <Input
-                      id="name"
-                      value={name}
-                      onChange={e => setName(e.target.value)}
-                      placeholder="Nome completo"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      placeholder="email@empresa.com"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Senha</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      placeholder="Mínimo 6 caracteres"
-                      minLength={6}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label>Perfil</Label>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <HelpCircle className="w-4 h-4 text-muted-foreground cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          <p>Define as permissões e acessos do usuário no sistema</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <Select value={role} onValueChange={value => setRole(value as AppRole)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(ROLE_CONFIG).map(([key, config]) => (
-                          <SelectItem key={key} value={key}>
-                            <span>{config.label}</span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Label>Unidade Vinculada</Label>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <HelpCircle className="w-4 h-4 text-muted-foreground cursor-help" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          <p>Limita o acesso do usuário aos dados da unidade selecionada. Deixe vazio para acesso a todas.</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <Select
-                      value={unitId || 'all'}
-                      onValueChange={(value) => setUnitId(value === 'all' ? '' : value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Todas as unidades" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todas as unidades</SelectItem>
-                        {units.map(unit => (
-                          <SelectItem key={unit.id} value={unit.id}>
-                            {unit.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button type="submit" className="w-full" disabled={isSubmitting}>
-                    {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                    Criar Usuário
+            <div className="flex gap-2">
+              <RoleGuideModal />
+              
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Novo Usuário
                   </Button>
-                </form>
-              </DialogContent>
-            </Dialog>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Criar Novo Usuário</DialogTitle>
+                  </DialogHeader>
+                  <UserFormAdaptive
+                    units={units}
+                    isSubmitting={isSubmitting}
+                    onSubmit={handleCreateUser}
+                  />
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
 
-          {/* Legend */}
-          <Card>
-            <CardContent className="py-3">
-              <div className="flex flex-wrap gap-4 text-sm">
-                {Object.entries(ROLE_CONFIG).map(([key, config]) => (
-                  <Tooltip key={key}>
-                    <TooltipTrigger asChild>
-                      <div className="flex items-center gap-2 cursor-help">
-                        <Badge variant={config.variant}>{config.label}</Badge>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      <p>{config.description}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          {/* Role Summary Panel */}
+          <RoleSummaryPanel
+            users={users}
+            units={units}
+            activeRoleFilter={filterRole}
+            onRoleFilterChange={setFilterRole}
+          />
 
-          {/* Filters */}
+          {/* Additional Filters */}
           <Card>
             <CardContent className="py-4">
               <div className="flex flex-wrap gap-4">
@@ -495,19 +411,6 @@ export default function UsersSettings() {
                     />
                   </div>
                 </div>
-                <Select value={filterRole} onValueChange={setFilterRole}>
-                  <SelectTrigger className="w-[160px]">
-                    <SelectValue placeholder="Filtrar perfil" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os perfis</SelectItem>
-                    {Object.entries(ROLE_CONFIG).map(([key, config]) => (
-                      <SelectItem key={key} value={key}>
-                        {config.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
                 <Select value={filterUnit} onValueChange={setFilterUnit}>
                   <SelectTrigger className="w-[160px]">
                     <SelectValue placeholder="Filtrar unidade" />
@@ -529,13 +432,15 @@ export default function UsersSettings() {
                   <SelectContent>
                     <SelectItem value="all">Todos</SelectItem>
                     <SelectItem value="active">Ativos</SelectItem>
-                    <SelectItem value="inactive">Inativos</SelectItem>
+                    <SelectItem value="inactive">Suspensos</SelectItem>
+                    <SelectItem value="invited">Convidados</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </CardContent>
           </Card>
 
+          {/* Table */}
           <Card>
             <CardContent className="p-0">
               <Table>
@@ -559,11 +464,14 @@ export default function UsersSettings() {
                     </TableRow>
                   ) : (
                     filteredUsers.map(u => {
-                      const isActive = u.is_active !== false;
+                      const status = getUserStatus(u);
+                      const statusConfig = getStatusConfig(status);
                       const lastAccessText = formatLastAccess(u.last_access);
+                      const isInactive = status === 'inactive';
+                      const isInvited = status === 'invited';
                       
                       return (
-                        <TableRow key={u.id} className={!isActive ? 'opacity-60' : ''}>
+                        <TableRow key={u.id} className={isInactive ? 'opacity-60' : ''}>
                           <TableCell className="font-medium">{u.name}</TableCell>
                           <TableCell>{u.email}</TableCell>
                           <TableCell>
@@ -579,7 +487,9 @@ export default function UsersSettings() {
                                 </TooltipContent>
                               </Tooltip>
                             ) : (
-                              <Badge variant="outline">Sem perfil</Badge>
+                              <Badge variant="outline" className="border-destructive text-destructive">
+                                Sem perfil
+                              </Badge>
                             )}
                           </TableCell>
                           <TableCell>
@@ -606,12 +516,15 @@ export default function UsersSettings() {
                                 </TooltipContent>
                               </Tooltip>
                             ) : (
-                              <span className="text-muted-foreground text-sm">-</span>
+                              <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                <Mail className="w-3 h-3" />
+                                <span>Nunca acessou</span>
+                              </div>
                             )}
                           </TableCell>
                           <TableCell>
-                            <Badge variant={isActive ? 'default' : 'secondary'}>
-                              {isActive ? 'Ativo' : 'Inativo'}
+                            <Badge variant={statusConfig.variant}>
+                              {statusConfig.label}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
@@ -620,7 +533,7 @@ export default function UsersSettings() {
                                 <Select
                                   value={u.role || ''}
                                   onValueChange={value => handleUpdateRole(u.id, value as AppRole)}
-                                  disabled={!isActive}
+                                  disabled={isInactive}
                                 >
                                   <SelectTrigger className="w-36">
                                     <UserCog className="w-4 h-4 mr-2" />
@@ -637,7 +550,7 @@ export default function UsersSettings() {
                                 <Select
                                   value={u.unit_id || 'all'}
                                   onValueChange={value => handleUpdateUnit(u.id, value === 'all' ? null : value)}
-                                  disabled={!isActive}
+                                  disabled={isInactive}
                                 >
                                   <SelectTrigger className="w-32">
                                     <Building2 className="w-4 h-4 mr-2" />
@@ -652,22 +565,47 @@ export default function UsersSettings() {
                                     ))}
                                   </SelectContent>
                                 </Select>
+                                
+                                {/* Botão reenviar convite para convidados */}
+                                {isInvited && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="outline"
+                                        size="icon"
+                                        onClick={() => handleResendInvite(u)}
+                                        disabled={resendingInvite === u.id}
+                                      >
+                                        {resendingInvite === u.id ? (
+                                          <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                          <MailPlus className="w-4 h-4" />
+                                        )}
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>Reenviar convite</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                                
+                                {/* Botão suspender/reativar */}
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <Button
-                                      variant={isActive ? 'outline' : 'default'}
+                                      variant={isInactive ? 'default' : 'outline'}
                                       size="icon"
-                                      onClick={() => isActive ? setDeactivateUser(u) : handleToggleActive(u)}
+                                      onClick={() => isInactive ? handleToggleActive(u) : setDeactivateUser(u)}
                                     >
-                                      {isActive ? (
-                                        <UserX className="w-4 h-4" />
-                                      ) : (
+                                      {isInactive ? (
                                         <UserCheck className="w-4 h-4" />
+                                      ) : (
+                                        <UserX className="w-4 h-4" />
                                       )}
                                     </Button>
                                   </TooltipTrigger>
                                   <TooltipContent>
-                                    <p>{isActive ? 'Desativar usuário' : 'Reativar usuário'}</p>
+                                    <p>{isInactive ? 'Reativar usuário' : 'Suspender usuário'}</p>
                                   </TooltipContent>
                                 </Tooltip>
                               </div>
@@ -687,9 +625,9 @@ export default function UsersSettings() {
         <AlertDialog open={!!deactivateUser} onOpenChange={() => setDeactivateUser(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Desativar Usuário</AlertDialogTitle>
+              <AlertDialogTitle>Suspender Usuário</AlertDialogTitle>
               <AlertDialogDescription>
-                Tem certeza que deseja desativar o usuário <strong>{deactivateUser?.name}</strong>?
+                Tem certeza que deseja suspender o usuário <strong>{deactivateUser?.name}</strong>?
                 <br /><br />
                 O usuário não poderá mais acessar o sistema, mas seus dados serão mantidos.
               </AlertDialogDescription>
@@ -700,7 +638,7 @@ export default function UsersSettings() {
                 onClick={() => deactivateUser && handleToggleActive(deactivateUser)}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                Desativar
+                Suspender
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
