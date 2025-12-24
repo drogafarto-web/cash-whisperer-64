@@ -2,8 +2,10 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Barcode, Plus, Check, Eye, Trash2 } from 'lucide-react';
+import { Barcode, Plus, Check, Eye, Trash2, FileSpreadsheet, FileText } from 'lucide-react';
 import { DateRange } from 'react-day-picker';
+import jsPDF from 'jspdf';
+import * as XLSX from 'xlsx';
 
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -133,6 +135,63 @@ export default function BoletosPage() {
     setUnitIdFilter('');
   };
 
+  const exportToExcel = () => {
+    const dataToExport = getFilteredPayables().map((p) => ({
+      'Beneficiário': p.beneficiario || '',
+      'CNPJ': p.beneficiario_cnpj || '',
+      'Valor': p.valor,
+      'Vencimento': format(new Date(p.vencimento), 'dd/MM/yyyy'),
+      'Status': p.status,
+      'Parcela': p.parcela_numero ? `${p.parcela_numero}/${p.parcela_total}` : '',
+      'Linha Digitável': p.linha_digitavel || '',
+      'Descrição': p.description || '',
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Boletos');
+    XLSX.writeFile(wb, `boletos-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  };
+
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    const data = getFilteredPayables();
+    const statusLabels: Record<string, string> = { pendente: 'Pendente', pago: 'Pago', vencido: 'Vencido', cancelado: 'Cancelado' };
+
+    doc.setFontSize(16);
+    doc.text('Relatório de Boletos', 20, 20);
+
+    doc.setFontSize(10);
+    doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, 20, 28);
+    doc.text(`Tab: ${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}`, 20, 34);
+    doc.text(`Total: ${data.length} boletos`, 20, 40);
+    doc.text(
+      `Valor total: ${data.reduce((sum, p) => sum + p.valor, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
+      20,
+      46
+    );
+
+    let y = 60;
+    data.forEach((p, i) => {
+      if (y > 270) {
+        doc.addPage();
+        y = 20;
+      }
+      const status = statusLabels[p.status] || p.status;
+      doc.setFontSize(10);
+      doc.text(`${i + 1}. ${p.beneficiario || 'Sem beneficiário'}`, 20, y);
+      doc.setFontSize(9);
+      doc.text(
+        `${p.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} | Venc: ${format(new Date(p.vencimento), 'dd/MM/yyyy')} | ${status}`,
+        25,
+        y + 5
+      );
+      y += 14;
+    });
+
+    doc.save(`boletos-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -141,10 +200,20 @@ export default function BoletosPage() {
             <h1 className="text-2xl font-bold">Boletos a Pagar</h1>
             <p className="text-muted-foreground">Gerencie boletos e títulos pendentes</p>
           </div>
-          <Button onClick={() => setIsDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Novo Boleto
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={exportToExcel}>
+              <FileSpreadsheet className="h-4 w-4 mr-1" />
+              Excel
+            </Button>
+            <Button variant="outline" size="sm" onClick={exportToPDF}>
+              <FileText className="h-4 w-4 mr-1" />
+              PDF
+            </Button>
+            <Button onClick={() => setIsDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Boleto
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}

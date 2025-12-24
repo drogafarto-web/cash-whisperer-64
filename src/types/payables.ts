@@ -90,6 +90,8 @@ export interface PayableFormData {
   supplier_invoice_id?: string;
   unit_id?: string;
   category_id?: string;
+  file_path?: string;
+  file_name?: string;
 }
 
 // Status types
