@@ -191,8 +191,14 @@ export default function LisFechamento() {
   };
 
   // Buscar fechamento existente
-  const fetchExistingClosure = async () => {
-    if (!selectedUnitId || !periodStart || !periodEnd) return;
+  const fetchExistingClosure = async (
+    overridePeriodStart?: string,
+    overridePeriodEnd?: string
+  ) => {
+    const pStart = overridePeriodStart || periodStart;
+    const pEnd = overridePeriodEnd || periodEnd;
+    
+    if (!selectedUnitId || !pStart || !pEnd) return;
 
     setLoading(true);
     try {
@@ -201,8 +207,8 @@ export default function LisFechamento() {
         .from('lis_closures')
         .select('*')
         .eq('unit_id', selectedUnitId)
-        .eq('period_start', periodStart)
-        .eq('period_end', periodEnd)
+        .eq('period_start', pStart)
+        .eq('period_end', pEnd)
         .maybeSingle();
 
       if (error) throw error;
@@ -379,8 +385,8 @@ export default function LisFechamento() {
       // Recalcular totais
       await updateClosureTotals(closureId);
 
-      // Recarregar dados
-      await fetchExistingClosure();
+      // Recarregar dados com período correto (passando explicitamente)
+      await fetchExistingClosure(pStart, pEnd);
 
       toast({ title: 'Sucesso', description: `${records.length} registros importados` });
     } catch (error: unknown) {
