@@ -19,6 +19,7 @@ import {
   Cog,
   Database,
   Info,
+  History,
 } from 'lucide-react';
 import { AppRole } from '@/types/database';
 
@@ -138,6 +139,7 @@ export const navigationGroups: NavGroup[] = [
     icon: Cog,
     items: [
       { name: 'Sobre', href: '/about', icon: Info, roles: ['admin', 'contabilidade', 'gestor_unidade', 'secretaria'] },
+      { name: 'Changelog', href: '/changelog', icon: History, roles: ['admin', 'contabilidade', 'gestor_unidade', 'secretaria'] },
     ],
   },
 ];

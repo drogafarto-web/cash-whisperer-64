@@ -1,8 +1,10 @@
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Link } from 'react-router-dom';
 import labclinLogo from '@/assets/labclin-logo.png';
-import { Info, Code, Calendar } from 'lucide-react';
+import { Info, Code, Calendar, Mail, Phone, HelpCircle, History, ExternalLink } from 'lucide-react';
 
 export default function About() {
   const version = "1.0.0";
@@ -57,6 +59,43 @@ export default function About() {
                 <div>
                   <h3 className="font-medium">Última Atualização</h3>
                   <p className="text-sm text-muted-foreground">{buildDate}</p>
+                </div>
+              </div>
+
+              {/* Contato e Suporte */}
+              <div className="flex items-start gap-3">
+                <HelpCircle className="w-5 h-5 text-primary mt-0.5" />
+                <div className="space-y-3">
+                  <h3 className="font-medium">Contato e Suporte</h3>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <Mail className="w-4 h-4" />
+                      <a href="mailto:suporte@labclin.com.br" className="hover:underline hover:text-primary">
+                        suporte@labclin.com.br
+                      </a>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-4 h-4" />
+                      <span>(84) 3333-0000</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Histórico de Versões */}
+              <div className="flex items-start gap-3">
+                <History className="w-5 h-5 text-primary mt-0.5" />
+                <div>
+                  <h3 className="font-medium">Histórico de Versões</h3>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Veja todas as atualizações e melhorias do sistema.
+                  </p>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/changelog">
+                      Ver Changelog
+                      <ExternalLink className="w-4 h-4 ml-2" />
+                    </Link>
+                  </Button>
                 </div>
               </div>
             </CardContent>
