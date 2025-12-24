@@ -55,14 +55,16 @@ export async function linkLisItemsToClosing(
 
 /**
  * Verifica se algum dos itens já está vinculado a outro fechamento
+ * IMPORTANTE: Filtro por unitId obrigatório para isolamento de dados
  */
-export async function checkItemsNotLinked(lisItemIds: string[]): Promise<boolean> {
+export async function checkItemsNotLinked(lisItemIds: string[], unitId: string): Promise<boolean> {
   if (lisItemIds.length === 0) return true;
 
   const { data, error } = await supabase
     .from('lis_closure_items')
     .select('id, envelope_id')
     .in('id', lisItemIds)
+    .eq('unit_id', unitId) // ISOLAMENTO: filtrar por unidade
     .not('envelope_id', 'is', null);
 
   if (error) throw error;
@@ -111,8 +113,8 @@ export async function createOrUpdateDailyClosing(params: {
     existingClosingId,
   } = params;
 
-  // Verificar se itens não estão vinculados a outro fechamento
-  const itemsAvailable = await checkItemsNotLinked(lisItemIds);
+  // Verificar se itens não estão vinculados a outro fechamento (com unitId para isolamento)
+  const itemsAvailable = await checkItemsNotLinked(lisItemIds, unitId);
   if (!itemsAvailable) {
     throw new Error('Alguns itens selecionados já estão vinculados a outro fechamento.');
   }

@@ -591,11 +591,12 @@ export default function LisFechamento() {
 
   // Conciliar com comprovantes
   const handleReconcile = async () => {
-    if (!currentClosure) return;
+    if (!currentClosure || !selectedUnitId) return;
 
     setLoading(true);
     try {
-      const results = await reconcileLisItems(currentClosure.id);
+      // Passar unitId para isolamento de dados
+      const results = await reconcileLisItems(currentClosure.id, selectedUnitId);
       await updateReconciliationStatus(results);
       
       const counts = countByComprovanteStatus(results);

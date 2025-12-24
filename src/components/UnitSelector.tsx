@@ -8,7 +8,8 @@ import {
 } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { Unit } from '@/types/database';
-import { Building2 } from 'lucide-react';
+import { Building2, Lock } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 interface UnitSelectorProps {
   value: string;
@@ -17,6 +18,11 @@ interface UnitSelectorProps {
   placeholder?: string;
   showAllOption?: boolean;
   className?: string;
+  /**
+   * Se true, o seletor mostra apenas a unidade do usuário logado
+   * e fica desabilitado. Útil para usuários operacionais.
+   */
+  restrictToUserUnit?: boolean;
 }
 
 export function UnitSelector({
@@ -26,11 +32,27 @@ export function UnitSelector({
   placeholder = 'Selecione a unidade...',
   showAllOption = false,
   className,
+  restrictToUserUnit = false,
 }: UnitSelectorProps) {
+  const { unit: userUnit, canAccessAllUnits } = useAuth();
   const [units, setUnits] = useState<Unit[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Se restrictToUserUnit=true E usuário tem unidade fixa, travar na unidade do usuário
+  const shouldRestrict = restrictToUserUnit && userUnit && !canAccessAllUnits;
+
   useEffect(() => {
+    // Se está restrito, não precisa buscar outras unidades
+    if (shouldRestrict && userUnit) {
+      setUnits([userUnit]);
+      setIsLoading(false);
+      // Auto-selecionar a unidade do usuário se valor estiver vazio
+      if (!value && userUnit.id) {
+        onChange(userUnit.id);
+      }
+      return;
+    }
+
     const fetchUnits = async () => {
       const { data } = await supabase
         .from('units')
@@ -42,7 +64,17 @@ export function UnitSelector({
     };
 
     fetchUnits();
-  }, []);
+  }, [shouldRestrict, userUnit, value, onChange]);
+
+  // Se restrito à unidade do usuário, mostrar label travada
+  if (shouldRestrict && userUnit) {
+    return (
+      <div className={`flex items-center gap-2 px-3 py-2 border rounded-md bg-muted/50 ${className || ''}`}>
+        <Lock className="w-4 h-4 text-muted-foreground" />
+        <span className="text-sm font-medium">{userUnit.name}</span>
+      </div>
+    );
+  }
 
   return (
     <Select value={value} onValueChange={onChange} disabled={disabled || isLoading}>
