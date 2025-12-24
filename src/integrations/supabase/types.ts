@@ -488,6 +488,78 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_cash_closings: {
+        Row: {
+          confirmed_at: string | null
+          confirmed_by: string | null
+          counted_at: string | null
+          counted_by: string | null
+          counted_cash: number | null
+          created_at: string
+          date: string
+          difference: number | null
+          envelope_id: string | null
+          expected_cash: number
+          id: string
+          lis_closure_id: string
+          notes: string | null
+          status: string
+          unit_id: string
+          updated_at: string
+        }
+        Insert: {
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          counted_at?: string | null
+          counted_by?: string | null
+          counted_cash?: number | null
+          created_at?: string
+          date: string
+          difference?: number | null
+          envelope_id?: string | null
+          expected_cash?: number
+          id?: string
+          lis_closure_id: string
+          notes?: string | null
+          status?: string
+          unit_id: string
+          updated_at?: string
+        }
+        Update: {
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          counted_at?: string | null
+          counted_by?: string | null
+          counted_cash?: number | null
+          created_at?: string
+          date?: string
+          difference?: number | null
+          envelope_id?: string | null
+          expected_cash?: number
+          id?: string
+          lis_closure_id?: string
+          notes?: string | null
+          status?: string
+          unit_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_cash_closings_lis_closure_id_fkey"
+            columns: ["lis_closure_id"]
+            isOneToOne: false
+            referencedRelation: "lis_closures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_cash_closings_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           created_at: string

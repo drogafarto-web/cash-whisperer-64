@@ -304,7 +304,7 @@ export function getAllowedRoutes(role: AppRole | null): string[] {
   const areaToRoutes: Record<SystemArea, string[]> = {
     dashboard: ['/dashboard'],
     transactions: ['/transactions'],
-    cash_closing: ['/cash-closing'],
+    cash_closing: ['/cash-closing', '/cash-closing-advanced'],
     lis_closing: ['/lis/fechamento'],
     imports: ['/import/daily-movement', '/import/bank-statement'],
     reports: ['/reports/cash-closings', '/reports/lis-closures', '/reports/transactions'],
