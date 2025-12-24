@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { FileText, Check, Download, ExternalLink, Pencil, X, Copy, Save, Loader2 } from 'lucide-react';
+import { FileText, Check, Download, ExternalLink, Pencil, X, Copy, Save, Loader2, Upload } from 'lucide-react';
 
 import {
   Dialog,
@@ -52,6 +52,8 @@ export function PayableDetailModal({
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [newFile, setNewFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     beneficiario: '',
     valor: 0,
@@ -63,10 +65,10 @@ export function PayableDetailModal({
 
   const updatePayable = useUpdatePayable();
 
-  // Reset editing state when modal closes or payable changes
   useEffect(() => {
     if (!open) {
       setIsEditing(false);
+      setNewFile(null);
     }
     if (payable) {
       setFormData({
@@ -115,28 +117,64 @@ export function PayableDetailModal({
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!payable) return;
+    setIsUploading(true);
 
-    updatePayable.mutate(
-      {
-        id: payable.id,
-        data: {
-          beneficiario: formData.beneficiario,
-          valor: formData.valor,
-          vencimento: format(formData.vencimento, 'yyyy-MM-dd'),
-          beneficiario_cnpj: formData.beneficiario_cnpj || undefined,
-          description: formData.description || undefined,
-          linha_digitavel: formData.linha_digitavel || undefined,
-        },
-      },
-      {
-        onSuccess: () => {
-          setIsEditing(false);
-          onPayableUpdated?.();
-        },
+    try {
+      let filePath = payable.file_path;
+      let fileName = payable.file_name;
+
+      // Upload new file if selected
+      if (newFile) {
+        const fileExt = newFile.name.split('.').pop();
+        const newFilePath = `boletos/${payable.id}/${Date.now()}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('payables')
+          .upload(newFilePath, newFile, { upsert: true });
+
+        if (uploadError) {
+          throw uploadError;
+        }
+        filePath = newFilePath;
+        fileName = newFile.name;
       }
-    );
+
+      updatePayable.mutate(
+        {
+          id: payable.id,
+          data: {
+            beneficiario: formData.beneficiario,
+            valor: formData.valor,
+            vencimento: format(formData.vencimento, 'yyyy-MM-dd'),
+            beneficiario_cnpj: formData.beneficiario_cnpj || undefined,
+            description: formData.description || undefined,
+            linha_digitavel: formData.linha_digitavel || undefined,
+            file_path: filePath || undefined,
+            file_name: fileName || undefined,
+          },
+        },
+        {
+          onSuccess: () => {
+            setIsEditing(false);
+            setNewFile(null);
+            onPayableUpdated?.();
+          },
+          onSettled: () => {
+            setIsUploading(false);
+          },
+        }
+      );
+    } catch (error) {
+      console.error('Erro ao salvar:', error);
+      toast({
+        title: 'Erro',
+        description: 'Falha ao salvar as alterações.',
+        variant: 'destructive',
+      });
+      setIsUploading(false);
+    }
   };
 
   const handleCancelEdit = () => {
@@ -151,6 +189,7 @@ export function PayableDetailModal({
       });
     }
     setIsEditing(false);
+    setNewFile(null);
   };
 
   if (!payable) return null;
@@ -293,6 +332,42 @@ export function PayableDetailModal({
                   placeholder="Digite a linha digitável do boleto"
                   className="font-mono"
                 />
+              </div>
+
+              {/* File Upload */}
+              <div className="space-y-2">
+                <Label>Documento Anexo</Label>
+                <div className="flex items-center gap-2">
+                  <label className="flex-1">
+                    <div className="flex items-center gap-2 px-3 py-2 border rounded-md cursor-pointer hover:bg-muted/50 transition-colors">
+                      <Upload className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">
+                        {newFile ? newFile.name : 'Selecionar novo arquivo...'}
+                      </span>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => setNewFile(e.target.files?.[0] || null)}
+                      className="hidden"
+                    />
+                  </label>
+                  {newFile && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setNewFile(null)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                {payable.file_name && !newFile && (
+                  <p className="text-sm text-muted-foreground">
+                    Arquivo atual: {payable.file_name}
+                  </p>
+                )}
               </div>
             </div>
           ) : (
