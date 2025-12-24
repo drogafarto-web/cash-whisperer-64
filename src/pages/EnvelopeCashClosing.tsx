@@ -47,6 +47,7 @@ import {
   createEnvelopeWithItems,
   checkLabelPrinted,
   markLabelPrinted,
+  incrementReprintCount,
   LisItemForEnvelope,
   EnvelopeData,
 } from '@/services/envelopeClosingService';
@@ -68,6 +69,7 @@ export default function EnvelopeCashClosingPage() {
   const [justificativa, setJustificativa] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [labelAlreadyPrinted, setLabelAlreadyPrinted] = useState(false);
+  const [reprintCount, setReprintCount] = useState(0);
   
   const todayFormatted = useMemo(() => 
     format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR }), 
@@ -184,7 +186,10 @@ export default function EnvelopeCashClosingPage() {
         await markLabelPrinted(createdEnvelope.id, user.id);
         toast.success('Etiqueta marcada como impressa');
       } else {
-        toast.info('Etiqueta já foi impressa anteriormente (CÓPIA)');
+        // Reimpressão - incrementar contador
+        const copyNumber = await incrementReprintCount(createdEnvelope.id);
+        setReprintCount(copyNumber);
+        toast.info(`Reimprimindo - CÓPIA ${copyNumber}`);
       }
     } catch (error: any) {
       toast.error(error.message || 'Erro ao processar etiqueta');
@@ -203,10 +208,11 @@ export default function EnvelopeCashClosingPage() {
       lisCodes: createdEnvelope.lis_codes,
       closedByName: profile?.name || 'Usuário',
       closureId: createdEnvelope.id,
+      copyNumber: reprintCount > 0 ? reprintCount : undefined,
     };
 
     const zplContent = generateEnvelopeZpl(zplData);
-    downloadZplFile(zplContent, `envelope-${createdEnvelope.id.substring(0, 8)}.zpl`);
+    downloadZplFile(zplContent, `envelope-${createdEnvelope.id.substring(0, 8)}${reprintCount > 0 ? `-copia${reprintCount}` : ''}.zpl`);
   };
 
   const handleNewEnvelope = () => {
@@ -214,6 +220,7 @@ export default function EnvelopeCashClosingPage() {
     setCountedCash('');
     setJustificativa('');
     setLabelAlreadyPrinted(false);
+    setReprintCount(0);
     clearSelection(); // Limpar IDs selecionados ao criar novo envelope
     loadData();
   };
@@ -298,6 +305,7 @@ export default function EnvelopeCashClosingPage() {
                 createdAt={createdEnvelope.created_at}
                 lisCodes={createdEnvelope.lis_codes}
                 labelAlreadyPrinted={labelAlreadyPrinted}
+                reprintCount={reprintCount}
                 onPrintLabel={handlePrintLabel}
                 onDownloadZpl={handleDownloadZpl}
               />

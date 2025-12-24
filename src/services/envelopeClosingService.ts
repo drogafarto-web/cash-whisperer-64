@@ -31,6 +31,7 @@ export interface EnvelopeData {
   lis_codes_count: number;
   label_printed_at: string | null;
   label_printed_by: string | null;
+  reprint_count: number;
   created_at: string;
   created_by: string | null;
 }
@@ -268,4 +269,44 @@ export async function getEnvelopesByClosureId(closureId: string): Promise<Envelo
 
   if (error) throw error;
   return data as EnvelopeData[];
+}
+
+/**
+ * Incrementa o contador de reimpressão e retorna o número da cópia
+ */
+export async function incrementReprintCount(envelopeId: string): Promise<number> {
+  // Buscar contador atual
+  const { data, error: fetchError } = await supabase
+    .from('cash_envelopes')
+    .select('reprint_count')
+    .eq('id', envelopeId)
+    .single();
+
+  if (fetchError) throw fetchError;
+
+  const newCount = (data?.reprint_count || 0) + 1;
+  
+  // Atualizar com novo valor
+  const { error: updateError } = await supabase
+    .from('cash_envelopes')
+    .update({ reprint_count: newCount })
+    .eq('id', envelopeId);
+
+  if (updateError) throw updateError;
+
+  return newCount;
+}
+
+/**
+ * Busca o contador de reimpressões de um envelope
+ */
+export async function getReprintCount(envelopeId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from('cash_envelopes')
+    .select('reprint_count')
+    .eq('id', envelopeId)
+    .single();
+
+  if (error) throw error;
+  return data?.reprint_count || 0;
 }
