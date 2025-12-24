@@ -65,11 +65,23 @@ export function useCreatePayable() {
         description: 'O boleto foi salvo com sucesso.',
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      let description = error.message;
+      
+      if (error?.code === '23505') {
+        if (error?.message?.includes('codigo_barras')) {
+          description = 'Este código de barras já foi cadastrado anteriormente.';
+        } else if (error?.message?.includes('linha_digitavel')) {
+          description = 'Esta linha digitável já foi cadastrada anteriormente.';
+        } else {
+          description = 'Este boleto já foi cadastrado anteriormente.';
+        }
+      }
+      
       toast({
         variant: 'destructive',
         title: 'Erro ao cadastrar boleto',
-        description: error.message,
+        description,
       });
     },
   });
@@ -99,11 +111,23 @@ export function useCreatePayablesFromParcelas() {
         description: `${data.length} parcela(s) criada(s) com sucesso.`,
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      let description = error.message;
+      
+      if (error?.code === '23505') {
+        if (error?.message?.includes('codigo_barras')) {
+          description = 'Um ou mais códigos de barras já foram cadastrados anteriormente.';
+        } else if (error?.message?.includes('linha_digitavel')) {
+          description = 'Uma ou mais linhas digitáveis já foram cadastradas anteriormente.';
+        } else {
+          description = 'Uma ou mais parcelas já foram cadastradas anteriormente.';
+        }
+      }
+      
       toast({
         variant: 'destructive',
         title: 'Erro ao criar parcelas',
-        description: error.message,
+        description,
       });
     },
   });

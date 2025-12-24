@@ -28,7 +28,12 @@ import { Badge } from '@/components/ui/badge';
 
 import { useBoletoOcr } from '@/features/payables/hooks/usePayableOcr';
 import { useCreatePayable } from '@/features/payables/hooks/usePayables';
+import { 
+  checkDuplicatePayableByCodigoBarras, 
+  checkDuplicatePayableByLinhaDigitavel 
+} from '@/features/payables/api/payables.api';
 import { PayableFormData, SupplierInvoice } from '@/types/payables';
+import { toast } from '@/hooks/use-toast';
 
 const formSchema = z.object({
   beneficiario: z.string().min(1, 'Beneficiário é obrigatório'),
@@ -121,6 +126,31 @@ export function BoletoUploadForm({
 
   const onSubmit = async (data: PayableFormData) => {
     try {
+      // Validar duplicata antes de salvar
+      if (data.codigo_barras) {
+        const isDuplicate = await checkDuplicatePayableByCodigoBarras(data.codigo_barras);
+        if (isDuplicate) {
+          toast({
+            variant: 'destructive',
+            title: 'Boleto duplicado',
+            description: 'Este código de barras já foi cadastrado anteriormente.',
+          });
+          return;
+        }
+      }
+
+      if (data.linha_digitavel) {
+        const isDuplicate = await checkDuplicatePayableByLinhaDigitavel(data.linha_digitavel);
+        if (isDuplicate) {
+          toast({
+            variant: 'destructive',
+            title: 'Boleto duplicado',
+            description: 'Esta linha digitável já foi cadastrada anteriormente.',
+          });
+          return;
+        }
+      }
+
       await createPayable.mutateAsync({
         data: {
           ...data,
