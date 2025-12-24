@@ -11,14 +11,15 @@ export interface LisItemForEnvelope {
   receivable_component: number | null;
   payment_method: string;
   payment_status: string;
-  closure_id: string;
+  closure_id: string | null;
+  unit_id: string | null;
   envelope_id: string | null;
 }
 
 export interface EnvelopeData {
   id: string;
   unit_id: string | null;
-  closure_id: string;
+  closure_id: string | null;
   expected_cash: number;
   counted_cash: number | null;
   difference: number | null;
@@ -33,13 +34,21 @@ export interface EnvelopeData {
 }
 
 /**
- * Busca items LIS disponíveis para incluir em um envelope (cash_component > 0 e envelope_id IS NULL)
+ * Busca items LIS disponíveis para incluir em um envelope
+ * 
+ * REGRA DE NEGÓCIO CRÍTICA:
+ * - Busca por unit_id (não por closure_id)
+ * - cash_component > 0 (tem dinheiro a receber)
+ * - envelope_id IS NULL (ainda não está em nenhum envelope)
+ * 
+ * Um código LIS permanece disponível até ser vinculado a um envelope,
+ * mesmo que o exame seja de dias anteriores.
  */
-export async function getAvailableItemsForEnvelope(closureId: string): Promise<LisItemForEnvelope[]> {
+export async function getAvailableItemsForEnvelope(unitId: string): Promise<LisItemForEnvelope[]> {
   const { data, error } = await supabase
     .from('lis_closure_items')
     .select('*')
-    .eq('closure_id', closureId)
+    .eq('unit_id', unitId)
     .gt('cash_component', 0)
     .is('envelope_id', null)
     .order('date', { ascending: true })
@@ -109,9 +118,15 @@ export async function getNextEnvelopeSequence(unitId: string, date: string): Pro
 
 /**
  * Cria um novo envelope e associa os items selecionados
+ * 
+ * REGRA DE NEGÓCIO:
+ * - closure_id agora é opcional (pode ser null para itens importados diretamente)
+ * - O envelope é criado para a unit_id
+ * - Itens selecionados têm envelope_id setado para este envelope
+ * - payment_status é atualizado para 'FECHADO_EM_ENVELOPE'
  */
 export async function createEnvelopeWithItems(params: {
-  closureId: string;
+  closureId?: string | null;
   unitId: string;
   selectedItemIds: string[];
   countedCash: number;
@@ -131,11 +146,19 @@ export async function createEnvelopeWithItems(params: {
   const expectedCash = calculateExpectedCash(items);
   const lisCodes = items.map(item => item.lis_code);
 
-  // 3. Criar envelope
+  // 3. Buscar ou criar um closure_id se necessário (para compatibilidade)
+  let finalClosureId = closureId;
+  if (!finalClosureId) {
+    // Buscar closure existente da unidade, ou usar o primeiro item
+    const itemWithClosure = items.find(item => item.closure_id);
+    finalClosureId = itemWithClosure?.closure_id || null;
+  }
+
+  // 4. Criar envelope
   const { data: envelope, error: envelopeError } = await supabase
     .from('cash_envelopes')
     .insert({
-      closure_id: closureId,
+      closure_id: finalClosureId,
       unit_id: unitId,
       cash_total: expectedCash,
       expected_cash: expectedCash,
@@ -152,7 +175,7 @@ export async function createEnvelopeWithItems(params: {
 
   if (envelopeError) throw envelopeError;
 
-  // 4. Atualizar items para associar ao envelope
+  // 5. Atualizar items para associar ao envelope
   const { error: updateError } = await supabase
     .from('lis_closure_items')
     .update({ 
