@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Barcode, Plus, Check, Eye, Trash2 } from 'lucide-react';
+import { DateRange } from 'react-day-picker';
 
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -26,13 +27,30 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 
 import { BoletoUploadForm } from '@/components/payables/BoletoUploadForm';
+import { PayablesFilters } from '@/components/payables/PayablesFilters';
+import { PayableDetailModal } from '@/components/payables/PayableDetailModal';
 import { usePayables, useDeletePayable, useMarkPayableAsPaid } from '@/features/payables';
+import type { Payable } from '@/types/payables';
 
 export default function BoletosPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('pendentes');
+  
+  // Filter states
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  const [beneficiarioFilter, setBeneficiarioFilter] = useState('');
+  const [unitIdFilter, setUnitIdFilter] = useState('');
+  
+  // Detail modal state
+  const [selectedPayable, setSelectedPayable] = useState<Payable | null>(null);
 
-  const { data: allPayables = [], isLoading } = usePayables();
+  // Fetch data with API filters
+  const { data: allPayables = [], isLoading } = usePayables({
+    startDate: dateRange?.from?.toISOString().split('T')[0],
+    endDate: dateRange?.to?.toISOString().split('T')[0],
+    unitId: unitIdFilter && unitIdFilter !== 'all' ? unitIdFilter : undefined,
+  });
+  
   const deletePayable = useDeletePayable();
   const markAsPaid = useMarkPayableAsPaid();
 
@@ -60,10 +78,19 @@ export default function BoletosPage() {
     },
   });
 
-  // Filter payables by status
-  const pendentes = allPayables.filter((p) => p.status === 'pendente');
-  const vencidos = allPayables.filter((p) => p.status === 'vencido' || (p.status === 'pendente' && new Date(p.vencimento) < new Date()));
-  const pagos = allPayables.filter((p) => p.status === 'pago');
+  // Apply client-side filter for beneficiario text search
+  const filteredPayables = useMemo(() => {
+    if (!beneficiarioFilter) return allPayables;
+    const searchTerm = beneficiarioFilter.toLowerCase();
+    return allPayables.filter((p) => 
+      p.beneficiario?.toLowerCase().includes(searchTerm)
+    );
+  }, [allPayables, beneficiarioFilter]);
+
+  // Filter by status
+  const pendentes = filteredPayables.filter((p) => p.status === 'pendente' && new Date(p.vencimento) >= new Date());
+  const vencidos = filteredPayables.filter((p) => p.status === 'vencido' || (p.status === 'pendente' && new Date(p.vencimento) < new Date()));
+  const pagos = filteredPayables.filter((p) => p.status === 'pago');
 
   const getFilteredPayables = () => {
     switch (activeTab) {
@@ -91,12 +118,19 @@ export default function BoletosPage() {
     return <Badge variant={variants[status] || 'secondary'}>{labels[status] || status}</Badge>;
   };
 
-  const handleMarkAsPaid = (payable: typeof allPayables[0]) => {
+  const handleMarkAsPaid = (payable: Payable) => {
     markAsPaid.mutate({
       id: payable.id,
       paidAmount: payable.valor,
       paidMethod: 'manual',
     });
+    setSelectedPayable(null);
+  };
+
+  const handleClearFilters = () => {
+    setDateRange(undefined);
+    setBeneficiarioFilter('');
+    setUnitIdFilter('');
   };
 
   return (
@@ -112,6 +146,18 @@ export default function BoletosPage() {
             Novo Boleto
           </Button>
         </div>
+
+        {/* Filters */}
+        <PayablesFilters
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+          beneficiario={beneficiarioFilter}
+          onBeneficiarioChange={setBeneficiarioFilter}
+          unitId={unitIdFilter}
+          onUnitIdChange={setUnitIdFilter}
+          units={units}
+          onClear={handleClearFilters}
+        />
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -139,7 +185,7 @@ export default function BoletosPage() {
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Pagos (mês)</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Pagos (período)</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{pagos.length}</div>
@@ -203,7 +249,12 @@ export default function BoletosPage() {
                                 <Check className="h-4 w-4 text-green-600" />
                               </Button>
                             )}
-                            <Button variant="ghost" size="icon" title="Ver detalhes">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              title="Ver detalhes"
+                              onClick={() => setSelectedPayable(payable)}
+                            >
                               <Eye className="h-4 w-4" />
                             </Button>
                             <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deletePayable.mutate(payable.id)}>
@@ -221,6 +272,7 @@ export default function BoletosPage() {
         </Tabs>
       </div>
 
+      {/* Add Boleto Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -238,6 +290,14 @@ export default function BoletosPage() {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Detail Modal */}
+      <PayableDetailModal
+        payable={selectedPayable}
+        open={!!selectedPayable}
+        onOpenChange={(open) => !open && setSelectedPayable(null)}
+        onMarkAsPaid={handleMarkAsPaid}
+      />
     </AppLayout>
   );
 }
