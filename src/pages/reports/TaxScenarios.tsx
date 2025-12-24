@@ -12,6 +12,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Slider } from '@/components/ui/slider';
+import { Button } from '@/components/ui/button';
+import jsPDF from 'jspdf';
 import {
   BarChart,
   Bar,
@@ -34,6 +36,7 @@ import {
   CheckCircle,
   Users,
   HelpCircle,
+  FileDown,
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Unit } from '@/types/database';
@@ -581,6 +584,130 @@ export default function TaxScenarios() {
     return `${value.toFixed(2)}%`;
   };
 
+  // Função de exportação PDF
+  const exportToPDF = () => {
+    if (!simulationResult) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let yPos = 20;
+
+    // Header
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Relatório de Cenários Tributários', pageWidth / 2, yPos, { align: 'center' });
+    
+    yPos += 10;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    const selectedUnitName = selectedUnitId === 'all' 
+      ? 'Todas as unidades' 
+      : units.find(u => u.id === selectedUnitId)?.name || 'Unidade';
+    doc.text(`Unidade: ${selectedUnitName} | Período: ${format(new Date(selectedMonth + '-01'), "MMMM 'de' yyyy", { locale: ptBR })}`, pageWidth / 2, yPos, { align: 'center' });
+    
+    yPos += 5;
+    doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy 'às' HH:mm")}`, pageWidth / 2, yPos, { align: 'center' });
+
+    // Resumo Fator R
+    yPos += 15;
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Resumo do Fator R', 14, yPos);
+    
+    yPos += 8;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Fator R Atual: ${(simulationResult.fatorR * 100).toFixed(1)}%`, 14, yPos);
+    yPos += 5;
+    const anexo = simulationResult.fatorR >= 0.28 ? 'Anexo III' : 'Anexo V';
+    doc.text(`Anexo Aplicável: ${anexo}`, 14, yPos);
+    yPos += 5;
+    doc.text(`Receita Total do Mês: ${formatCurrency(simulationResult.receitaTotal)}`, 14, yPos);
+    yPos += 5;
+    const rbt12 = simulationResult.cenarios.find(c => c.regime === 'SIMPLES')?.detalhes.rbt12 || 0;
+    doc.text(`Receita Bruta 12 meses (RBT12): ${formatCurrency(rbt12)}`, 14, yPos);
+
+    // Tabela de Cenários
+    yPos += 15;
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Comparativo de Regimes Tributários', 14, yPos);
+    
+    yPos += 10;
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    
+    // Header da tabela
+    const colWidths = [50, 35, 30, 35, 35];
+    const startX = 14;
+    doc.text('Regime', startX, yPos);
+    doc.text('Imposto', startX + colWidths[0], yPos);
+    doc.text('% Receita', startX + colWidths[0] + colWidths[1], yPos);
+    doc.text('Diferença', startX + colWidths[0] + colWidths[1] + colWidths[2], yPos);
+    doc.text('Status', startX + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3], yPos);
+    
+    yPos += 2;
+    doc.line(14, yPos, pageWidth - 14, yPos);
+    
+    yPos += 5;
+    doc.setFont('helvetica', 'normal');
+    
+    const bestScenario = simulationResult.cenarios.reduce((best, current) => 
+      current.total < best.total ? current : best
+    );
+    
+    simulationResult.cenarios.forEach((cenario) => {
+      doc.text(cenario.regimeLabel, startX, yPos);
+      doc.text(formatCurrency(cenario.total), startX + colWidths[0], yPos);
+      doc.text(`${cenario.percentualReceita.toFixed(2)}%`, startX + colWidths[0] + colWidths[1], yPos);
+      
+      const diff = cenario.total - bestScenario.total;
+      doc.text(diff === 0 ? '-' : `+${formatCurrency(diff)}`, startX + colWidths[0] + colWidths[1] + colWidths[2], yPos);
+      
+      const status = cenario.regime === bestScenario.regime ? 'Mais Vantajoso' : '';
+      doc.text(status, startX + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3], yPos);
+      
+      yPos += 6;
+    });
+
+    // Diagnósticos
+    if (simulationResult.diagnosticos.length > 0) {
+      yPos += 10;
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Diagnósticos e Recomendações', 14, yPos);
+      
+      yPos += 8;
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      
+      simulationResult.diagnosticos.slice(0, 5).forEach((diag) => {
+        const cleanText = diag.replace(/^[⚠️✅💡📊🔮]\s*/, '');
+        const lines = doc.splitTextToSize(cleanText, pageWidth - 28);
+        lines.forEach((line: string) => {
+          if (yPos > 270) {
+            doc.addPage();
+            yPos = 20;
+          }
+          doc.text(`• ${line}`, 14, yPos);
+          yPos += 5;
+        });
+      });
+    }
+
+    // Rodapé
+    yPos = 280;
+    doc.setFontSize(8);
+    doc.setTextColor(128, 128, 128);
+    doc.text('Nota: Este relatório é uma simulação para fins de planejamento tributário.', 14, yPos);
+    yPos += 4;
+    doc.text('Consulte um contador para decisões definitivas sobre regime tributário.', 14, yPos);
+
+    // Salvar
+    const fileName = `cenarios-tributarios-${selectedMonth}.pdf`;
+    doc.save(fileName);
+  };
+
   const getScenarioColor = (regime: string) => {
     switch (regime) {
       case 'SIMPLES': return 'hsl(var(--chart-1))';
@@ -679,6 +806,16 @@ export default function TaxScenarios() {
                 ))}
               </SelectContent>
             </Select>
+
+            <Button
+              variant="outline"
+              onClick={exportToPDF}
+              disabled={!simulationResult}
+              className="gap-2"
+            >
+              <FileDown className="h-4 w-4" />
+              Exportar PDF
+            </Button>
           </div>
         </div>
 
