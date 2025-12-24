@@ -119,6 +119,7 @@ export const navigationGroups: NavGroup[] = [
     name: 'Contas a Pagar',
     icon: CreditCard,
     items: [
+      { name: 'Dashboard', href: '/payables/dashboard', icon: LayoutDashboard, roles: ['admin', 'contabilidade'] },
       { name: 'Notas Fornecedor', href: '/payables/supplier-invoices', icon: FileInput, roles: ['admin', 'contabilidade'] },
       { name: 'Boletos', href: '/payables/boletos', icon: Barcode, roles: ['admin', 'contabilidade', 'gestor_unidade'] },
       { name: 'Conciliação', href: '/payables/reconciliation', icon: GitMerge, roles: ['admin', 'contabilidade'] },

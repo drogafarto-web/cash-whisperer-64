@@ -1,15 +1,19 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { GitMerge, Check, AlertCircle } from 'lucide-react';
+import { GitMerge, Check, AlertCircle, RefreshCw } from 'lucide-react';
 
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { UnitSelector } from '@/components/UnitSelector';
+import { Skeleton } from '@/components/ui/skeleton';
 
 import { usePendingPayablesForReconciliation, useReconcilePayable } from '@/features/payables';
+import { useUnreconciledTransactions } from '@/features/payables/hooks/usePayablesDashboard';
+import { useAuth } from '@/hooks/useAuth';
 import {
   findMatchesForPayables,
   MATCH_TYPE_LABELS,
@@ -18,12 +22,16 @@ import {
 import { PayableMatchResult } from '@/types/payables';
 
 export default function ReconciliationPage() {
-  const { data: pendingPayables = [], isLoading } = usePendingPayablesForReconciliation();
-  const reconcile = useReconcilePayable();
-  const [selectedMatch, setSelectedMatch] = useState<PayableMatchResult | null>(null);
+  const { isAdmin, unit: userUnit } = useAuth();
+  const [selectedUnitId, setSelectedUnitId] = useState<string>(userUnit?.id || '');
 
-  // Mock bank records for now - in real implementation, fetch from transactions table
-  const bankRecords: Array<{ id: string; date: string; description: string; amount: number; type: 'entrada' | 'saida' }> = [];
+  const effectiveUnitId = isAdmin ? selectedUnitId || undefined : userUnit?.id;
+
+  const { data: pendingPayables = [], isLoading: isLoadingPayables, refetch: refetchPayables } = usePendingPayablesForReconciliation(effectiveUnitId);
+  const { data: bankRecords = [], isLoading: isLoadingTransactions, refetch: refetchTransactions } = useUnreconciledTransactions(effectiveUnitId);
+  const reconcile = useReconcilePayable();
+
+  const isLoading = isLoadingPayables || isLoadingTransactions;
 
   const matches = findMatchesForPayables(pendingPayables, bankRecords);
 
@@ -37,17 +45,38 @@ export default function ReconciliationPage() {
     });
   };
 
+  const handleRefresh = () => {
+    refetchPayables();
+    refetchTransactions();
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <GitMerge className="h-6 w-6" />
-            Conciliação de Boletos
-          </h1>
-          <p className="text-muted-foreground">
-            Vincule boletos pendentes com movimentações do extrato bancário
-          </p>
+        <div className="flex flex-col sm:flex-row justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <GitMerge className="h-6 w-6" />
+              Conciliação de Boletos
+            </h1>
+            <p className="text-muted-foreground">
+              Vincule boletos pendentes com movimentações do extrato bancário
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <div className="w-48">
+                <UnitSelector
+                  value={selectedUnitId}
+                  onChange={setSelectedUnitId}
+                  placeholder="Todas"
+                />
+              </div>
+            )}
+            <Button variant="outline" size="icon" onClick={handleRefresh}>
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -139,18 +168,27 @@ export default function ReconciliationPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span>Extrato Bancário (Saídas)</span>
-                <Badge variant="secondary">{bankRecords.filter((r) => r.type === 'saida').length}</Badge>
+                <span>Transações de Saída</span>
+                <Badge variant="secondary">{bankRecords.length}</Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-[500px]">
-                {bankRecords.length === 0 ? (
+                {isLoadingTransactions ? (
+                  <div className="space-y-3">
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} className="p-3 border rounded-lg">
+                        <Skeleton className="h-4 w-32 mb-2" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                    ))}
+                  </div>
+                ) : bankRecords.length === 0 ? (
                   <div className="text-center py-8">
                     <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
-                    <p className="text-muted-foreground">Nenhum extrato importado</p>
+                    <p className="text-muted-foreground">Nenhuma transação de saída encontrada</p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Importe um extrato bancário para iniciar a conciliação
+                      Importe um extrato bancário ou verifique o filtro de unidade
                     </p>
                     <Button variant="outline" className="mt-4" asChild>
                       <a href="/import/bank-statement">Importar Extrato</a>
@@ -158,9 +196,7 @@ export default function ReconciliationPage() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {bankRecords
-                      .filter((r) => r.type === 'saida')
-                      .map((record) => (
+                    {bankRecords.map((record) => (
                         <div key={record.id} className="p-3 border rounded-lg">
                           <div className="flex justify-between">
                             <p className="font-medium truncate">{record.description}</p>

@@ -23,8 +23,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { UnitSelector } from '@/components/UnitSelector';
+import { PayableMatchingSuggestions } from '@/components/payables/PayableMatchingSuggestions';
 import { supabase } from '@/integrations/supabase/client';
 import { Partner, Category, Account, Unit } from '@/types/database';
+import { Payable } from '@/types/payables';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -63,6 +65,8 @@ export default function BankStatementImport() {
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [parseResult, setParseResult] = useState<BankStatementParseResult | null>(null);
   const [records, setRecords] = useState<BankStatementRecord[]>([]);
+  const [pendingPayables, setPendingPayables] = useState<Payable[]>([]);
+  const [showMatchingSuggestions, setShowMatchingSuggestions] = useState(true);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -107,6 +111,20 @@ export default function BankStatementImport() {
       setIsLoading(false);
     }
   };
+
+  // Fetch pending payables for matching
+  useEffect(() => {
+    const fetchPendingPayables = async () => {
+      const { data } = await supabase
+        .from('payables')
+        .select('*')
+        .in('status', ['pendente', 'vencido'])
+        .is('matched_transaction_id', null)
+        .is('matched_bank_item_id', null);
+      setPendingPayables((data || []) as Payable[]);
+    };
+    if (user) fetchPendingPayables();
+  }, [user]);
 
   const filteredAccounts = useMemo(() => 
     selectedUnitId ? accounts.filter(a => a.unit_id === selectedUnitId) : accounts,
@@ -368,6 +386,21 @@ export default function BankStatementImport() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Payable Matching Suggestions */}
+        {showMatchingSuggestions && pendingPayables.length > 0 && records.length > 0 && (
+          <PayableMatchingSuggestions
+            pendingPayables={pendingPayables}
+            importedRecords={records.map(r => ({
+              id: r.id,
+              date: r.date,
+              description: r.description,
+              amount: r.amount,
+              type: r.type.toLowerCase() as 'entrada' | 'saida',
+            }))}
+            onDismiss={() => setShowMatchingSuggestions(false)}
+          />
+        )}
 
         {/* Results */}
         {parseResult && records.length > 0 && (
