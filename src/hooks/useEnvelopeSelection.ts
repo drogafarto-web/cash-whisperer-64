@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { LisItemForEnvelope } from '@/services/envelopeClosingService';
 
 export interface EnvelopeSelectionState {
@@ -9,6 +9,26 @@ export interface EnvelopeSelectionState {
 
 export function useEnvelopeSelection(availableItems: LisItemForEnvelope[]) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Sincronizar: remover IDs selecionados que não existem mais nos itens disponíveis
+  useEffect(() => {
+    setSelectedIds(prev => {
+      const availableIdSet = new Set(availableItems.map(item => item.id));
+      const validIds = new Set<string>();
+      
+      for (const id of prev) {
+        if (availableIdSet.has(id)) {
+          validIds.add(id);
+        }
+      }
+      
+      // Só atualiza se houve mudança
+      if (validIds.size !== prev.size) {
+        return validIds;
+      }
+      return prev;
+    });
+  }, [availableItems]);
 
   // Calcular estado da seleção
   const selectionState = useMemo<EnvelopeSelectionState>(() => {
