@@ -49,6 +49,7 @@ import {
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ImportProgressOverlay, ImportStep } from '@/components/lis/ImportProgressOverlay';
+import { UnitSelector } from '@/components/UnitSelector';
 
 interface Unit {
   id: string;
@@ -833,16 +834,12 @@ export default function LisFechamento() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <Label htmlFor="unit">Unidade</Label>
-                <Select value={selectedUnitId} onValueChange={setSelectedUnitId} disabled={isClosed}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione a unidade" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {units.map(unit => (
-                      <SelectItem key={unit.id} value={unit.id}>{unit.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <UnitSelector
+                  value={selectedUnitId}
+                  onChange={setSelectedUnitId}
+                  disabled={isClosed}
+                  restrictToUserUnit={true}
+                />
               </div>
               <div>
                 <Label htmlFor="periodStart">Data Inicial</Label>
