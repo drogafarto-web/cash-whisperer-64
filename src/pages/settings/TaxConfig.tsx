@@ -37,6 +37,16 @@ const REGIME_LABELS: Record<RegimeTributario, string> = {
   'LUCRO_REAL': 'Lucro Real',
 };
 
+export default function TaxConfig() {
+  const queryClient = useQueryClient();
+  const [selectedUnitId, setSelectedUnitId] = useState<string>('');
+  const [unitConfig, setUnitConfig] = useState({
+    cnpj: '',
+    regime_atual: 'SIMPLES',
+    iss_aliquota: 0.05,
+    notas: '',
+  });
+
   // Estados para parâmetros gerais
   const [taxParams, setTaxParams] = useState({
     presuncao_servicos: 0.32,
