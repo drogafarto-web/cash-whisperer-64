@@ -625,6 +625,36 @@ export type Database = {
           },
         ]
       }
+      convenios: {
+        Row: {
+          active: boolean
+          codigo: string | null
+          created_at: string
+          id: string
+          nome: string
+          tipo: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          nome: string
+          tipo?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          nome?: string
+          tipo?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       daily_cash_closings: {
         Row: {
           confirmed_at: string | null
