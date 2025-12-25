@@ -70,6 +70,7 @@ export function Sidebar({
             isOpen={isGroupOpen(group.id) || isGroupActive(group)}
             isActive={isGroupActive(group)}
             badgeCount={group.badgeKey && badgeCounts ? badgeCounts[group.badgeKey] : 0}
+            badgeCounts={badgeCounts}
             onToggle={() => toggleGroup(group.id)}
             onItemClick={onCloseMobile}
             isActiveRoute={isActiveRoute}
@@ -135,6 +136,7 @@ interface NavGroupItemProps {
   isOpen: boolean;
   isActive: boolean;
   badgeCount: number;
+  badgeCounts?: BadgeCounts;
   onToggle: () => void;
   onItemClick: () => void;
   isActiveRoute: (href: string) => boolean;
@@ -145,6 +147,7 @@ function NavGroupItem({
   isOpen,
   isActive,
   badgeCount,
+  badgeCounts,
   onToggle,
   onItemClick,
   isActiveRoute,
@@ -214,6 +217,7 @@ function NavGroupItem({
       <CollapsibleContent className="pl-4 mt-1 space-y-1">
         {group.items.map((item) => {
           const active = isActiveRoute(item.href);
+          const itemBadgeCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
 
           return (
             <Link
@@ -229,6 +233,23 @@ function NavGroupItem({
             >
               <item.icon className="w-4 h-4" />
               <span className="flex-1">{item.name}</span>
+              {itemBadgeCount > 0 && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge 
+                        variant="secondary" 
+                        className="text-xs px-1.5 py-0 min-w-[1.25rem] h-5 flex items-center justify-center"
+                      >
+                        {itemBadgeCount}
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      <p>{itemBadgeCount} {BADGE_TOOLTIPS[item.badgeKey!]}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </Link>
           );
         })}

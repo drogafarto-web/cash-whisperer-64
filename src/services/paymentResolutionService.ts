@@ -104,3 +104,33 @@ export function calculateCardTotals(items: LisItemForEnvelope[]): CardTotals {
 export function calculatePixTotal(items: LisItemForEnvelope[]): number {
   return items.reduce((sum, item) => sum + (item.amount || 0), 0);
 }
+
+/**
+ * Conta itens PIX pendentes para uma unidade
+ */
+export async function getPendingPixCount(unitId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('lis_closure_items')
+    .select('id', { count: 'exact', head: true })
+    .eq('unit_id', unitId)
+    .eq('payment_method', 'PIX')
+    .eq('payment_status', 'PENDENTE');
+
+  if (error) throw error;
+  return count ?? 0;
+}
+
+/**
+ * Conta itens CARTÃO pendentes para uma unidade
+ */
+export async function getPendingCardCount(unitId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('lis_closure_items')
+    .select('id', { count: 'exact', head: true })
+    .eq('unit_id', unitId)
+    .eq('payment_method', 'CARTAO')
+    .eq('payment_status', 'PENDENTE');
+
+  if (error) throw error;
+  return count ?? 0;
+}
