@@ -16,6 +16,11 @@ export interface LisItemForEnvelope {
   unit_id: string | null;
   envelope_id: string | null;
   unit_name?: string;
+  // Card-specific fields
+  gross_amount?: number | null;
+  net_amount?: number | null;
+  card_fee_value?: number | null;
+  card_fee_percent?: number | null;
 }
 
 export interface EnvelopeData {

@@ -24,6 +24,7 @@ import {
   FileInput,
   Barcode,
   GitMerge,
+  QrCode,
 } from 'lucide-react';
 import { AppRole } from '@/types/database';
 
@@ -89,6 +90,8 @@ export const navigationGroups: NavGroup[] = [
     items: [
       { name: 'Importar Movimento', href: '/import/daily-movement', icon: FileUp, roles: ['admin', 'secretaria', 'gestor_unidade'] },
       { name: 'Fechar Envelope', href: '/envelope-closing', icon: Wallet, roles: ['admin', 'secretaria', 'gestor_unidade'] },
+      { name: 'Confirmar PIX', href: '/pix-closing', icon: QrCode, roles: ['admin', 'secretaria', 'gestor_unidade'] },
+      { name: 'Confirmar Cartão', href: '/card-closing', icon: CreditCard, roles: ['admin', 'secretaria', 'gestor_unidade'] },
       { name: 'Transações', href: '/transactions', icon: Receipt, roles: ['admin', 'secretaria', 'contabilidade', 'gestor_unidade', 'financeiro'] },
       { name: 'Importar Extrato', href: '/import/bank-statement', icon: FileUp, roles: ['admin', 'secretaria', 'gestor_unidade', 'financeiro'] },
       { name: 'Unidades', href: '/settings/units', icon: MapPin, roles: ['admin'] },
