@@ -10,9 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { Settings, Building2, FileText, Calculator } from 'lucide-react';
-import { Unit } from '@/types/database';
+import { Settings, Building2, FileText, Calculator, MapPin, Landmark, Calendar } from 'lucide-react';
+import { Unit, UnitType, RegimeTributario, IssTipoApuracao } from '@/types/database';
+import { useTaxConfig, useSaveTaxConfig, UnitFiscalData } from '@/hooks/useTaxConfig';
 
 interface SimplesNacionalFaixa {
   faixa: number;
@@ -22,17 +25,17 @@ interface SimplesNacionalFaixa {
   deducao: number;
 }
 
-export default function TaxConfigPage() {
-  const queryClient = useQueryClient();
-  
-  // Estados para configuração por unidade
-  const [selectedUnitId, setSelectedUnitId] = useState<string>('');
-  const [unitConfig, setUnitConfig] = useState({
-    cnpj: '',
-    regime_atual: 'SIMPLES',
-    iss_aliquota: 0.05,
-    notas: '',
-  });
+const UNIT_TYPE_LABELS: Record<UnitType, string> = {
+  'MATRIZ': 'Matriz',
+  'FILIAL_COM_NF': 'Filial com NF',
+  'POSTO_COLETA_SEM_NF': 'Posto de Coleta (sem NF)',
+};
+
+const REGIME_LABELS: Record<RegimeTributario, string> = {
+  'SIMPLES_NACIONAL': 'Simples Nacional',
+  'LUCRO_PRESUMIDO': 'Lucro Presumido',
+  'LUCRO_REAL': 'Lucro Real',
+};
 
   // Estados para parâmetros gerais
   const [taxParams, setTaxParams] = useState({

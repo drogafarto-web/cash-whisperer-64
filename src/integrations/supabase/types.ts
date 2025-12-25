@@ -2176,32 +2176,57 @@ export type Database = {
           created_at: string
           id: string
           iss_aliquota: number
+          iss_municipio_incidente: string | null
+          iss_responsavel_unit_id: string | null
+          iss_tipo_apuracao: string | null
+          iss_valor_fixo_mensal: number | null
           notas: string | null
           regime_atual: string
           unit_id: string | null
           updated_at: string
+          vigencia_fim: string | null
+          vigencia_inicio: string | null
         }
         Insert: {
           cnpj?: string | null
           created_at?: string
           id?: string
           iss_aliquota?: number
+          iss_municipio_incidente?: string | null
+          iss_responsavel_unit_id?: string | null
+          iss_tipo_apuracao?: string | null
+          iss_valor_fixo_mensal?: number | null
           notas?: string | null
           regime_atual?: string
           unit_id?: string | null
           updated_at?: string
+          vigencia_fim?: string | null
+          vigencia_inicio?: string | null
         }
         Update: {
           cnpj?: string | null
           created_at?: string
           id?: string
           iss_aliquota?: number
+          iss_municipio_incidente?: string | null
+          iss_responsavel_unit_id?: string | null
+          iss_tipo_apuracao?: string | null
+          iss_valor_fixo_mensal?: number | null
           notas?: string | null
           regime_atual?: string
           unit_id?: string | null
           updated_at?: string
+          vigencia_fim?: string | null
+          vigencia_inicio?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "tax_config_iss_responsavel_unit_id_fkey"
+            columns: ["iss_responsavel_unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tax_config_unit_id_fkey"
             columns: ["unit_id"]
@@ -2407,24 +2432,56 @@ export type Database = {
       }
       units: {
         Row: {
+          centraliza_tributos_federais: boolean | null
+          cnpj: string | null
           code: string
           created_at: string
           id: string
+          inscricao_estadual: string | null
+          inscricao_municipal: string | null
+          municipio_codigo_ibge: string | null
+          municipio_nome: string | null
           name: string
+          parent_unit_id: string | null
+          unit_type: string | null
         }
         Insert: {
+          centraliza_tributos_federais?: boolean | null
+          cnpj?: string | null
           code: string
           created_at?: string
           id?: string
+          inscricao_estadual?: string | null
+          inscricao_municipal?: string | null
+          municipio_codigo_ibge?: string | null
+          municipio_nome?: string | null
           name: string
+          parent_unit_id?: string | null
+          unit_type?: string | null
         }
         Update: {
+          centraliza_tributos_federais?: boolean | null
+          cnpj?: string | null
           code?: string
           created_at?: string
           id?: string
+          inscricao_estadual?: string | null
+          inscricao_municipal?: string | null
+          municipio_codigo_ibge?: string | null
+          municipio_nome?: string | null
           name?: string
+          parent_unit_id?: string | null
+          unit_type?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "units_parent_unit_id_fkey"
+            columns: ["parent_unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {

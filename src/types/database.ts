@@ -1,6 +1,9 @@
 export type AppRole = 'admin' | 'secretaria' | 'contabilidade' | 'gestor_unidade' | 'financeiro' | 'contador';
 export type AccountType = 'CAIXA' | 'CONTA_BANCARIA' | 'OPERADORA_CARTAO';
 export type PartnerType = 'CLIENTE' | 'FORNECEDOR';
+export type UnitType = 'MATRIZ' | 'FILIAL_COM_NF' | 'POSTO_COLETA_SEM_NF';
+export type RegimeTributario = 'SIMPLES_NACIONAL' | 'LUCRO_PRESUMIDO' | 'LUCRO_REAL';
+export type IssTipoApuracao = 'SOBRE_FATURAMENTO' | 'FIXO_MENSAL';
 
 export interface Profile {
   id: string;
@@ -22,7 +25,40 @@ export interface Unit {
   id: string;
   name: string;
   code: string;
+  // Identidade fiscal
+  cnpj?: string | null;
+  inscricao_municipal?: string | null;
+  inscricao_estadual?: string | null;
+  municipio_codigo_ibge?: string | null;
+  municipio_nome?: string | null;
+  // Hierarquia
+  unit_type?: string | null;
+  parent_unit_id?: string | null;
+  centraliza_tributos_federais?: boolean | null;
+  // Meta
   created_at: string;
+  // Relacionamentos
+  parent_unit?: Unit | null;
+}
+
+export interface TaxConfig {
+  id: string;
+  unit_id: string;
+  cnpj?: string | null;
+  regime_atual: string;
+  // ISS completo
+  iss_aliquota: number;
+  iss_municipio_incidente?: string | null;
+  iss_tipo_apuracao?: string | null;
+  iss_valor_fixo_mensal?: number | null;
+  iss_responsavel_unit_id?: string | null;
+  // Vigência
+  vigencia_inicio?: string | null;
+  vigencia_fim?: string | null;
+  // Meta
+  notas?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Account {
