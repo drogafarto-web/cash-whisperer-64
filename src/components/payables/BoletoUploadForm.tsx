@@ -130,9 +130,7 @@ export function BoletoUploadForm({
       if (data.codigo_barras) {
         const isDuplicate = await checkDuplicatePayableByCodigoBarras(data.codigo_barras);
         if (isDuplicate) {
-          toast({
-            variant: 'destructive',
-            title: 'Boleto duplicado',
+          toast.error('Boleto duplicado', {
             description: 'Este código de barras já foi cadastrado anteriormente.',
           });
           return;
@@ -142,9 +140,7 @@ export function BoletoUploadForm({
       if (data.linha_digitavel) {
         const isDuplicate = await checkDuplicatePayableByLinhaDigitavel(data.linha_digitavel);
         if (isDuplicate) {
-          toast({
-            variant: 'destructive',
-            title: 'Boleto duplicado',
+          toast.error('Boleto duplicado', {
             description: 'Esta linha digitável já foi cadastrada anteriormente.',
           });
           return;

@@ -116,10 +116,8 @@ export default function InvoiceForm({ initialData, onSuccess, onCancel }: Invoic
       );
 
       if (isDuplicate) {
-        toast({
-          title: 'Nota fiscal duplicada',
+        toast.error('Nota fiscal duplicada', {
           description: 'Já existe uma nota fiscal com este número de documento.',
-          variant: 'destructive',
         });
         return;
       }

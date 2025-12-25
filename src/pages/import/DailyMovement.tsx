@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
+import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { parseLisXls, LisRecord, ParseResult, getPaymentMethodIcon, formatCurrency, extractLisCodeFromDescription } from '@/utils/lisImport';
@@ -156,10 +156,8 @@ export default function DailyMovement() {
 
     if (!isValidType) {
       addLog('error', '❌ Tipo de arquivo inválido. Apenas XLS/XLSX são aceitos.');
-      toast({
-        title: 'Arquivo inválido',
+      toast.error('Arquivo inválido', {
         description: 'Por favor, selecione um arquivo XLS ou XLSX.',
-        variant: 'destructive',
       });
       return;
     }
@@ -276,17 +274,14 @@ export default function DailyMovement() {
       addLog('success', `🎉 Processamento concluído! ${preSelected.size} registros pré-selecionados.`);
 
       const duplicateMsg = duplicateCount > 0 ? ` ${duplicateCount} duplicatas detectadas.` : '';
-      toast({
-        title: 'Arquivo processado',
+      toast.success('Arquivo processado', {
         description: `${result.totalRecords} registros encontrados, ${updatedResult.validRecords} válidos.${duplicateMsg}`,
       });
     } catch (error) {
       console.error('Erro ao processar arquivo:', error);
       addLog('error', `❌ Erro ao processar: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-      toast({
-        title: 'Erro ao processar arquivo',
+      toast.error('Erro ao processar arquivo', {
         description: 'Não foi possível ler o arquivo. Verifique se é um relatório do LIS válido.',
-        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -330,8 +325,7 @@ export default function DailyMovement() {
     // Close modal
     setResolutionModal({ open: false, recordIndex: null, record: null });
     
-    toast({
-      title: 'Pendência resolvida',
+    toast.success('Pendência resolvida', {
       description: 'O registro foi marcado como resolvido e incluído na seleção.',
     });
   };
@@ -538,18 +532,15 @@ export default function DailyMovement() {
         console.warn('Erro ao registrar importação:', importError);
       }
 
-      toast({
-        title: 'Importação concluída',
+      toast.success('Importação concluída', {
         description: `${selectedIds.size} transações importadas. Códigos em dinheiro disponíveis para envelope.`,
       });
 
       navigate('/transactions');
     } catch (error) {
       console.error('Erro na importação:', error);
-      toast({
-        title: 'Erro na importação',
+      toast.error('Erro na importação', {
         description: 'Ocorreu um erro ao importar as transações. Tente novamente.',
-        variant: 'destructive',
       });
     } finally {
       setIsImporting(false);
