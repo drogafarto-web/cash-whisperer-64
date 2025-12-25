@@ -34,7 +34,7 @@ import DataSeed2025 from "./pages/settings/DataSeed2025";
 import FatorRAudit from "./pages/settings/FatorRAudit";
 import CardFeesConfig from "./pages/settings/CardFeesConfig";
 import Convenios from "./pages/settings/Convenios";
-import LisUsers from "./pages/settings/LisUsers";
+
 
 // Report pages
 import CashClosingReport from "./pages/reports/CashClosingReport";
@@ -109,7 +109,7 @@ const App = () => (
             <Route path="/settings/data-2025" element={<DataSeed2025 />} />
             <Route path="/settings/card-fees" element={<CardFeesConfig />} />
             <Route path="/settings/convenios" element={<Convenios />} />
-            <Route path="/settings/lis-users" element={<LisUsers />} />
+            
             <Route path="/reports/cash-closings" element={<CashClosingReport />} />
             <Route path="/reports/transactions" element={<TransactionsReport />} />
             <Route path="/reports/tax-scenarios" element={<TaxScenarios />} />
