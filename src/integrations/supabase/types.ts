@@ -1661,6 +1661,74 @@ export type Database = {
         }
         Relationships: []
       }
+      profile_functions: {
+        Row: {
+          created_at: string | null
+          function: string
+          id: string
+          profile_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          function: string
+          id?: string
+          profile_id: string
+        }
+        Update: {
+          created_at?: string | null
+          function?: string
+          id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_functions_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profile_units: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_primary: boolean | null
+          profile_id: string
+          unit_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_primary?: boolean | null
+          profile_id: string
+          unit_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_primary?: boolean | null
+          profile_id?: string
+          unit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_units_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_units_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -1668,6 +1736,8 @@ export type Database = {
           id: string
           is_active: boolean | null
           last_access: string | null
+          lis_id: number | null
+          lis_login: string | null
           name: string
           unit_id: string | null
           updated_at: string
@@ -1678,6 +1748,8 @@ export type Database = {
           id: string
           is_active?: boolean | null
           last_access?: string | null
+          lis_id?: number | null
+          lis_login?: string | null
           name: string
           unit_id?: string | null
           updated_at?: string
@@ -1688,6 +1760,8 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           last_access?: string | null
+          lis_id?: number | null
+          lis_login?: string | null
           name?: string
           unit_id?: string | null
           updated_at?: string

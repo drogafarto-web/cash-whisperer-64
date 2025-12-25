@@ -49,19 +49,27 @@ import { Profile, AppRole, Unit } from '@/types/database';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { Plus, Loader2, UserCog, Building2, Search, UserX, UserCheck, Clock, Mail, MailPlus } from 'lucide-react';
+import { Plus, Loader2, UserCog, Building2, Search, UserX, UserCheck, Clock, Mail, MailPlus, Pencil, Star, Briefcase, Link2 } from 'lucide-react';
 
 // Componentes RBAC
 import { RoleSummaryPanel } from '@/components/users/RoleSummaryPanel';
 import { RoleGuideModal } from '@/components/users/RoleGuideModal';
 import { UserFormAdaptive } from '@/components/users/UserFormAdaptive';
+import { UserEditDialog } from '@/components/users/UserEditDialog';
 import { ROLE_CONFIG } from '@/lib/access-policy';
+
+// Hooks
+import { useAllProfileUnits, useUpdateProfileUnits, ProfileUnit } from '@/hooks/useProfileUnits';
+import { useAllProfileFunctions, useUpdateProfileFunctions, OPERATIONAL_FUNCTIONS, ProfileFunction } from '@/hooks/useProfileFunctions';
+import { useUnlinkedLisUsers, useLinkLisLogin } from '@/hooks/useLisUsers';
 
 interface UserWithRole extends Profile {
   role?: AppRole;
   unit?: Unit;
   is_active?: boolean;
   last_access?: string | null;
+  lis_login?: string | null;
+  lis_id?: number | null;
 }
 
 // Tipo de status para UI
@@ -102,6 +110,20 @@ export default function UsersSettings() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deactivateUser, setDeactivateUser] = useState<UserWithRole | null>(null);
   const [resendingInvite, setResendingInvite] = useState<string | null>(null);
+  
+  // Edit dialog state
+  const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
+  const [isEditSubmitting, setIsEditSubmitting] = useState(false);
+
+  // Fetch profile units and functions
+  const { data: allProfileUnits = [] } = useAllProfileUnits();
+  const { data: allProfileFunctions = [] } = useAllProfileFunctions();
+  const { data: unlinkedLisUsers = [] } = useUnlinkedLisUsers();
+  
+  // Mutations
+  const updateProfileUnits = useUpdateProfileUnits();
+  const updateProfileFunctions = useUpdateProfileFunctions();
+  const linkLisLogin = useLinkLisLogin();
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -147,6 +169,8 @@ export default function UsersSettings() {
           unit: userUnit,
           is_active: (profile as any).is_active ?? true,
           last_access: (profile as any).last_access,
+          lis_login: (profile as any).lis_login,
+          lis_id: (profile as any).lis_id,
         };
       });
 
@@ -158,13 +182,25 @@ export default function UsersSettings() {
     }
   };
 
+  // Get user's units from profile_units
+  const getUserUnits = (userId: string): ProfileUnit[] => {
+    return allProfileUnits.filter(pu => pu.profile_id === userId);
+  };
+
+  // Get user's functions from profile_functions
+  const getUserFunctions = (userId: string): ProfileFunction[] => {
+    return allProfileFunctions.filter(pf => pf.profile_id === userId);
+  };
+
   // Filtered users
   const filteredUsers = useMemo(() => {
     return users.filter(u => {
       // Search filter
       if (searchTerm) {
         const search = searchTerm.toLowerCase();
-        if (!u.name.toLowerCase().includes(search) && !u.email.toLowerCase().includes(search)) {
+        if (!u.name.toLowerCase().includes(search) && 
+            !u.email.toLowerCase().includes(search) &&
+            !(u.lis_login?.toLowerCase().includes(search))) {
           return false;
         }
       }
@@ -180,8 +216,12 @@ export default function UsersSettings() {
       
       // Unit filter
       if (filterUnit !== 'all') {
-        if (filterUnit === 'none' && u.unit_id) return false;
-        if (filterUnit !== 'none' && u.unit_id !== filterUnit) return false;
+        const userUnits = getUserUnits(u.id);
+        if (filterUnit === 'none') {
+          if (userUnits.length > 0 || u.unit_id) return false;
+        } else {
+          if (!userUnits.some(pu => pu.unit_id === filterUnit) && u.unit_id !== filterUnit) return false;
+        }
       }
       
       // Status filter
@@ -192,7 +232,7 @@ export default function UsersSettings() {
       
       return true;
     });
-  }, [users, searchTerm, filterRole, filterUnit, filterStatus]);
+  }, [users, searchTerm, filterRole, filterUnit, filterStatus, allProfileUnits]);
 
   const handleCreateUser = async (data: {
     email: string;
@@ -230,12 +270,20 @@ export default function UsersSettings() {
           console.error('Error adding role:', roleError);
         }
 
-        // Update profile with unit_id if selected
+        // Update profile with unit_id and add to profile_units
         if (data.unitId) {
           await supabase
             .from('profiles')
             .update({ unit_id: data.unitId })
             .eq('id', authData.user.id);
+          
+          await supabase
+            .from('profile_units')
+            .insert({
+              profile_id: authData.user.id,
+              unit_id: data.unitId,
+              is_primary: true,
+            });
         }
       }
 
@@ -275,23 +323,6 @@ export default function UsersSettings() {
     }
   };
 
-  const handleUpdateUnit = async (userId: string, newUnitId: string | null) => {
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ unit_id: newUnitId })
-        .eq('id', userId);
-
-      if (error) throw error;
-      
-      toast.success('Unidade atualizada!');
-      fetchUsers();
-    } catch (error) {
-      console.error('Error updating unit:', error);
-      toast.error('Erro ao atualizar unidade');
-    }
-  };
-
   const handleToggleActive = async (targetUser: UserWithRole) => {
     const newStatus = targetUser.is_active === false;
     try {
@@ -314,7 +345,6 @@ export default function UsersSettings() {
   const handleResendInvite = async (targetUser: UserWithRole) => {
     setResendingInvite(targetUser.id);
     try {
-      // Reenvia o email de convite
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email: targetUser.email,
@@ -331,6 +361,48 @@ export default function UsersSettings() {
       toast.error('Erro ao reenviar convite');
     } finally {
       setResendingInvite(null);
+    }
+  };
+
+  const handleEditUser = async (data: {
+    lisLogin: string | null;
+    lisId: number | null;
+    unitIds: string[];
+    primaryUnitId: string | null;
+    functions: string[];
+  }) => {
+    if (!editingUser) return;
+    
+    setIsEditSubmitting(true);
+    try {
+      // Update LIS login
+      await linkLisLogin.mutateAsync({
+        profileId: editingUser.id,
+        lisLogin: data.lisLogin,
+        lisId: data.lisId,
+      });
+      
+      // Update units
+      await updateProfileUnits.mutateAsync({
+        profileId: editingUser.id,
+        unitIds: data.unitIds,
+        primaryUnitId: data.primaryUnitId || undefined,
+      });
+      
+      // Update functions
+      await updateProfileFunctions.mutateAsync({
+        profileId: editingUser.id,
+        functions: data.functions,
+      });
+      
+      toast.success('Usuário atualizado!');
+      setEditingUser(null);
+      fetchUsers();
+    } catch (error) {
+      console.error('Error updating user:', error);
+      toast.error('Erro ao atualizar usuário');
+    } finally {
+      setIsEditSubmitting(false);
     }
   };
 
@@ -352,6 +424,12 @@ export default function UsersSettings() {
       </AppLayout>
     );
   }
+
+  // Prepare data for edit dialog
+  const editingUserUnits = editingUser ? getUserUnits(editingUser.id) : [];
+  const editingUserUnitIds = editingUserUnits.map(pu => pu.unit_id);
+  const editingUserPrimaryUnitId = editingUserUnits.find(pu => pu.is_primary)?.unit_id;
+  const editingUserFunctions = editingUser ? getUserFunctions(editingUser.id).map(pf => pf.function) : [];
 
   return (
     <AppLayout>
@@ -404,7 +482,7 @@ export default function UsersSettings() {
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Buscar por nome ou email..."
+                      placeholder="Buscar por nome, email ou login LIS..."
                       value={searchTerm}
                       onChange={e => setSearchTerm(e.target.value)}
                       className="pl-9"
@@ -447,9 +525,10 @@ export default function UsersSettings() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nome</TableHead>
-                    <TableHead>Email</TableHead>
+                    <TableHead>Login LIS</TableHead>
                     <TableHead>Perfil</TableHead>
-                    <TableHead>Unidade</TableHead>
+                    <TableHead>Unidades</TableHead>
+                    <TableHead>Funções</TableHead>
                     <TableHead>Último Acesso</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
@@ -458,7 +537,7 @@ export default function UsersSettings() {
                 <TableBody>
                   {filteredUsers.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                         Nenhum usuário encontrado
                       </TableCell>
                     </TableRow>
@@ -470,10 +549,35 @@ export default function UsersSettings() {
                       const isInactive = status === 'inactive';
                       const isInvited = status === 'invited';
                       
+                      const userUnits = getUserUnits(u.id);
+                      const userFunctions = getUserFunctions(u.id);
+                      const primaryUnit = userUnits.find(pu => pu.is_primary);
+                      
                       return (
                         <TableRow key={u.id} className={isInactive ? 'opacity-60' : ''}>
-                          <TableCell className="font-medium">{u.name}</TableCell>
-                          <TableCell>{u.email}</TableCell>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium">{u.name}</p>
+                              <p className="text-xs text-muted-foreground">{u.email}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {u.lis_login ? (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="outline" className="font-mono text-xs cursor-help">
+                                    <Link2 className="w-3 h-3 mr-1" />
+                                    {u.lis_login}
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>ID LIS: {u.lis_id || 'N/A'}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">-</span>
+                            )}
+                          </TableCell>
                           <TableCell>
                             {u.role ? (
                               <Tooltip>
@@ -493,13 +597,53 @@ export default function UsersSettings() {
                             )}
                           </TableCell>
                           <TableCell>
-                            {u.unit ? (
+                            {userUnits.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {userUnits.map(pu => {
+                                  const unit = units.find(u => u.id === pu.unit_id);
+                                  return (
+                                    <Badge 
+                                      key={pu.id} 
+                                      variant={pu.is_primary ? 'default' : 'secondary'}
+                                      className="text-xs"
+                                    >
+                                      {unit?.code || unit?.name?.substring(0, 3)}
+                                      {pu.is_primary && <Star className="w-2 h-2 ml-1 fill-current" />}
+                                    </Badge>
+                                  );
+                                })}
+                              </div>
+                            ) : u.unit ? (
                               <div className="flex items-center gap-1 text-sm">
                                 <Building2 className="w-3 h-3 text-muted-foreground" />
-                                {u.unit.name}
+                                {u.unit.code || u.unit.name}
                               </div>
                             ) : (
-                              <span className="text-muted-foreground text-sm">Todas</span>
+                              <span className="text-muted-foreground text-xs">Todas</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {userFunctions.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {userFunctions.map(pf => {
+                                  const fnConfig = OPERATIONAL_FUNCTIONS.find(f => f.value === pf.function);
+                                  return (
+                                    <Tooltip key={pf.id}>
+                                      <TooltipTrigger asChild>
+                                        <Badge variant="outline" className="text-xs cursor-help">
+                                          <Briefcase className="w-2 h-2 mr-1" />
+                                          {fnConfig?.label || pf.function}
+                                        </Badge>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>{fnConfig?.description}</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">-</span>
                             )}
                           </TableCell>
                           <TableCell>
@@ -518,7 +662,7 @@ export default function UsersSettings() {
                             ) : (
                               <div className="flex items-center gap-1 text-sm text-muted-foreground">
                                 <Mail className="w-3 h-3" />
-                                <span>Nunca acessou</span>
+                                <span>Nunca</span>
                               </div>
                             )}
                           </TableCell>
@@ -530,6 +674,24 @@ export default function UsersSettings() {
                           <TableCell className="text-right">
                             {u.id !== user?.id && (
                               <div className="flex items-center justify-end gap-2">
+                                {/* Edit Button */}
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      size="icon"
+                                      onClick={() => setEditingUser(u)}
+                                      disabled={isInactive}
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Editar unidades, funções e LIS</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                                
+                                {/* Role selector */}
                                 <Select
                                   value={u.role || ''}
                                   onValueChange={value => handleUpdateRole(u.id, value as AppRole)}
@@ -547,26 +709,8 @@ export default function UsersSettings() {
                                     ))}
                                   </SelectContent>
                                 </Select>
-                                <Select
-                                  value={u.unit_id || 'all'}
-                                  onValueChange={value => handleUpdateUnit(u.id, value === 'all' ? null : value)}
-                                  disabled={isInactive}
-                                >
-                                  <SelectTrigger className="w-32">
-                                    <Building2 className="w-4 h-4 mr-2" />
-                                    <SelectValue placeholder="Unidade" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="all">Todas</SelectItem>
-                                    {units.map(unit => (
-                                      <SelectItem key={unit.id} value={unit.id}>
-                                        {unit.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
                                 
-                                {/* Botão reenviar convite para convidados */}
+                                {/* Resend invite button for invited users */}
                                 {isInvited && (
                                   <Tooltip>
                                     <TooltipTrigger asChild>
@@ -589,7 +733,7 @@ export default function UsersSettings() {
                                   </Tooltip>
                                 )}
                                 
-                                {/* Botão suspender/reativar */}
+                                {/* Suspend/Reactivate button */}
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <Button
@@ -620,6 +764,20 @@ export default function UsersSettings() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Edit User Dialog */}
+        <UserEditDialog
+          open={!!editingUser}
+          onOpenChange={(open) => !open && setEditingUser(null)}
+          user={editingUser}
+          units={units}
+          unlinkedLisUsers={unlinkedLisUsers}
+          currentUnitIds={editingUserUnitIds}
+          primaryUnitId={editingUserPrimaryUnitId}
+          currentFunctions={editingUserFunctions}
+          isSubmitting={isEditSubmitting}
+          onSubmit={handleEditUser}
+        />
 
         {/* Deactivate Confirmation Dialog */}
         <AlertDialog open={!!deactivateUser} onOpenChange={() => setDeactivateUser(null)}>
