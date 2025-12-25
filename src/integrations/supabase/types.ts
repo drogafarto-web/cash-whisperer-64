@@ -297,6 +297,53 @@ export type Database = {
         }
         Relationships: []
       }
+      cash_audit_log: {
+        Row: {
+          action: string
+          amount: number | null
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          target_count: number | null
+          target_id: string | null
+          target_type: string | null
+          unit_id: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          amount?: number | null
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          target_count?: number | null
+          target_id?: string | null
+          target_type?: string | null
+          unit_id: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          amount?: number | null
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          target_count?: number | null
+          target_id?: string | null
+          target_type?: string | null
+          unit_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_audit_log_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cash_closings: {
         Row: {
           account_id: string

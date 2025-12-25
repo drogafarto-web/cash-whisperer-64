@@ -5,6 +5,7 @@ import { Banknote, QrCode, CreditCard, ArrowRight, CheckCircle2, Loader2 } from 
 import { useAuth } from '@/hooks/useAuth';
 import { useCashHubData } from '@/hooks/useCashHubData';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { RequireFunction } from '@/components/auth/RequireFunction';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -107,8 +108,8 @@ function PaymentCard({
   );
 }
 
-export default function CashHub() {
-  const { unit } = useAuth();
+function CashHubContent() {
+  const { activeUnit } = useAuth();
   const { data, isLoading, error } = useCashHubData();
 
   const today = format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR });
@@ -120,7 +121,7 @@ export default function CashHub() {
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-bold tracking-tight">Central de Fechamento</h1>
           <p className="text-muted-foreground">
-            {unit?.name} • <span className="capitalize">{today}</span>
+            {activeUnit?.name} • <span className="capitalize">{today}</span>
           </p>
         </div>
 
@@ -217,5 +218,13 @@ export default function CashHub() {
         )}
       </div>
     </AppLayout>
+  );
+}
+
+export default function CashHub() {
+  return (
+    <RequireFunction functions={['caixa', 'supervisao']}>
+      <CashHubContent />
+    </RequireFunction>
   );
 }

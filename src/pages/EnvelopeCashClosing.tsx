@@ -7,6 +7,10 @@
  * - Códigos LIS ficam disponíveis até serem vinculados a um envelope (envelope_id IS NULL)
  * - Não há filtro por data - códigos de dias anteriores continuam visíveis
  * 
+ * CONTROLE DE ACESSO:
+ * - Requer função operacional: 'caixa' ou 'supervisao'
+ * - Admin tem acesso total
+ * 
  * Fluxo:
  * 1. Buscar códigos LIS onde: unit_id = X AND cash_component > 0 AND envelope_id IS NULL
  * 2. Recepcionista seleciona quais códigos foram pagos
@@ -19,6 +23,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { RequireFunction } from '@/components/auth/RequireFunction';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -28,7 +33,6 @@ import { toast } from 'sonner';
 import {
   Loader2,
   CheckCircle,
-  XCircle,
   ArrowLeft,
   ArrowRight,
   Package,
@@ -51,13 +55,14 @@ import {
   LisItemForEnvelope,
   EnvelopeData,
 } from '@/services/envelopeClosingService';
+import { logEnvelopeCreated, logEnvelopePrinted } from '@/services/cashAuditService';
 import { generateEnvelopeZpl, downloadZplFile } from '@/utils/zpl';
 
 type PageStep = 'loading' | 'no_items' | 'selection' | 'comparison' | 'success';
 
-export default function EnvelopeCashClosingPage() {
+function EnvelopeCashClosingContent() {
   const navigate = useNavigate();
-  const { user, profile, unit: userUnit, isLoading: authLoading } = useAuth();
+  const { user, profile, activeUnit, isLoading: authLoading } = useAuth();
   
   // Estados principais
   const [step, setStep] = useState<PageStep>('loading');
@@ -97,24 +102,23 @@ export default function EnvelopeCashClosingPage() {
 
   // Carregar dados quando tiver unidade
   useEffect(() => {
-    if (user && userUnit && !authLoading) {
+    if (user && activeUnit && !authLoading) {
       loadData();
-    } else if (user && !userUnit && !authLoading) {
+    } else if (user && !activeUnit && !authLoading) {
       setStep('no_items');
     }
-  }, [user, userUnit, authLoading]);
+  }, [user, activeUnit, authLoading]);
 
   /**
    * Carrega itens LIS disponíveis para envelope
    * Query: unit_id = X AND cash_component > 0 AND envelope_id IS NULL
    */
   const loadData = async () => {
-    if (!userUnit) return;
+    if (!activeUnit) return;
     
     setStep('loading');
     try {
-      // Buscar itens diretamente por unit_id (não mais por closure_id)
-      const items = await getAvailableItemsForEnvelope(userUnit.id);
+      const items = await getAvailableItemsForEnvelope(activeUnit.id);
       setAvailableItems(items);
 
       if (items.length === 0) {
@@ -142,7 +146,7 @@ export default function EnvelopeCashClosingPage() {
   };
 
   const handleConfirmEnvelope = async () => {
-    if (!user || !userUnit) return;
+    if (!user || !activeUnit) return;
     
     const countedValue = parseFloat(countedCash.replace(',', '.')) || 0;
     const difference = Math.abs(countedValue - expectedCash);
@@ -155,53 +159,76 @@ export default function EnvelopeCashClosingPage() {
 
     setIsSubmitting(true);
     try {
+      const selectedItemIds = getSelectedIds();
       const envelope = await createEnvelopeWithItems({
-        unitId: userUnit.id,
-        selectedItemIds: getSelectedIds(),
+        unitId: activeUnit.id,
+        selectedItemIds,
         countedCash: countedValue,
         justificativa: justificativa.trim() || undefined,
         userId: user.id,
       });
 
+      // Log audit action
+      await logEnvelopeCreated({
+        userId: user.id,
+        unitId: activeUnit.id,
+        envelopeId: envelope.id,
+        itemCount: envelope.lis_codes_count,
+        amount: expectedCash,
+        lisCodes: envelope.lis_codes,
+      });
+
       setCreatedEnvelope(envelope);
       toast.success(`Envelope criado com ${envelope.lis_codes_count} códigos LIS!`);
       setStep('success');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro ao criar envelope:', error);
-      toast.error(error.message || 'Erro ao criar envelope');
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao criar envelope';
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handlePrintLabel = async () => {
-    if (!createdEnvelope || !user) return;
+    if (!createdEnvelope || !user || !activeUnit) return;
 
     try {
-      // Verificar se já foi impressa
       const printed = await checkLabelPrinted(createdEnvelope.id);
       setLabelAlreadyPrinted(printed);
       
       if (!printed) {
         await markLabelPrinted(createdEnvelope.id, user.id);
+        await logEnvelopePrinted({
+          userId: user.id,
+          unitId: activeUnit.id,
+          envelopeId: createdEnvelope.id,
+          reprintCount: 0,
+        });
         toast.success('Etiqueta marcada como impressa');
       } else {
-        // Reimpressão - incrementar contador
         const copyNumber = await incrementReprintCount(createdEnvelope.id);
         setReprintCount(copyNumber);
+        await logEnvelopePrinted({
+          userId: user.id,
+          unitId: activeUnit.id,
+          envelopeId: createdEnvelope.id,
+          reprintCount: copyNumber,
+        });
         toast.info(`Reimprimindo - CÓPIA ${copyNumber}`);
       }
-    } catch (error: any) {
-      toast.error(error.message || 'Erro ao processar etiqueta');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao processar etiqueta';
+      toast.error(errorMessage);
     }
   };
 
   const handleDownloadZpl = () => {
-    if (!createdEnvelope || !userUnit) return;
+    if (!createdEnvelope || !activeUnit) return;
 
     const zplData = {
-      unitName: userUnit.name || 'Unidade',
-      unitCode: userUnit.code || 'UNIT',
+      unitName: activeUnit.name || 'Unidade',
+      unitCode: activeUnit.code || 'UNIT',
       periodStart: format(new Date(), 'dd/MM/yyyy'),
       periodEnd: format(new Date(), 'dd/MM/yyyy'),
       cashTotal: createdEnvelope.counted_cash || createdEnvelope.expected_cash,
@@ -221,7 +248,7 @@ export default function EnvelopeCashClosingPage() {
     setJustificativa('');
     setLabelAlreadyPrinted(false);
     setReprintCount(0);
-    clearSelection(); // Limpar IDs selecionados ao criar novo envelope
+    clearSelection();
     loadData();
   };
 
@@ -253,7 +280,7 @@ export default function EnvelopeCashClosingPage() {
                 </h2>
                 <p className="text-muted-foreground">
                   Não há códigos LIS com pagamento em dinheiro pendente
-                  {userUnit ? ` na unidade ${userUnit.name}` : ''}.
+                  {activeUnit ? ` na unidade ${activeUnit.name}` : ''}.
                 </p>
               </div>
               <div className="bg-muted/50 rounded-lg p-4 text-left">
@@ -279,7 +306,7 @@ export default function EnvelopeCashClosingPage() {
     );
   }
 
-  // Success state - mostrar envelope criado e etiqueta
+  // Success state
   if (step === 'success' && createdEnvelope) {
     return (
       <AppLayout>
@@ -297,8 +324,8 @@ export default function EnvelopeCashClosingPage() {
             <CardContent className="space-y-6">
               <EnvelopeLabelPreview
                 envelopeId={createdEnvelope.id}
-                unitName={userUnit?.name || 'Unidade'}
-                unitCode={userUnit?.code || 'UNIT'}
+                unitName={activeUnit?.name || 'Unidade'}
+                unitCode={activeUnit?.code || 'UNIT'}
                 countedCash={createdEnvelope.counted_cash || createdEnvelope.expected_cash}
                 lisCodesCount={createdEnvelope.lis_codes_count}
                 closedByName={profile?.name || 'Usuário'}
@@ -344,9 +371,9 @@ export default function EnvelopeCashClosingPage() {
               Fechamento de Caixa por Envelope
             </h1>
             <p className="text-muted-foreground capitalize">{todayFormatted}</p>
-            {userUnit && (
+            {activeUnit && (
               <p className="text-sm text-muted-foreground">
-                Unidade: <span className="font-medium text-foreground">{userUnit.name}</span>
+                Unidade: <span className="font-medium text-foreground">{activeUnit.name}</span>
               </p>
             )}
           </div>
@@ -414,9 +441,9 @@ export default function EnvelopeCashClosingPage() {
             Conferência do Envelope
           </h1>
           <p className="text-muted-foreground capitalize">{todayFormatted}</p>
-          {userUnit && (
+          {activeUnit && (
             <p className="text-sm text-muted-foreground">
-              Unidade: <span className="font-medium text-foreground">{userUnit.name}</span>
+              Unidade: <span className="font-medium text-foreground">{activeUnit.name}</span>
             </p>
           )}
         </div>
@@ -462,5 +489,13 @@ export default function EnvelopeCashClosingPage() {
         </div>
       </div>
     </AppLayout>
+  );
+}
+
+export default function EnvelopeCashClosingPage() {
+  return (
+    <RequireFunction functions={['caixa', 'supervisao']}>
+      <EnvelopeCashClosingContent />
+    </RequireFunction>
   );
 }

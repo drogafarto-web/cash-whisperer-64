@@ -1,7 +1,25 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { AppRole, Profile, Unit } from '@/types/database';
+
+// Types for profile units and functions
+interface ProfileUnit {
+  id: string;
+  profile_id: string;
+  unit_id: string;
+  is_primary: boolean | null;
+  unit?: Unit;
+}
+
+interface ProfileFunction {
+  id: string;
+  profile_id: string;
+  function: string;
+}
+
+// Operational function types
+export type OperationalFunction = 'atendimento' | 'coleta' | 'caixa' | 'supervisao' | 'tecnico';
 
 interface AuthContextType {
   user: User | null;
@@ -21,6 +39,13 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, name: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  // New: operational functions and multi-unit support
+  userFunctions: OperationalFunction[];
+  userUnits: ProfileUnit[];
+  activeUnit: Unit | null;
+  setActiveUnit: (unit: Unit) => void;
+  hasCashFunction: boolean;
+  hasFunction: (fn: OperationalFunction) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,29 +57,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<AppRole | null>(null);
   const [unit, setUnit] = useState<Unit | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // New state for functions and multi-unit
+  const [userFunctions, setUserFunctions] = useState<OperationalFunction[]>([]);
+  const [userUnits, setUserUnits] = useState<ProfileUnit[]>([]);
+  const [activeUnit, setActiveUnitState] = useState<Unit | null>(null);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         
-        // Defer profile/role fetch
         if (session?.user) {
           setTimeout(() => {
             fetchUserData(session.user.id);
           }, 0);
         } else {
-          setProfile(null);
-          setRole(null);
-          setUnit(null);
+          resetState();
           setIsLoading(false);
         }
       }
     );
 
-    // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -68,9 +93,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  const resetState = () => {
+    setProfile(null);
+    setRole(null);
+    setUnit(null);
+    setUserFunctions([]);
+    setUserUnits([]);
+    setActiveUnitState(null);
+  };
+
   const fetchUserData = async (userId: string) => {
     try {
-      // Fetch profile with unit
+      // Fetch profile
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
@@ -79,18 +113,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       setProfile(profileData as Profile | null);
 
-      // If profile has unit_id, fetch the unit
-      if (profileData?.unit_id) {
+      // Fetch profile_units with unit data
+      const { data: profileUnitsData } = await supabase
+        .from('profile_units')
+        .select(`
+          id,
+          profile_id,
+          unit_id,
+          is_primary,
+          unit:units(*)
+        `)
+        .eq('profile_id', userId);
+
+      const mappedUnits: ProfileUnit[] = (profileUnitsData || []).map(pu => ({
+        id: pu.id,
+        profile_id: pu.profile_id,
+        unit_id: pu.unit_id,
+        is_primary: pu.is_primary,
+        unit: pu.unit as Unit | undefined,
+      }));
+      setUserUnits(mappedUnits);
+
+      // Determine active unit: primary unit from profile_units, or fallback to profile.unit_id
+      const primaryProfileUnit = mappedUnits.find(pu => pu.is_primary);
+      let activeUnitData: Unit | null = null;
+
+      if (primaryProfileUnit?.unit) {
+        activeUnitData = primaryProfileUnit.unit;
+      } else if (mappedUnits.length > 0 && mappedUnits[0].unit) {
+        activeUnitData = mappedUnits[0].unit;
+      } else if (profileData?.unit_id) {
+        // Fallback to legacy unit_id
         const { data: unitData } = await supabase
           .from('units')
           .select('*')
           .eq('id', profileData.unit_id)
           .single();
-        
-        setUnit(unitData as Unit | null);
-      } else {
-        setUnit(null);
+        activeUnitData = unitData as Unit | null;
       }
+
+      setUnit(activeUnitData);
+      setActiveUnitState(activeUnitData);
+
+      // Fetch profile_functions
+      const { data: functionsData } = await supabase
+        .from('profile_functions')
+        .select('function')
+        .eq('profile_id', userId);
+
+      const functions = (functionsData || []).map(f => f.function as OperationalFunction);
+      setUserFunctions(functions);
 
       // Fetch role
       const { data: roleData } = await supabase
@@ -107,10 +179,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const setActiveUnit = useCallback((newUnit: Unit) => {
+    setActiveUnitState(newUnit);
+    setUnit(newUnit); // Keep legacy unit in sync
+  }, []);
+
   const signIn = async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     
-    // Update last_access on successful login
     if (data?.user && !error) {
       supabase
         .from('profiles')
@@ -139,9 +215,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
-    setProfile(null);
-    setRole(null);
-    setUnit(null);
+    resetState();
   };
 
   const isAdmin = role === 'admin';
@@ -151,12 +225,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isFinanceiro = role === 'financeiro';
   const isContador = role === 'contador';
   
-  // Usuários que podem acessar dados de todas as unidades (não têm unidade fixa)
   const canAccessAllUnits = isAdmin || isContabilidade || isFinanceiro || isContador;
 
-  // Verifica se o usuário tem acesso a uma determinada permissão
+  // Check if user has cash-related functions
+  const hasCashFunction = userFunctions.includes('caixa') || userFunctions.includes('supervisao') || isAdmin;
+
+  const hasFunction = useCallback((fn: OperationalFunction): boolean => {
+    if (isAdmin) return true;
+    return userFunctions.includes(fn);
+  }, [userFunctions, isAdmin]);
+
   const hasPermission = (permission: string): boolean => {
-    if (isAdmin) return true; // Admin tem acesso total
+    if (isAdmin) return true;
     
     const permissions: Record<string, AppRole[]> = {
       'dashboard': ['admin', 'gestor_unidade', 'financeiro', 'contador'],
@@ -199,6 +279,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn,
       signUp,
       signOut,
+      // New exports
+      userFunctions,
+      userUnits,
+      activeUnit,
+      setActiveUnit,
+      hasCashFunction,
+      hasFunction,
     }}>
       {children}
     </AuthContext.Provider>
