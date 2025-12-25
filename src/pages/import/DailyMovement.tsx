@@ -156,8 +156,10 @@ export default function DailyMovement() {
 
     if (!isValidType) {
       addLog('error', '❌ Tipo de arquivo inválido. Apenas XLS/XLSX são aceitos.');
-      toast.error('Arquivo inválido', {
+      toast({
+        title: 'Arquivo inválido',
         description: 'Por favor, selecione um arquivo XLS ou XLSX.',
+        variant: 'destructive',
       });
       return;
     }
@@ -274,14 +276,17 @@ export default function DailyMovement() {
       addLog('success', `🎉 Processamento concluído! ${preSelected.size} registros pré-selecionados.`);
 
       const duplicateMsg = duplicateCount > 0 ? ` ${duplicateCount} duplicatas detectadas.` : '';
-      toast.success('Arquivo processado', {
+      toast({
+        title: 'Arquivo processado',
         description: `${result.totalRecords} registros encontrados, ${updatedResult.validRecords} válidos.${duplicateMsg}`,
       });
     } catch (error) {
       console.error('Erro ao processar arquivo:', error);
       addLog('error', `❌ Erro ao processar: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-      toast.error('Erro ao processar arquivo', {
+      toast({
+        title: 'Erro ao processar arquivo',
         description: 'Não foi possível ler o arquivo. Verifique se é um relatório do LIS válido.',
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -325,7 +330,8 @@ export default function DailyMovement() {
     // Close modal
     setResolutionModal({ open: false, recordIndex: null, record: null });
     
-    toast.success('Pendência resolvida', {
+    toast({
+      title: 'Pendência resolvida',
       description: 'O registro foi marcado como resolvido e incluído na seleção.',
     });
   };
@@ -532,15 +538,18 @@ export default function DailyMovement() {
         console.warn('Erro ao registrar importação:', importError);
       }
 
-      toast.success('Importação concluída', {
+      toast({
+        title: 'Importação concluída',
         description: `${selectedIds.size} transações importadas. Códigos em dinheiro disponíveis para envelope.`,
       });
 
       navigate('/transactions');
     } catch (error) {
       console.error('Erro na importação:', error);
-      toast.error('Erro na importação', {
+      toast({
+        title: 'Erro na importação',
         description: 'Ocorreu um erro ao importar as transações. Tente novamente.',
+        variant: 'destructive',
       });
     } finally {
       setIsImporting(false);
