@@ -134,3 +134,63 @@ export async function getPendingCardCount(unitId: string): Promise<number> {
   if (error) throw error;
   return count ?? 0;
 }
+
+/**
+ * Conta itens de DINHEIRO pendentes (sem envelope)
+ */
+export async function getPendingCashCount(unitId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('lis_closure_items')
+    .select('id', { count: 'exact', head: true })
+    .eq('unit_id', unitId)
+    .gt('cash_component', 0)
+    .is('envelope_id', null);
+
+  if (error) throw error;
+  return count ?? 0;
+}
+
+/**
+ * Total de DINHEIRO pendente (sem envelope)
+ */
+export async function getPendingCashTotal(unitId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from('lis_closure_items')
+    .select('cash_component')
+    .eq('unit_id', unitId)
+    .gt('cash_component', 0)
+    .is('envelope_id', null);
+
+  if (error) throw error;
+  return (data || []).reduce((sum, item) => sum + (item.cash_component || 0), 0);
+}
+
+/**
+ * Total de PIX pendente
+ */
+export async function getPendingPixTotal(unitId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from('lis_closure_items')
+    .select('amount')
+    .eq('unit_id', unitId)
+    .eq('payment_method', 'PIX')
+    .eq('payment_status', 'PENDENTE');
+
+  if (error) throw error;
+  return (data || []).reduce((sum, item) => sum + (item.amount || 0), 0);
+}
+
+/**
+ * Totais de CARTÃO pendente (bruto, taxa, líquido)
+ */
+export async function getPendingCardTotals(unitId: string): Promise<CardTotals> {
+  const { data, error } = await supabase
+    .from('lis_closure_items')
+    .select('gross_amount, net_amount, card_fee_value, amount')
+    .eq('unit_id', unitId)
+    .eq('payment_method', 'CARTAO')
+    .eq('payment_status', 'PENDENTE');
+
+  if (error) throw error;
+  return calculateCardTotals((data || []) as LisItemForEnvelope[]);
+}
