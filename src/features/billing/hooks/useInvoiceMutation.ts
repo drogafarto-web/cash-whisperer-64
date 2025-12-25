@@ -1,18 +1,16 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { upsertInvoice } from '../api/invoices.api';
 import { Invoice } from '@/types/billing';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 export function useInvoiceMutation() {
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   return useMutation({
     mutationFn: (invoice: Partial<Invoice> & { id?: string }) => upsertInvoice(invoice),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      toast({
-        title: 'Nota fiscal salva',
+      toast.success('Nota fiscal salva', {
         description: 'A nota fiscal foi registrada com sucesso.',
       });
     },
@@ -39,11 +37,7 @@ export function useInvoiceMutation() {
         description = 'Dados inválidos. Verifique os campos e tente novamente.';
       }
       
-      toast({
-        title: 'Erro ao salvar',
-        description,
-        variant: 'destructive',
-      });
+      toast.error('Erro ao salvar', { description });
     },
   });
 }

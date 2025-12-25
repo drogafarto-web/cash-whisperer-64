@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useQuery } from '@tanstack/react-query';
@@ -56,7 +56,7 @@ const APPROVAL_CHANNELS = [
 
 export default function ExtratoParticulares() {
   const navigate = useNavigate();
-  const { toast } = useToast();
+  
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 

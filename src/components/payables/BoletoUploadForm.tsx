@@ -33,7 +33,7 @@ import {
   checkDuplicatePayableByLinhaDigitavel 
 } from '@/features/payables/api/payables.api';
 import { PayableFormData, SupplierInvoice } from '@/types/payables';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 const formSchema = z.object({
   beneficiario: z.string().min(1, 'Beneficiário é obrigatório'),

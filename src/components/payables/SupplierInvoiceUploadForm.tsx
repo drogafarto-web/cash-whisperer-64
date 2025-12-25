@@ -32,7 +32,7 @@ import { useCreateSupplierInvoice } from '@/features/payables/hooks/useSupplierI
 import { useCreatePayablesFromParcelas } from '@/features/payables/hooks/usePayables';
 import { checkDuplicateSupplierInvoice } from '@/features/payables/api/supplier-invoices.api';
 import { SupplierInvoiceFormData, Parcela } from '@/types/payables';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 const formSchema = z.object({
   document_number: z.string().min(1, 'Número do documento é obrigatório'),
