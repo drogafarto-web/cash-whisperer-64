@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +6,11 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { 
+  Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, 
+  History, Eye, AlertTriangle, FileCheck 
+} from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
@@ -14,9 +18,21 @@ import {
   previewConvenioReportsZip,
   ConvenioImportResult 
 } from '@/utils/convenioReportImport';
-import { useSaveConvenioImport, useConvenioImportSessions } from '@/features/audit';
+import { 
+  useSaveConvenioImport, 
+  useConvenioImportSessions, 
+  useExistingLisCodes,
+  useSessionDetails 
+} from '@/features/audit';
 import { useAuth } from '@/hooks/useAuth';
 import { UnitSelector } from '@/components/UnitSelector';
+
+interface DuplicateAnalysis {
+  newCodes: string[];
+  duplicateCodes: string[];
+  totalNew: number;
+  totalDuplicate: number;
+}
 
 export default function ConvenioReportsImport() {
   const { user, unit } = useAuth();
@@ -26,9 +42,13 @@ export default function ConvenioReportsImport() {
   const [importResult, setImportResult] = useState<ConvenioImportResult | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const [parseProgress, setParseProgress] = useState(0);
+  const [duplicateAnalysis, setDuplicateAnalysis] = useState<DuplicateAnalysis | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
   const { mutate: saveImport, isPending: isSaving } = useSaveConvenioImport();
   const { data: sessions } = useConvenioImportSessions(selectedUnitId || undefined);
+  const { data: existingLisCodes } = useExistingLisCodes(selectedUnitId);
+  const { data: sessionDetails, isLoading: isLoadingDetails } = useSessionDetails(selectedSessionId);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -36,6 +56,7 @@ export default function ConvenioReportsImport() {
 
     setSelectedFile(file);
     setImportResult(null);
+    setDuplicateAnalysis(null);
     setParseProgress(0);
 
     // Preview rápido
@@ -51,8 +72,24 @@ export default function ConvenioReportsImport() {
 
     try {
       const result = await importConvenioReportsZip(selectedFile);
-      setParseProgress(100);
+      setParseProgress(70);
       setImportResult(result);
+
+      // Análise de duplicados
+      if (existingLisCodes) {
+        const allCodes = result.files.flatMap(f => f.rows.map(r => r.lis_code));
+        const newCodes = allCodes.filter(code => !existingLisCodes.has(code));
+        const duplicateCodes = allCodes.filter(code => existingLisCodes.has(code));
+        
+        setDuplicateAnalysis({
+          newCodes,
+          duplicateCodes,
+          totalNew: newCodes.length,
+          totalDuplicate: duplicateCodes.length,
+        });
+      }
+      
+      setParseProgress(100);
     } catch (error) {
       console.error('Error parsing ZIP:', error);
     } finally {
@@ -73,6 +110,7 @@ export default function ConvenioReportsImport() {
         setSelectedFile(null);
         setPreview(null);
         setImportResult(null);
+        setDuplicateAnalysis(null);
         setParseProgress(0);
       },
     });
@@ -84,6 +122,8 @@ export default function ConvenioReportsImport() {
       currency: 'BRL',
     }).format(value);
   };
+
+  const canImport = duplicateAnalysis ? duplicateAnalysis.totalNew > 0 : true;
 
   return (
     <AppLayout>
@@ -167,6 +207,41 @@ export default function ConvenioReportsImport() {
             {/* Import Result */}
             {importResult && (
               <div className="space-y-4">
+                {/* Duplicate Analysis Alert */}
+                {duplicateAnalysis && (
+                  <div className={`rounded-lg border p-4 ${
+                    duplicateAnalysis.totalNew === 0 
+                      ? 'bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800' 
+                      : 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800'
+                  }`}>
+                    <div className="flex items-start gap-3">
+                      {duplicateAnalysis.totalNew === 0 ? (
+                        <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
+                      ) : (
+                        <FileCheck className="h-5 w-5 text-emerald-600 mt-0.5" />
+                      )}
+                      <div className="flex-1">
+                        <h4 className="font-medium mb-2">Análise de Duplicados</h4>
+                        <div className="flex gap-6">
+                          <div>
+                            <span className="text-2xl font-bold text-emerald-600">{duplicateAnalysis.totalNew}</span>
+                            <span className="text-sm text-muted-foreground ml-2">registros novos</span>
+                          </div>
+                          <div>
+                            <span className="text-2xl font-bold text-amber-600">{duplicateAnalysis.totalDuplicate}</span>
+                            <span className="text-sm text-muted-foreground ml-2">já importados (serão ignorados)</span>
+                          </div>
+                        </div>
+                        {duplicateAnalysis.totalNew === 0 && (
+                          <p className="text-sm text-amber-700 dark:text-amber-400 mt-2">
+                            Todos os registros deste arquivo já foram importados anteriormente.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="rounded-lg border bg-muted/50 p-4">
                   <h4 className="font-medium mb-3">Resultado da Análise</h4>
                   <div className="grid grid-cols-4 gap-4">
@@ -234,10 +309,21 @@ export default function ConvenioReportsImport() {
                   </Table>
                 </div>
 
-                <div className="flex justify-end">
+                <div className="flex justify-end gap-3">
+                  <Button 
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedFile(null);
+                      setPreview(null);
+                      setImportResult(null);
+                      setDuplicateAnalysis(null);
+                    }}
+                  >
+                    Cancelar
+                  </Button>
                   <Button 
                     onClick={handleImport} 
-                    disabled={isSaving}
+                    disabled={isSaving || !canImport}
                     size="lg"
                   >
                     {isSaving ? (
@@ -249,6 +335,7 @@ export default function ConvenioReportsImport() {
                       <>
                         <CheckCircle2 className="mr-2 h-4 w-4" />
                         Confirmar Importação
+                        {duplicateAnalysis && ` (${duplicateAnalysis.totalNew} novos)`}
                       </>
                     )}
                   </Button>
@@ -258,13 +345,19 @@ export default function ConvenioReportsImport() {
           </CardContent>
         </Card>
 
-        {/* Import History */}
-        {sessions && sessions.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Histórico de Importações</CardTitle>
-            </CardHeader>
-            <CardContent>
+        {/* Import History - Always visible */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Histórico de Importações
+            </CardTitle>
+            <CardDescription>
+              Visualize todas as importações realizadas
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {sessions && sessions.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -273,13 +366,17 @@ export default function ConvenioReportsImport() {
                     <TableHead>Período</TableHead>
                     <TableHead className="text-right">Convênios</TableHead>
                     <TableHead className="text-right">Registros</TableHead>
+                    <TableHead className="text-center">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {sessions.map((session) => (
                     <TableRow key={session.id}>
                       <TableCell>
-                        {format(new Date(session.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                          {format(new Date(session.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                        </div>
                       </TableCell>
                       <TableCell className="font-mono text-sm">{session.file_name}</TableCell>
                       <TableCell>
@@ -289,14 +386,78 @@ export default function ConvenioReportsImport() {
                       </TableCell>
                       <TableCell className="text-right">{session.providers_count}</TableCell>
                       <TableCell className="text-right">{session.total_records}</TableCell>
+                      <TableCell className="text-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedSessionId(session.id)}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Detalhes
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
-            </CardContent>
-          </Card>
-        )}
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <History className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                <p>Nenhuma importação realizada ainda</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Session Details Modal */}
+      <Dialog open={!!selectedSessionId} onOpenChange={(open) => !open && setSelectedSessionId(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Detalhes da Importação</DialogTitle>
+          </DialogHeader>
+          
+          {isLoadingDetails ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+          ) : sessionDetails ? (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-muted/50 p-4">
+                <p className="text-sm text-muted-foreground mb-1">Valor Total Importado</p>
+                <p className="text-2xl font-bold text-primary">
+                  {formatCurrency(sessionDetails.total_amount)}
+                </p>
+              </div>
+
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Convênio/Particular</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead className="text-right">Registros</TableHead>
+                    <TableHead className="text-right">Valor</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sessionDetails.providers.map((provider, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell className="font-medium">{provider.provider_name}</TableCell>
+                      <TableCell>
+                        <Badge variant={provider.is_particular ? 'default' : 'secondary'}>
+                          {provider.is_particular ? 'Particular' : 'Convênio'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">{provider.count}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(provider.total_amount)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }
