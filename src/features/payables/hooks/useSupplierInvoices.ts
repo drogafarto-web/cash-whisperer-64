@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import {
   fetchSupplierInvoices,
   fetchSupplierInvoiceById,
@@ -44,23 +44,14 @@ export function useCreateSupplierInvoice() {
     }) => createSupplierInvoice(data, filePath, fileName, ocrConfidence),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
-      toast({
-        title: 'Nota fiscal cadastrada',
-        description: 'A nota fiscal foi salva com sucesso.',
-      });
+      toast.success('Nota fiscal cadastrada', { description: 'A nota fiscal foi salva com sucesso.' });
     },
     onError: (error: any) => {
       let description = error.message;
-
       if (error?.code === '23505') {
         description = 'Esta nota fiscal já foi cadastrada anteriormente (mesmo número/fornecedor/data).';
       }
-
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao cadastrar nota fiscal',
-        description,
-      });
+      toast.error('Erro ao cadastrar nota fiscal', { description });
     },
   });
 }
@@ -73,17 +64,10 @@ export function useUpdateSupplierInvoice() {
       updateSupplierInvoice(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
-      toast({
-        title: 'Nota fiscal atualizada',
-        description: 'As alterações foram salvas.',
-      });
+      toast.success('Nota fiscal atualizada', { description: 'As alterações foram salvas.' });
     },
     onError: (error) => {
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao atualizar nota fiscal',
-        description: error.message,
-      });
+      toast.error('Erro ao atualizar nota fiscal', { description: error.message });
     },
   });
 }
@@ -95,17 +79,10 @@ export function useDeleteSupplierInvoice() {
     mutationFn: deleteSupplierInvoice,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
-      toast({
-        title: 'Nota fiscal excluída',
-        description: 'A nota fiscal foi removida.',
-      });
+      toast.success('Nota fiscal excluída', { description: 'A nota fiscal foi removida.' });
     },
     onError: (error) => {
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao excluir nota fiscal',
-        description: error.message,
-      });
+      toast.error('Erro ao excluir nota fiscal', { description: error.message });
     },
   });
 }
@@ -120,11 +97,7 @@ export function useUpdateSupplierInvoiceStatus() {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
     },
     onError: (error) => {
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao atualizar status',
-        description: error.message,
-      });
+      toast.error('Erro ao atualizar status', { description: error.message });
     },
   });
 }

@@ -11,7 +11,7 @@ import { Invoice } from '@/types/billing';
 import { useAuth } from '@/hooks/useAuth';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 interface InvoiceFormProps {
   initialData?: Partial<Invoice>;
@@ -38,7 +38,7 @@ const currentYear = new Date().getFullYear();
 
 export default function InvoiceForm({ initialData, onSuccess, onCancel }: InvoiceFormProps) {
   const { user } = useAuth();
-  const { toast } = useToast();
+  
   const invoiceMutation = useInvoiceMutation();
   const { data: payers = [] } = usePayers();
   const { data: units = [] } = useQuery({

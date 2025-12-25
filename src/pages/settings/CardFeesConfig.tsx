@@ -4,13 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CreditCard, Loader2, Save } from 'lucide-react';
 
 export default function CardFeesConfig() {
-  const { toast } = useToast();
+  
   const queryClient = useQueryClient();
 
   const { data: fees = [], isLoading } = useQuery({

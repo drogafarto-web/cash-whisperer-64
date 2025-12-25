@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { usePayers, usePayerMutation } from '@/features/billing';
 import { Payer, PayerType } from '@/types/billing';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 const PAYER_TYPES: { value: PayerType; label: string; icon: React.ReactNode }[] = [
   { value: 'prefeitura', label: 'Prefeitura', icon: <Building2 className="h-4 w-4" /> },
@@ -39,7 +39,7 @@ export default function Payers() {
 
   const { data: payers = [], isLoading } = usePayers(false);
   const payerMutation = usePayerMutation();
-  const { toast } = useToast();
+  
 
   const getTypeIcon = (type: PayerType) => {
     const found = PAYER_TYPES.find((t) => t.value === type);

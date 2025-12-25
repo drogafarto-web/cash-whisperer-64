@@ -31,7 +31,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { supabase } from '@/integrations/supabase/client';
 import { useUpdatePayable } from '@/features/payables/hooks/usePayables';
 import { useBoletoOcr } from '@/features/payables/hooks/usePayableOcr';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { Payable, BoletoOcrResult } from '@/types/payables';
 import { Calendar as CalendarIcon } from 'lucide-react';

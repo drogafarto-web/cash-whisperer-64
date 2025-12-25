@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import {
   fetchPayables,
   fetchPayableById,
@@ -60,14 +60,10 @@ export function useCreatePayable() {
     }) => createPayable(data, filePath, fileName, ocrConfidence),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
-      toast({
-        title: 'Boleto cadastrado',
-        description: 'O boleto foi salvo com sucesso.',
-      });
+      toast.success('Boleto cadastrado', { description: 'O boleto foi salvo com sucesso.' });
     },
     onError: (error: any) => {
       let description = error.message;
-      
       if (error?.code === '23505') {
         if (error?.message?.includes('codigo_barras')) {
           description = 'Este código de barras já foi cadastrado anteriormente.';
@@ -77,12 +73,7 @@ export function useCreatePayable() {
           description = 'Este boleto já foi cadastrado anteriormente.';
         }
       }
-      
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao cadastrar boleto',
-        description,
-      });
+      toast.error('Erro ao cadastrar boleto', { description });
     },
   });
 }
@@ -106,29 +97,14 @@ export function useCreatePayablesFromParcelas() {
     }) => createPayablesFromParcelas(parcelas, supplierInvoice),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
-      toast({
-        title: 'Parcelas criadas',
-        description: `${data.length} parcela(s) criada(s) com sucesso.`,
-      });
+      toast.success('Parcelas criadas', { description: `${data.length} parcela(s) criada(s) com sucesso.` });
     },
     onError: (error: any) => {
       let description = error.message;
-      
       if (error?.code === '23505') {
-        if (error?.message?.includes('codigo_barras')) {
-          description = 'Um ou mais códigos de barras já foram cadastrados anteriormente.';
-        } else if (error?.message?.includes('linha_digitavel')) {
-          description = 'Uma ou mais linhas digitáveis já foram cadastradas anteriormente.';
-        } else {
-          description = 'Uma ou mais parcelas já foram cadastradas anteriormente.';
-        }
+        description = 'Uma ou mais parcelas já foram cadastradas anteriormente.';
       }
-      
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao criar parcelas',
-        description,
-      });
+      toast.error('Erro ao criar parcelas', { description });
     },
   });
 }
@@ -141,17 +117,10 @@ export function useUpdatePayable() {
       updatePayable(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
-      toast({
-        title: 'Boleto atualizado',
-        description: 'As alterações foram salvas.',
-      });
+      toast.success('Boleto atualizado', { description: 'As alterações foram salvas.' });
     },
     onError: (error) => {
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao atualizar boleto',
-        description: error.message,
-      });
+      toast.error('Erro ao atualizar boleto', { description: error.message });
     },
   });
 }
@@ -163,17 +132,10 @@ export function useDeletePayable() {
     mutationFn: deletePayable,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
-      toast({
-        title: 'Boleto excluído',
-        description: 'O boleto foi removido.',
-      });
+      toast.success('Boleto excluído', { description: 'O boleto foi removido.' });
     },
     onError: (error) => {
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao excluir boleto',
-        description: error.message,
-      });
+      toast.error('Erro ao excluir boleto', { description: error.message });
     },
   });
 }
@@ -195,17 +157,10 @@ export function useMarkPayableAsPaid() {
     }) => markPayableAsPaid(id, paidAmount, paidMethod, transactionId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
-      toast({
-        title: 'Pagamento registrado',
-        description: 'O boleto foi marcado como pago.',
-      });
+      toast.success('Pagamento registrado', { description: 'O boleto foi marcado como pago.' });
     },
     onError: (error) => {
-      toast({
-        variant: 'destructive',
-        title: 'Erro ao registrar pagamento',
-        description: error.message,
-      });
+      toast.error('Erro ao registrar pagamento', { description: error.message });
     },
   });
 }
@@ -225,17 +180,10 @@ export function useReconcilePayable() {
     }) => reconcilePayableWithBankItem(payableId, bankItemId, paidAmount),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
-      toast({
-        title: 'Conciliação realizada',
-        description: 'O boleto foi vinculado ao extrato.',
-      });
+      toast.success('Conciliação realizada', { description: 'O boleto foi vinculado ao extrato.' });
     },
     onError: (error) => {
-      toast({
-        variant: 'destructive',
-        title: 'Erro na conciliação',
-        description: error.message,
-      });
+      toast.error('Erro na conciliação', { description: error.message });
     },
   });
 }
