@@ -1343,6 +1343,36 @@ export type Database = {
           },
         ]
       }
+      lis_users: {
+        Row: {
+          active: boolean | null
+          created_at: string | null
+          id: string
+          lis_id: number | null
+          login: string
+          nome: string
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string | null
+          id?: string
+          lis_id?: number | null
+          login: string
+          nome: string
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string | null
+          id?: string
+          lis_id?: number | null
+          login?: string
+          nome?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       partners: {
         Row: {
           active: boolean

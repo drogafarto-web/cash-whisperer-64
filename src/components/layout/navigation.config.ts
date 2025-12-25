@@ -27,6 +27,7 @@ import {
   Banknote,
   ClipboardCheck,
   FileArchive,
+  UserCog,
 } from 'lucide-react';
 import { AppRole } from '@/types/database';
 
@@ -96,6 +97,7 @@ export const navigationGroups: NavGroup[] = [
       { name: 'Transações', href: '/transactions', icon: Receipt, roles: ['admin', 'secretaria', 'contabilidade', 'gestor_unidade', 'financeiro'] },
       { name: 'Importar Extrato', href: '/import/bank-statement', icon: FileUp, roles: ['admin', 'secretaria', 'gestor_unidade', 'financeiro'] },
       { name: 'Unidades', href: '/settings/units', icon: MapPin, roles: ['admin'] },
+      { name: 'Operadores LIS', href: '/settings/lis-users', icon: UserCog, roles: ['admin'] },
       { name: 'Contas', href: '/settings/accounts', icon: Building2, roles: ['admin'] },
     ],
   },
