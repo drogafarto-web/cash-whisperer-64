@@ -25,6 +25,7 @@ import {
   ChevronRight,
   Database,
   Sparkles,
+  Heart,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSeedProgress } from '@/hooks/useSeedData';
@@ -75,6 +76,7 @@ const settingsCards: SettingsCard[] = [
       { name: 'Importar Extrato', href: '/import/bank-statement', icon: FileUp },
       { name: 'Unidades', href: '/settings/units', icon: MapPin },
       { name: 'Contas', href: '/settings/accounts', icon: Building2 },
+      { name: 'Convênios', href: '/settings/convenios', icon: Heart },
     ],
   },
   {
