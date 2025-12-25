@@ -25,6 +25,8 @@ import {
   Barcode,
   GitMerge,
   Banknote,
+  ClipboardCheck,
+  FileArchive,
 } from 'lucide-react';
 import { AppRole } from '@/types/database';
 
@@ -127,6 +129,9 @@ export const navigationGroups: NavGroup[] = [
       { name: 'Notas Fiscais', href: '/billing/invoices', icon: FileText, roles: ['admin', 'contabilidade'] },
       { name: 'Convênios', href: '/billing/payers', icon: Handshake, roles: ['admin', 'contabilidade'] },
       { name: 'Resumo Mensal', href: '/billing/summary', icon: TrendingUp, roles: ['admin', 'contabilidade'] },
+      { name: 'Importar Relatórios', href: '/import/convenio-reports', icon: FileArchive, roles: ['admin', 'contabilidade', 'financeiro'] },
+      { name: 'Audit. Particular', href: '/audit/particular-vs-cash', icon: ClipboardCheck, roles: ['admin', 'contabilidade', 'financeiro'] },
+      { name: 'Audit. Convênio', href: '/audit/convenio-vs-invoice', icon: ClipboardCheck, roles: ['admin', 'contabilidade', 'financeiro'] },
     ],
   },
   {
