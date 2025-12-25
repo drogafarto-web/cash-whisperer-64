@@ -33,6 +33,7 @@ export interface NavItem {
   href: string;
   icon: React.ElementType;
   roles: AppRole[];
+  badgeKey?: 'pixPendentes' | 'cartaoPendentes';
 }
 
 export interface NavGroup {
@@ -49,6 +50,8 @@ export const BADGE_TOOLTIPS: Record<string, string> = {
   lucratividade: 'categoria(s) sem grupo tributário definido',
   riscoEstrategia: 'alerta(s) de risco ativo(s)',
   tributacao: 'unidade(s) sem configuração tributária',
+  pixPendentes: 'código(s) PIX aguardando confirmação',
+  cartaoPendentes: 'código(s) Cartão aguardando confirmação',
 };
 
 // Labels amigáveis para os papéis
@@ -90,8 +93,8 @@ export const navigationGroups: NavGroup[] = [
     items: [
       { name: 'Importar Movimento', href: '/import/daily-movement', icon: FileUp, roles: ['admin', 'secretaria', 'gestor_unidade'] },
       { name: 'Fechar Envelope', href: '/envelope-closing', icon: Wallet, roles: ['admin', 'secretaria', 'gestor_unidade'] },
-      { name: 'Confirmar PIX', href: '/pix-closing', icon: QrCode, roles: ['admin', 'secretaria', 'gestor_unidade'] },
-      { name: 'Confirmar Cartão', href: '/card-closing', icon: CreditCard, roles: ['admin', 'secretaria', 'gestor_unidade'] },
+      { name: 'Confirmar PIX', href: '/pix-closing', icon: QrCode, roles: ['admin', 'secretaria', 'gestor_unidade'], badgeKey: 'pixPendentes' },
+      { name: 'Confirmar Cartão', href: '/card-closing', icon: CreditCard, roles: ['admin', 'secretaria', 'gestor_unidade'], badgeKey: 'cartaoPendentes' },
       { name: 'Transações', href: '/transactions', icon: Receipt, roles: ['admin', 'secretaria', 'contabilidade', 'gestor_unidade', 'financeiro'] },
       { name: 'Importar Extrato', href: '/import/bank-statement', icon: FileUp, roles: ['admin', 'secretaria', 'gestor_unidade', 'financeiro'] },
       { name: 'Unidades', href: '/settings/units', icon: MapPin, roles: ['admin'] },

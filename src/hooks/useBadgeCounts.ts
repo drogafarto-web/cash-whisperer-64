@@ -2,12 +2,15 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
+import { getPendingPixCount, getPendingCardCount } from '@/services/paymentResolutionService';
 
 export interface BadgeCounts {
   caixaUnidades: number;      // Unidades sem fechamento hoje
   lucratividade: number;      // Categorias sem tax_group
   riscoEstrategia: number;    // Alertas de risco ativos
   tributacao: number;         // Config tributária incompleta
+  pixPendentes: number;       // Códigos PIX pendentes
+  cartaoPendentes: number;    // Códigos Cartão pendentes
 }
 
 export function useBadgeCounts() {
@@ -127,11 +130,28 @@ export function useBadgeCounts() {
         tributacao = (unitsTotal || 0) - (taxConfigCount || 0);
       }
 
+      // 5. Contagem de PIX e Cartão pendentes (apenas se usuário tem unidade)
+      let pixPendentes = 0;
+      let cartaoPendentes = 0;
+
+      if (unit?.id) {
+        try {
+          [pixPendentes, cartaoPendentes] = await Promise.all([
+            getPendingPixCount(unit.id),
+            getPendingCardCount(unit.id),
+          ]);
+        } catch (err) {
+          console.error('Erro ao buscar contagens de pagamento:', err);
+        }
+      }
+
       return {
         caixaUnidades,
         lucratividade,
         riscoEstrategia,
         tributacao,
+        pixPendentes,
+        cartaoPendentes,
       };
     },
     staleTime: 1000 * 60 * 5, // 5 minutos

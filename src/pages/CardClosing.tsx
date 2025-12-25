@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ type PageStep = 'loading' | 'no_items' | 'selection' | 'success';
 export default function CardClosing() {
   const { user, unit } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [step, setStep] = useState<PageStep>('loading');
   const [availableItems, setAvailableItems] = useState<LisItemForEnvelope[]>([]);
@@ -73,6 +75,9 @@ export default function CardClosing() {
       const selectedItemIds = getSelectedIds();
 
       await resolvePaymentItems(selectedItemIds, unit.id, 'CARTAO');
+
+      // Invalidar cache de badges para atualizar contagem no menu
+      queryClient.invalidateQueries({ queryKey: ['badge-counts'] });
 
       setConfirmedCount(selectedCount);
       toast.success(`${selectedCount} código(s) de Cartão confirmado(s)!`);
