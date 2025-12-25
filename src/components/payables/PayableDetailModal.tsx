@@ -126,8 +126,7 @@ export function PayableDetailModal({
   const handleCopyLinhaDigitavel = () => {
     if (payable?.linha_digitavel) {
       navigator.clipboard.writeText(payable.linha_digitavel);
-      toast({
-        title: 'Copiado!',
+      toast.success('Copiado!', {
         description: 'Linha digitável copiada para a área de transferência.',
       });
     }
@@ -157,8 +156,7 @@ export function PayableDetailModal({
         setOcrSuggestion(result);
         setShowOcrDialog(true);
       } else if (result) {
-        toast({
-          title: 'OCR concluído',
+        toast.info('OCR concluído', {
           description: 'Nenhuma alteração detectada no documento.',
         });
       }
@@ -179,8 +177,7 @@ export function PayableDetailModal({
         ...(ocrSuggestion.beneficiario_cnpj && { beneficiario_cnpj: ocrSuggestion.beneficiario_cnpj }),
         ...(ocrSuggestion.linha_digitavel && { linha_digitavel: ocrSuggestion.linha_digitavel }),
       });
-      toast({
-        title: 'Dados atualizados',
+      toast.success('Dados atualizados', {
         description: 'Os campos foram preenchidos com os dados do documento.',
       });
     }
@@ -242,10 +239,8 @@ export function PayableDetailModal({
       );
     } catch (error) {
       console.error('Erro ao salvar:', error);
-      toast({
-        title: 'Erro',
+      toast.error('Erro', {
         description: 'Falha ao salvar as alterações.',
-        variant: 'destructive',
       });
       setIsUploading(false);
     }

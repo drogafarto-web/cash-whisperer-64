@@ -156,9 +156,7 @@ export function SupplierInvoiceUploadForm({ units, categories, onSuccess, onCanc
       );
 
       if (isDuplicate) {
-        toast({
-          variant: 'destructive',
-          title: 'Nota fiscal duplicada',
+        toast.error('Nota fiscal duplicada', {
           description: 'Já existe uma nota fiscal com este número, fornecedor e data de emissão.',
         });
         return;

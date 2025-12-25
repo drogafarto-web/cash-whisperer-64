@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { toast } from '@/hooks/use-toast';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -132,7 +132,7 @@ const COMPROVANTE_ICONS: Record<string, React.ReactNode> = {
 export default function LisFechamento() {
   const navigate = useNavigate();
   const { user, profile, isLoading: authLoading } = useAuth();
-  const { toast } = useToast();
+  
 
   // Estados principais
   const [units, setUnits] = useState<Unit[]>([]);

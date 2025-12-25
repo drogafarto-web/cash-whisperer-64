@@ -89,10 +89,8 @@ export default function Payers() {
     e.preventDefault();
     
     if (!formData.name) {
-      toast({
-        title: 'Nome obrigatório',
+      toast.error('Nome obrigatório', {
         description: 'Informe o nome do convênio/prefeitura.',
-        variant: 'destructive',
       });
       return;
     }

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { toast } from '@/hooks/use-toast';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -65,7 +65,7 @@ interface Profile {
 export default function LisClosuresReport() {
   const navigate = useNavigate();
   const { user, isLoading: authLoading } = useAuth();
-  const { toast } = useToast();
+  
 
   const [units, setUnits] = useState<Unit[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);

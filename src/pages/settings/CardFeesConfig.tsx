@@ -34,7 +34,7 @@ export default function CardFeesConfig() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cardFees'] });
-      toast({ title: 'Taxa atualizada' });
+      toast.success('Taxa atualizada');
     },
   });
 
@@ -43,7 +43,7 @@ export default function CardFeesConfig() {
   const handleSave = (id: string) => {
     const value = parseFloat(editValues[id] || '0');
     if (isNaN(value) || value < 0 || value > 100) {
-      toast({ title: 'Valor inválido', variant: 'destructive' });
+      toast.error('Valor inválido');
       return;
     }
     updateMutation.mutate({ id, fee_percent: value });
