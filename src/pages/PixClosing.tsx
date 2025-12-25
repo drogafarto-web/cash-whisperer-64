@@ -3,19 +3,21 @@ import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { RequireFunction } from '@/components/auth/RequireFunction';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { ArrowLeft, QrCode, Check, Loader2 } from 'lucide-react';
 import { PaymentItemsTable, PaymentSummaryCard } from '@/components/payment-closing';
 import { usePaymentSelection } from '@/hooks/usePaymentSelection';
-import { getAvailablePixItems, resolvePaymentItems } from '@/services/paymentResolutionService';
+import { getAvailablePixItems, resolvePaymentItems, calculatePixTotal } from '@/services/paymentResolutionService';
+import { logPixConfirmed } from '@/services/cashAuditService';
 import { LisItemForEnvelope } from '@/services/envelopeClosingService';
 
 type PageStep = 'loading' | 'no_items' | 'selection' | 'success';
 
-export default function PixClosing() {
-  const { user, unit } = useAuth();
+function PixClosingContent() {
+  const { user, activeUnit } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -43,21 +45,21 @@ export default function PixClosing() {
       return;
     }
 
-    if (!unit?.id) {
+    if (!activeUnit?.id) {
       toast.error('Usuário sem unidade vinculada');
       setStep('no_items');
       return;
     }
 
     loadData();
-  }, [user, unit, navigate]);
+  }, [user, activeUnit, navigate]);
 
   const loadData = async () => {
-    if (!unit?.id) return;
+    if (!activeUnit?.id) return;
 
     try {
       setStep('loading');
-      const items = await getAvailablePixItems(unit.id);
+      const items = await getAvailablePixItems(activeUnit.id);
       setAvailableItems(items);
       setStep(items.length === 0 ? 'no_items' : 'selection');
     } catch (error) {
@@ -68,13 +70,26 @@ export default function PixClosing() {
   };
 
   const handleConfirmResolution = async () => {
-    if (!unit?.id || selectedCount === 0) return;
+    if (!activeUnit?.id || !user || selectedCount === 0) return;
 
     try {
       setIsSubmitting(true);
       const selectedItemIds = getSelectedIds();
 
-      await resolvePaymentItems(selectedItemIds, unit.id, 'PIX');
+      await resolvePaymentItems(selectedItemIds, activeUnit.id, 'PIX');
+
+      // Calculate total for selected items
+      const selectedItems = availableItems.filter(item => selectedIds.has(item.id));
+      const amount = calculatePixTotal(selectedItems);
+
+      // Log audit action
+      await logPixConfirmed({
+        userId: user.id,
+        unitId: activeUnit.id,
+        itemCount: selectedCount,
+        amount,
+        itemIds: selectedItemIds,
+      });
 
       // Invalidar cache de badges para atualizar contagem no menu
       queryClient.invalidateQueries({ queryKey: ['badge-counts'] });
@@ -126,7 +141,7 @@ export default function PixClosing() {
               </CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center gap-4">
-              <Button variant="outline" onClick={() => navigate('/envelope-closing')}>
+              <Button variant="outline" onClick={() => navigate('/cash-hub')}>
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Voltar
               </Button>
@@ -155,7 +170,7 @@ export default function PixClosing() {
               </CardDescription>
             </CardHeader>
             <CardContent className="flex justify-center gap-4">
-              <Button variant="outline" onClick={() => navigate('/envelope-closing')}>
+              <Button variant="outline" onClick={() => navigate('/cash-hub')}>
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Voltar
               </Button>
@@ -175,7 +190,7 @@ export default function PixClosing() {
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/envelope-closing')}>
+          <Button variant="ghost" size="icon" onClick={() => navigate('/cash-hub')}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
@@ -212,7 +227,7 @@ export default function PixClosing() {
         <div className="flex justify-end gap-4">
           <Button
             variant="outline"
-            onClick={() => navigate('/envelope-closing')}
+            onClick={() => navigate('/cash-hub')}
             disabled={isSubmitting}
           >
             Cancelar
@@ -236,5 +251,13 @@ export default function PixClosing() {
         </div>
       </div>
     </AppLayout>
+  );
+}
+
+export default function PixClosing() {
+  return (
+    <RequireFunction functions={['caixa', 'supervisao']}>
+      <PixClosingContent />
+    </RequireFunction>
   );
 }
