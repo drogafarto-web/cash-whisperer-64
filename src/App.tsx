@@ -47,6 +47,11 @@ import Patrimony from "./pages/reports/Patrimony";
 import DailyMovement from "./pages/import/DailyMovement";
 import BankStatement from "./pages/import/BankStatement";
 import ExtratoParticulares from "./pages/import/ExtratoParticulares";
+import ConvenioReportsImport from "./pages/import/ConvenioReports";
+
+// Audit pages
+import ParticularVsCash from "./pages/audit/ParticularVsCash";
+import ConvenioVsInvoice from "./pages/audit/ConvenioVsInvoice";
 
 // Accounting pages
 import AccountingForm from "./pages/contabilidade/AccountingForm";
@@ -111,6 +116,9 @@ const App = () => (
             <Route path="/import/daily-movement" element={<DailyMovement />} />
             <Route path="/import/bank-statement" element={<BankStatement />} />
             <Route path="/import/extrato-particulares" element={<ExtratoParticulares />} />
+            <Route path="/import/convenio-reports" element={<ConvenioReportsImport />} />
+            <Route path="/audit/particular-vs-cash" element={<ParticularVsCash />} />
+            <Route path="/audit/convenio-vs-invoice" element={<ConvenioVsInvoice />} />
             <Route path="/pendencias" element={<Pendencias />} />
             <Route path="/contabilidade/dados/:token" element={<AccountingForm />} />
             <Route path="/billing/invoices" element={<Invoices />} />

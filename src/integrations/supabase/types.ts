@@ -509,6 +509,122 @@ export type Database = {
         }
         Relationships: []
       }
+      convenio_import_sessions: {
+        Row: {
+          created_at: string
+          file_name: string
+          id: string
+          imported_by: string
+          period_end: string | null
+          period_start: string | null
+          providers_count: number | null
+          total_records: number | null
+          unit_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          id?: string
+          imported_by: string
+          period_end?: string | null
+          period_start?: string | null
+          providers_count?: number | null
+          total_records?: number | null
+          unit_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          id?: string
+          imported_by?: string
+          period_end?: string | null
+          period_start?: string | null
+          providers_count?: number | null
+          total_records?: number | null
+          unit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "convenio_import_sessions_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      convenio_production_reports: {
+        Row: {
+          amount: number
+          company_name: string | null
+          created_at: string
+          exam_date: string
+          exam_list: string | null
+          id: string
+          import_session_id: string | null
+          is_particular: boolean
+          lis_code: string
+          patient_name: string | null
+          provider_name: string
+          report_filename: string | null
+          report_period_end: string | null
+          report_period_start: string | null
+          row_index: number | null
+          unit_id: string | null
+        }
+        Insert: {
+          amount?: number
+          company_name?: string | null
+          created_at?: string
+          exam_date: string
+          exam_list?: string | null
+          id?: string
+          import_session_id?: string | null
+          is_particular?: boolean
+          lis_code: string
+          patient_name?: string | null
+          provider_name: string
+          report_filename?: string | null
+          report_period_end?: string | null
+          report_period_start?: string | null
+          row_index?: number | null
+          unit_id?: string | null
+        }
+        Update: {
+          amount?: number
+          company_name?: string | null
+          created_at?: string
+          exam_date?: string
+          exam_list?: string | null
+          id?: string
+          import_session_id?: string | null
+          is_particular?: boolean
+          lis_code?: string
+          patient_name?: string | null
+          provider_name?: string
+          report_filename?: string | null
+          report_period_end?: string | null
+          report_period_start?: string | null
+          row_index?: number | null
+          unit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "convenio_production_reports_import_session_id_fkey"
+            columns: ["import_session_id"]
+            isOneToOne: false
+            referencedRelation: "convenio_import_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "convenio_production_reports_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       daily_cash_closings: {
         Row: {
           confirmed_at: string | null
