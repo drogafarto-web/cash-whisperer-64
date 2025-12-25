@@ -93,7 +93,7 @@ export async function saveConvenioImport(
     const { error: insertError, data } = await supabase
       .from('convenio_production_reports')
       .upsert(batch, {
-        onConflict: 'unit_id,provider_name,exam_date,lis_code,amount',
+        onConflict: 'unit_id,lis_code',
         ignoreDuplicates: true,
       })
       .select('id');
@@ -107,6 +107,91 @@ export async function saveConvenioImport(
   }
 
   return { sessionId: session.id, insertedCount };
+}
+
+/**
+ * Busca códigos LIS já existentes para uma unidade
+ */
+export async function fetchExistingLisCodes(unitId: string | null): Promise<Set<string>> {
+  let query = supabase
+    .from('convenio_production_reports')
+    .select('lis_code');
+
+  if (unitId) {
+    query = query.eq('unit_id', unitId);
+  } else {
+    query = query.is('unit_id', null);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  
+  return new Set((data || []).map(d => d.lis_code));
+}
+
+/**
+ * Busca detalhes de uma sessão de importação
+ */
+export async function fetchSessionDetails(sessionId: string): Promise<{
+  providers: Array<{
+    provider_name: string;
+    is_particular: boolean;
+    count: number;
+    total_amount: number;
+    period_start: string | null;
+    period_end: string | null;
+  }>;
+  total_amount: number;
+}> {
+  const { data, error } = await supabase
+    .from('convenio_production_reports')
+    .select('provider_name, is_particular, amount, report_period_start, report_period_end')
+    .eq('import_session_id', sessionId);
+
+  if (error) throw error;
+
+  // Agrupa por provider
+  const providerMap = new Map<string, {
+    provider_name: string;
+    is_particular: boolean;
+    count: number;
+    total_amount: number;
+    period_start: string | null;
+    period_end: string | null;
+  }>();
+
+  let total_amount = 0;
+
+  for (const row of data || []) {
+    const key = row.provider_name;
+    const existing = providerMap.get(key);
+    
+    if (existing) {
+      existing.count++;
+      existing.total_amount += row.amount;
+      if (row.report_period_start && (!existing.period_start || row.report_period_start < existing.period_start)) {
+        existing.period_start = row.report_period_start;
+      }
+      if (row.report_period_end && (!existing.period_end || row.report_period_end > existing.period_end)) {
+        existing.period_end = row.report_period_end;
+      }
+    } else {
+      providerMap.set(key, {
+        provider_name: row.provider_name,
+        is_particular: row.is_particular,
+        count: 1,
+        total_amount: row.amount,
+        period_start: row.report_period_start,
+        period_end: row.report_period_end,
+      });
+    }
+    total_amount += row.amount;
+  }
+
+  return {
+    providers: Array.from(providerMap.values()).sort((a, b) => b.total_amount - a.total_amount),
+    total_amount,
+  };
 }
 
 /**

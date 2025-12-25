@@ -4,6 +4,8 @@ import {
   fetchConvenioProductionReports,
   fetchAvailableProviders,
   saveConvenioImport,
+  fetchExistingLisCodes,
+  fetchSessionDetails,
 } from '../api/convenioReports.api';
 import { auditParticularVsCash } from '../api/particularAudit.api';
 import { auditConvenioVsInvoice, fetchConvenioAuditOverview } from '../api/convenioAudit.api';
@@ -38,6 +40,23 @@ export function useAvailableProviders(unitId?: string) {
     queryKey: ['available-providers', unitId],
     queryFn: () => fetchAvailableProviders(unitId),
     staleTime: 1000 * 60 * 10,
+  });
+}
+
+export function useExistingLisCodes(unitId: string | null) {
+  return useQuery({
+    queryKey: ['existing-lis-codes', unitId],
+    queryFn: () => fetchExistingLisCodes(unitId),
+    staleTime: 1000 * 60 * 2,
+  });
+}
+
+export function useSessionDetails(sessionId: string | null) {
+  return useQuery({
+    queryKey: ['session-details', sessionId],
+    queryFn: () => fetchSessionDetails(sessionId!),
+    enabled: !!sessionId,
+    staleTime: 1000 * 60 * 5,
   });
 }
 
