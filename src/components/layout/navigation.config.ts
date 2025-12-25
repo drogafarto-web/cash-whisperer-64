@@ -25,6 +25,7 @@ import {
   Barcode,
   GitMerge,
   QrCode,
+  Banknote,
 } from 'lucide-react';
 import { AppRole } from '@/types/database';
 
@@ -91,6 +92,7 @@ export const navigationGroups: NavGroup[] = [
     icon: Wallet,
     badgeKey: 'caixaUnidades',
     items: [
+      { name: 'Central Fechamento', href: '/cash-hub', icon: Banknote, roles: ['admin', 'secretaria', 'gestor_unidade'] },
       { name: 'Importar Movimento', href: '/import/daily-movement', icon: FileUp, roles: ['admin', 'secretaria', 'gestor_unidade'] },
       { name: 'Fechar Envelope', href: '/envelope-closing', icon: Wallet, roles: ['admin', 'secretaria', 'gestor_unidade'] },
       { name: 'Confirmar PIX', href: '/pix-closing', icon: QrCode, roles: ['admin', 'secretaria', 'gestor_unidade'], badgeKey: 'pixPendentes' },
