@@ -1,5 +1,8 @@
 import { AppRole } from '@/types/database';
 
+// Re-export AppRole for convenience
+export type { AppRole };
+
 // Áreas do sistema para matriz de permissões
 export type SystemArea = 
   | 'dashboard'

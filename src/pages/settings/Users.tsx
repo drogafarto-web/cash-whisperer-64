@@ -862,6 +862,7 @@ export default function UsersSettings() {
           onOpenChange={setIsLisImportOpen}
           unlinkedLisUsers={unlinkedLisUsers}
           existingUsers={users.map(u => ({ id: u.id, name: u.name, email: u.email, lis_login: u.lis_login }))}
+          units={units}
           onSuccess={fetchUsers}
         />
       </TooltipProvider>
