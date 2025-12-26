@@ -819,6 +819,18 @@ export default function UsersSettings() {
           currentFunctions={editingUserFunctions}
           isSubmitting={isEditSubmitting}
           onSubmit={handleEditUser}
+          currentRole={editingUser?.role}
+          onRoleChange={(role) => editingUser && handleUpdateRole(editingUser.id, role)}
+          onStatusToggle={(userId, isActive) => {
+            const targetUser = users.find(u => u.id === userId);
+            if (targetUser) {
+              if (isActive) {
+                handleToggleActive({ ...targetUser, is_active: false });
+              } else {
+                setDeactivateUser(targetUser);
+              }
+            }
+          }}
         />
 
         {/* Deactivate Confirmation Dialog */}

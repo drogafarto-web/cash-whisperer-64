@@ -1,12 +1,20 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from '@/components/ui/table';
 import { 
   Select, 
   SelectContent, 
@@ -14,10 +22,12 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { Loader2, Star, Building2, Briefcase, Link2 } from 'lucide-react';
-import { Unit } from '@/types/database';
+import { Loader2, Star, Building2, Briefcase, Link2, Check, Shield } from 'lucide-react';
+import { Unit, AppRole } from '@/types/database';
 import { OPERATIONAL_FUNCTIONS } from '@/hooks/useProfileFunctions';
 import { LisUser } from '@/hooks/useLisUsers';
+import { ROLE_CONFIG } from '@/lib/access-policy';
+import { cn } from '@/lib/utils';
 
 interface UserForEdit {
   id: string;
@@ -25,6 +35,7 @@ interface UserForEdit {
   email: string;
   lis_login?: string | null;
   lis_id?: number | null;
+  is_active?: boolean;
 }
 
 interface UserEditDialogProps {
@@ -44,6 +55,10 @@ interface UserEditDialogProps {
     primaryUnitId: string | null;
     functions: string[];
   }) => Promise<void>;
+  // New optional props for role management
+  currentRole?: AppRole | null;
+  onRoleChange?: (role: AppRole) => void;
+  onStatusToggle?: (userId: string, isActive: boolean) => void;
 }
 
 export function UserEditDialog({
@@ -57,6 +72,9 @@ export function UserEditDialog({
   currentFunctions,
   isSubmitting,
   onSubmit,
+  currentRole,
+  onRoleChange,
+  onStatusToggle,
 }: UserEditDialogProps) {
   const [lisLogin, setLisLogin] = useState<string>('');
   const [lisId, setLisId] = useState<number | null>(null);
@@ -78,13 +96,11 @@ export function UserEditDialog({
   const handleUnitToggle = (unitId: string, checked: boolean) => {
     if (checked) {
       setSelectedUnits(prev => [...prev, unitId]);
-      // If first unit, set as primary
       if (selectedUnits.length === 0) {
         setPrimaryUnit(unitId);
       }
     } else {
       setSelectedUnits(prev => prev.filter(id => id !== unitId));
-      // If removing primary, clear it
       if (primaryUnit === unitId) {
         const remaining = selectedUnits.filter(id => id !== unitId);
         setPrimaryUnit(remaining[0] || '');
@@ -92,12 +108,10 @@ export function UserEditDialog({
     }
   };
 
-  const handleFunctionToggle = (fn: string, checked: boolean) => {
-    if (checked) {
-      setSelectedFunctions(prev => [...prev, fn]);
-    } else {
-      setSelectedFunctions(prev => prev.filter(f => f !== fn));
-    }
+  const handleFunctionToggle = (fn: string) => {
+    setSelectedFunctions(prev => 
+      prev.includes(fn) ? prev.filter(f => f !== fn) : [...prev, fn]
+    );
   };
 
   const handleLisUserSelect = (login: string) => {
@@ -105,7 +119,7 @@ export function UserEditDialog({
       setLisLogin('');
       setLisId(null);
     } else {
-      const lisUser = unlinkedLisUsers.find(u => u.login === login);
+      const lisUser = lisUserOptions.find(u => u.login === login);
       if (lisUser) {
         setLisLogin(lisUser.login);
         setLisId(lisUser.lis_id);
@@ -137,109 +151,232 @@ export function UserEditDialog({
     });
   }
 
+  // Get user initials for avatar
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase();
+  };
+
+  const isActive = user?.is_active !== false;
+
+  if (!user) return null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh]">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] p-0">
+        {/* Header with Save button */}
+        <DialogHeader className="flex flex-row items-center justify-between p-6 pb-0">
           <DialogTitle>Editar Usuário</DialogTitle>
+          <Button onClick={handleSubmit} disabled={isSubmitting} size="sm">
+            {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            Salvar
+          </Button>
         </DialogHeader>
         
-        {user && (
-          <ScrollArea className="max-h-[70vh] pr-4">
-            <div className="space-y-6">
-              {/* User Info (read-only) */}
-              <div className="space-y-2">
-                <Label className="text-muted-foreground">Usuário</Label>
-                <div className="p-3 bg-muted rounded-md">
-                  <p className="font-medium">{user.name}</p>
-                  <p className="text-sm text-muted-foreground">{user.email}</p>
-                </div>
+        <ScrollArea className="max-h-[calc(90vh-80px)]">
+          <div className="p-6 pt-4 space-y-6">
+            {/* User Header Card */}
+            <div className="flex flex-col items-center py-4 border rounded-lg bg-muted/30">
+              <div className="relative">
+                <Avatar className="w-20 h-20 mb-3">
+                  <AvatarFallback className="text-2xl bg-primary/10 text-primary font-semibold">
+                    {getInitials(user.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className={cn(
+                  "absolute bottom-3 right-0 w-4 h-4 rounded-full border-2 border-background",
+                  isActive ? "bg-emerald-500" : "bg-muted-foreground"
+                )} />
               </div>
-
-              <Separator />
-
-              {/* LIS Login */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Link2 className="w-4 h-4 text-primary" />
-                  <Label>Login LIS</Label>
+              <h3 className="text-xl font-semibold">{user.name}</h3>
+              <p className="text-muted-foreground text-sm">{user.email}</p>
+              
+              {/* Status Toggle */}
+              {onStatusToggle && (
+                <div className="flex gap-2 mt-4">
+                  <Button 
+                    variant={isActive ? 'default' : 'outline'} 
+                    size="sm"
+                    onClick={() => !isActive && onStatusToggle(user.id, true)}
+                    disabled={isActive}
+                  >
+                    Ativo
+                  </Button>
+                  <Button 
+                    variant={!isActive ? 'secondary' : 'outline'} 
+                    size="sm"
+                    onClick={() => isActive && onStatusToggle(user.id, false)}
+                    disabled={!isActive}
+                  >
+                    Suspenso
+                  </Button>
                 </div>
-                <Select value={lisLogin || 'none'} onValueChange={handleLisUserSelect}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um operador LIS" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhum</SelectItem>
-                    {lisUserOptions.map(lisUser => (
-                      <SelectItem key={lisUser.login} value={lisUser.login}>
-                        {lisUser.login} - {lisUser.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {lisLogin && (
-                  <div className="flex gap-2">
-                    <Badge variant="outline" className="text-xs">
-                      Login: {lisLogin}
+              )}
+            </div>
+
+            {/* LIS Login Section */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Link2 className="w-4 h-4 text-primary" />
+                <Label className="font-medium">Login LIS</Label>
+              </div>
+              <Select value={lisLogin || 'none'} onValueChange={handleLisUserSelect}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um operador LIS" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum</SelectItem>
+                  {lisUserOptions.map(lisUser => (
+                    <SelectItem key={lisUser.login} value={lisUser.login}>
+                      {lisUser.login} - {lisUser.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {lisLogin && (
+                <div className="flex gap-2">
+                  <Badge variant="outline" className="text-xs">
+                    Login: {lisLogin}
+                  </Badge>
+                  {lisId && (
+                    <Badge variant="secondary" className="text-xs">
+                      ID LIS: {lisId}
                     </Badge>
-                    {lisId && (
-                      <Badge variant="secondary" className="text-xs">
-                        ID LIS: {lisId}
-                      </Badge>
-                    )}
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
+            </div>
 
-              <Separator />
-
-              {/* Units Multi-select */}
+            {/* Role Selection Cards */}
+            {onRoleChange && (
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-primary" />
-                  <Label>Unidades</Label>
+                  <Shield className="w-4 h-4 text-primary" />
+                  <Label className="font-medium">Perfil de Acesso</Label>
                 </div>
-                <div className="space-y-2 border rounded-md p-3">
-                  {units.map(unit => {
-                    const isSelected = selectedUnits.includes(unit.id);
-                    const isPrimary = primaryUnit === unit.id;
-                    
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {Object.entries(ROLE_CONFIG).map(([roleKey, config]) => {
+                    const isSelected = currentRole === roleKey;
                     return (
-                      <div 
-                        key={unit.id} 
-                        className="flex items-center justify-between py-1"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            id={`unit-${unit.id}`}
-                            checked={isSelected}
-                            onCheckedChange={(checked) => handleUnitToggle(unit.id, !!checked)}
-                          />
-                          <label 
-                            htmlFor={`unit-${unit.id}`}
-                            className="text-sm font-medium cursor-pointer"
-                          >
-                            {unit.name}
-                          </label>
-                        </div>
-                        {isSelected && (
-                          <Button
-                            type="button"
-                            variant={isPrimary ? 'default' : 'ghost'}
-                            size="sm"
-                            className="h-7 px-2"
-                            onClick={() => setPrimaryUnit(unit.id)}
-                          >
-                            <Star className={`w-3 h-3 ${isPrimary ? 'fill-current' : ''}`} />
-                            {isPrimary && <span className="ml-1 text-xs">Principal</span>}
-                          </Button>
+                      <button
+                        key={roleKey}
+                        type="button"
+                        onClick={() => onRoleChange(roleKey as AppRole)}
+                        className={cn(
+                          "p-3 rounded-lg border text-left transition-all",
+                          isSelected 
+                            ? "border-primary bg-primary/5 ring-1 ring-primary" 
+                            : "border-muted hover:border-primary/50 hover:bg-muted/50"
                         )}
-                      </div>
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className={cn(
+                            "w-3 h-3 rounded-full border-2 flex items-center justify-center",
+                            isSelected 
+                              ? "bg-primary border-primary" 
+                              : "border-muted-foreground"
+                          )}>
+                            {isSelected && <Check className="w-2 h-2 text-primary-foreground" />}
+                          </div>
+                          <span className="font-medium text-sm">{config.label}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground line-clamp-2">
+                          {config.description}
+                        </p>
+                      </button>
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* Tabs: Units & Functions */}
+            <Tabs defaultValue="units" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="units" className="gap-2">
+                  <Building2 className="w-4 h-4" />
+                  Unidades
+                  {selectedUnits.length > 0 && (
+                    <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                      {selectedUnits.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="functions" className="gap-2">
+                  <Briefcase className="w-4 h-4" />
+                  Funções
+                  {selectedFunctions.length > 0 && (
+                    <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                      {selectedFunctions.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="units" className="space-y-4">
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[50px]"></TableHead>
+                        <TableHead>Unidade</TableHead>
+                        <TableHead>Cidade</TableHead>
+                        <TableHead className="w-[90px] text-center">Principal</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {units.map(unit => {
+                        const isSelected = selectedUnits.includes(unit.id);
+                        const isPrimary = primaryUnit === unit.id;
+                        
+                        return (
+                          <TableRow key={unit.id}>
+                            <TableCell className="text-center">
+                              <Checkbox
+                                id={`unit-${unit.id}`}
+                                checked={isSelected}
+                                onCheckedChange={(checked) => handleUnitToggle(unit.id, !!checked)}
+                              />
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              <label 
+                                htmlFor={`unit-${unit.id}`}
+                                className="cursor-pointer"
+                              >
+                                {unit.name}
+                              </label>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {(unit as any).municipio_nome || '-'}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {isSelected && (
+                                <Button
+                                  type="button"
+                                  variant={isPrimary ? 'default' : 'ghost'}
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => setPrimaryUnit(unit.id)}
+                                >
+                                  <Star className={cn("w-4 h-4", isPrimary && "fill-current")} />
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+                
+                {/* Selected units as chips */}
                 {selectedUnits.length > 0 && (
                   <div className="flex flex-wrap gap-1">
+                    <span className="text-sm text-muted-foreground mr-2">Selecionadas:</span>
                     {selectedUnits.map(unitId => {
                       const unit = units.find(u => u.id === unitId);
                       const isPrimary = primaryUnit === unitId;
@@ -256,43 +393,36 @@ export function UserEditDialog({
                     })}
                   </div>
                 )}
-              </div>
+              </TabsContent>
 
-              <Separator />
-
-              {/* Operational Functions */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Briefcase className="w-4 h-4 text-primary" />
-                  <Label>Funções Operacionais</Label>
-                </div>
-                <p className="text-xs text-muted-foreground">
+              <TabsContent value="functions" className="space-y-4">
+                <p className="text-sm text-muted-foreground">
                   Funções desempenhadas no laboratório (diferente do perfil de acesso ao sistema)
                 </p>
-                <div className="grid grid-cols-2 gap-2 border rounded-md p-3">
+                <div className="flex flex-wrap gap-2">
                   {OPERATIONAL_FUNCTIONS.map(fn => {
                     const isSelected = selectedFunctions.includes(fn.value);
-                    
                     return (
-                      <div key={fn.value} className="flex items-center gap-2">
-                        <Checkbox
-                          id={`fn-${fn.value}`}
-                          checked={isSelected}
-                          onCheckedChange={(checked) => handleFunctionToggle(fn.value, !!checked)}
-                        />
-                        <label 
-                          htmlFor={`fn-${fn.value}`}
-                          className="text-sm cursor-pointer"
-                          title={fn.description}
-                        >
-                          {fn.label}
-                        </label>
-                      </div>
+                      <Button
+                        key={fn.value}
+                        type="button"
+                        variant={isSelected ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => handleFunctionToggle(fn.value)}
+                        title={fn.description}
+                        className="gap-1"
+                      >
+                        {isSelected && <Check className="w-3 h-3" />}
+                        {fn.label}
+                      </Button>
                     );
                   })}
                 </div>
+                
+                {/* Selected functions as badges */}
                 {selectedFunctions.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex flex-wrap gap-1 pt-2">
+                    <span className="text-sm text-muted-foreground mr-2">Selecionadas:</span>
                     {selectedFunctions.map(fn => {
                       const fnConfig = OPERATIONAL_FUNCTIONS.find(f => f.value === fn);
                       return (
@@ -303,23 +433,17 @@ export function UserEditDialog({
                     })}
                   </div>
                 )}
-              </div>
+              </TabsContent>
+            </Tabs>
 
-              <Separator />
-
-              {/* Submit Button */}
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" onClick={() => onOpenChange(false)}>
-                  Cancelar
-                </Button>
-                <Button onClick={handleSubmit} disabled={isSubmitting}>
-                  {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Salvar
-                </Button>
-              </div>
+            {/* Footer with Cancel button */}
+            <div className="flex justify-end pt-2 border-t">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancelar
+              </Button>
             </div>
-          </ScrollArea>
-        )}
+          </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );
