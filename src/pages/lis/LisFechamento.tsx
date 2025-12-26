@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from '@/hooks/use-toast';
+import { notifySuccess, notifyError } from '@/lib/notify';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -247,7 +247,7 @@ export default function LisFechamento() {
       }
     } catch (error) {
       console.error('Erro ao buscar fechamento:', error);
-      toast({ title: 'Erro', description: 'Erro ao buscar fechamento existente', variant: 'destructive' });
+      notifyError('Erro', 'Erro ao buscar fechamento existente');
     } finally {
       setLoading(false);
     }
@@ -265,11 +265,7 @@ export default function LisFechamento() {
     
     // Validação explícita da unidade
     if (!selectedUnitId) {
-      toast({ 
-        title: 'Selecione a unidade', 
-        description: 'É necessário selecionar a unidade antes de importar o arquivo LIS.',
-        variant: 'destructive' 
-      });
+      notifyError('Selecione a unidade', 'É necessário selecionar a unidade antes de importar o arquivo LIS.');
       event.target.value = '';
       return;
     }
@@ -296,17 +292,10 @@ export default function LisFechamento() {
       const filteredRecords = result.records.filter(r => r.unitId === selectedUnitId);
 
       // Mostrar resumo pós-parse
-      toast({ 
-        title: 'Arquivo lido', 
-        description: `${result.totalRecords} linhas lidas. ${filteredRecords.length} da unidade ${selectedUnit?.name}. Período: ${result.periodStart || 'N/A'} a ${result.periodEnd || 'N/A'}`,
-      });
+      notifySuccess('Arquivo lido', `${result.totalRecords} linhas lidas. ${filteredRecords.length} da unidade ${selectedUnit?.name}. Período: ${result.periodStart || 'N/A'} a ${result.periodEnd || 'N/A'}`);
 
       if (filteredRecords.length === 0) {
-        toast({ 
-          title: 'Aviso', 
-          description: `Nenhum registro encontrado para a unidade ${selectedUnit?.name}`, 
-          variant: 'destructive' 
-        });
+        notifyError('Aviso', `Nenhum registro encontrado para a unidade ${selectedUnit?.name}`);
         return;
       }
 
@@ -327,11 +316,7 @@ export default function LisFechamento() {
       await processImport(filteredRecords, periodStart, periodEnd);
     } catch (error: unknown) {
       console.error('Erro ao importar arquivo:', error);
-      toast({ 
-        title: 'Erro', 
-        description: error instanceof Error ? error.message : 'Erro ao importar arquivo', 
-        variant: 'destructive' 
-      });
+      notifyError('Erro', error instanceof Error ? error.message : 'Erro ao importar arquivo');
     } finally {
       setImporting(false);
       event.target.value = '';
@@ -472,20 +457,13 @@ export default function LisFechamento() {
 
       // Mostrar resultado
       if (skippedCount > 0) {
-        toast({ 
-          title: 'Importação concluída', 
-          description: `${newRecords.length} registros importados, ${skippedCount} duplicados ignorados` 
-        });
+        notifySuccess('Importação concluída', `${newRecords.length} registros importados, ${skippedCount} duplicados ignorados`);
       } else {
-        toast({ title: 'Sucesso', description: `${newRecords.length} registros importados` });
+        notifySuccess('Sucesso', `${newRecords.length} registros importados`);
       }
     } catch (error: unknown) {
       console.error('Erro ao processar importação:', error);
-      toast({ 
-        title: 'Erro', 
-        description: error instanceof Error ? error.message : 'Erro ao importar', 
-        variant: 'destructive' 
-      });
+      notifyError('Erro', error instanceof Error ? error.message : 'Erro ao importar');
     } finally {
       setImporting(false);
       setImportSteps([]);
@@ -586,7 +564,7 @@ export default function LisFechamento() {
       ));
     } catch (error) {
       console.error('Erro ao atualizar item:', error);
-      toast({ title: 'Erro', description: 'Erro ao atualizar item', variant: 'destructive' });
+      notifyError('Erro', 'Erro ao atualizar item');
     }
   };
 
@@ -603,13 +581,10 @@ export default function LisFechamento() {
       const counts = countByComprovanteStatus(results);
       await fetchExistingClosure();
 
-      toast({ 
-        title: 'Conciliação concluída', 
-        description: `${counts.conciliado} conciliados, ${counts.semComprovante} sem comprovante, ${counts.duplicidade} duplicidades` 
-      });
+      notifySuccess('Conciliação concluída', `${counts.conciliado} conciliados, ${counts.semComprovante} sem comprovante, ${counts.duplicidade} duplicidades`);
     } catch (error) {
       console.error('Erro na conciliação:', error);
-      toast({ title: 'Erro', description: 'Erro ao conciliar comprovantes', variant: 'destructive' });
+      notifyError('Erro', 'Erro ao conciliar comprovantes');
     } finally {
       setLoading(false);
     }
@@ -623,10 +598,10 @@ export default function LisFechamento() {
       if (device) {
         await connectPrinter(device);
         setPrinter(device);
-        toast({ title: 'Impressora conectada', description: device.name });
+        notifySuccess('Impressora conectada', device.name);
       }
     } catch (error) {
-      toast({ title: 'Erro', description: (error as Error).message, variant: 'destructive' });
+      notifyError('Erro', (error as Error).message);
     } finally {
       setPrinterConnecting(false);
     }
@@ -636,9 +611,9 @@ export default function LisFechamento() {
   const handleDirectPrint = async (zplToPrint: string) => {
     try {
       await printZpl(zplToPrint);
-      toast({ title: 'Impresso!', description: 'Etiqueta enviada para a impressora' });
+      notifySuccess('Impresso!', 'Etiqueta enviada para a impressora');
     } catch (error) {
-      toast({ title: 'Erro ao imprimir', description: (error as Error).message, variant: 'destructive' });
+      notifyError('Erro ao imprimir', (error as Error).message);
     }
   };
 
@@ -646,11 +621,7 @@ export default function LisFechamento() {
     if (!currentClosure || !cashEnvelope || !user || !envelopeCheckbox) return;
 
     if (cashEnvelope.label_printed_at) {
-      toast({ 
-        title: 'Etiqueta já emitida', 
-        description: 'Não é possível gerar segunda via. Confira o envelope físico.', 
-        variant: 'destructive' 
-      });
+      notifyError('Etiqueta já emitida', 'Não é possível gerar segunda via. Confira o envelope físico.');
       return;
     }
 
@@ -688,10 +659,10 @@ export default function LisFechamento() {
 
       if (updatedEnvelope) setCashEnvelope(updatedEnvelope);
 
-      toast({ title: 'Sucesso', description: 'Etiqueta gerada com sucesso' });
+      notifySuccess('Sucesso', 'Etiqueta gerada com sucesso');
     } catch (error) {
       console.error('Erro ao gerar etiqueta:', error);
-      toast({ title: 'Erro', description: 'Erro ao gerar etiqueta', variant: 'destructive' });
+      notifyError('Erro', 'Erro ao gerar etiqueta');
     }
   };
 
@@ -705,29 +676,17 @@ export default function LisFechamento() {
     );
 
     if (naoPagosNaoJustificados.length > 0) {
-      toast({ 
-        title: 'Validação', 
-        description: `${naoPagosNaoJustificados.length} item(s) não pago(s) sem justificativa`, 
-        variant: 'destructive' 
-      });
+      notifyError('Validação', `${naoPagosNaoJustificados.length} item(s) não pago(s) sem justificativa`);
       return;
     }
 
     if (currentClosure.total_dinheiro > 0 && !cashEnvelope?.label_printed_at) {
-      toast({ 
-        title: 'Validação', 
-        description: 'É necessário emitir a etiqueta do envelope de dinheiro antes de fechar', 
-        variant: 'destructive' 
-      });
+      notifyError('Validação', 'É necessário emitir a etiqueta do envelope de dinheiro antes de fechar');
       return;
     }
 
     if (!finalCheckbox) {
-      toast({ 
-        title: 'Validação', 
-        description: 'Marque o checkbox de conferência final', 
-        variant: 'destructive' 
-      });
+      notifyError('Validação', 'Marque o checkbox de conferência final');
       return;
     }
 
@@ -739,11 +698,11 @@ export default function LisFechamento() {
         conferencia_checkbox: true,
       }).eq('id', currentClosure.id);
 
-      toast({ title: 'Sucesso', description: 'Fechamento concluído com sucesso' });
+      notifySuccess('Sucesso', 'Fechamento concluído com sucesso');
       await fetchExistingClosure();
     } catch (error) {
       console.error('Erro ao fechar:', error);
-      toast({ title: 'Erro', description: 'Erro ao fechar caixa', variant: 'destructive' });
+      notifyError('Erro', 'Erro ao fechar caixa');
     }
   };
 
@@ -1197,7 +1156,7 @@ export default function LisFechamento() {
                   variant="outline" 
                   onClick={() => {
                     navigator.clipboard.writeText(zplContent);
-                    toast({ title: 'Copiado!', description: 'Código ZPL copiado para a área de transferência' });
+                    notifySuccess('Copiado!', 'Código ZPL copiado para a área de transferência');
                   }}
                 >
                   Copiar
