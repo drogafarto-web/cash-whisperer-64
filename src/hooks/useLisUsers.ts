@@ -90,3 +90,36 @@ export function useLinkLisLogin() {
     },
   });
 }
+
+export interface CreateUserFromLisParams {
+  lis_login: string;
+  lis_id: number | null;
+  nome: string;
+  email: string;
+  role: string;
+  unit_id: string;
+}
+
+export function useCreateUserFromLis() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (params: CreateUserFromLisParams) => {
+      const { data, error } = await supabase.functions.invoke('create-user-from-lis', {
+        body: params,
+      });
+      
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      
+      return data as { success: boolean; user_id: string; message: string; reset_link: string | null };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['unlinked-lis-users'] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (error) => {
+      console.error('Error creating user from LIS:', error);
+    },
+  });
+}
