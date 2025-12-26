@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { toast } from '@/hooks/use-toast';
+import { notifySuccess, notifyError } from '@/lib/notify';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useQuery } from '@tanstack/react-query';
@@ -153,11 +153,7 @@ export default function ExtratoParticulares() {
     const isXls = file.name.toLowerCase().endsWith('.xls') || file.name.toLowerCase().endsWith('.xlsx');
 
     if (!isCsv && !isXls) {
-      toast({
-        title: 'Arquivo inválido',
-        description: 'Por favor, selecione um arquivo CSV, XLS ou XLSX.',
-        variant: 'destructive',
-      });
+      notifyError('Arquivo inválido', 'Por favor, selecione um arquivo CSV, XLS ou XLSX.');
       return;
     }
 
@@ -203,17 +199,10 @@ export default function ExtratoParticulares() {
       });
       setSelectedIds(preSelected);
 
-      toast({
-        title: 'Arquivo processado',
-        description: `${result.totalRecords} registros encontrados, ${updatedResult.validRecords} válidos.`,
-      });
+      notifySuccess('Arquivo processado', `${result.totalRecords} registros encontrados, ${updatedResult.validRecords} válidos.`);
     } catch (error) {
       console.error('Erro ao processar arquivo:', error);
-      toast({
-        title: 'Erro ao processar arquivo',
-        description: 'Não foi possível ler o arquivo. Verifique se é um relatório do LIS válido.',
-        variant: 'destructive',
-      });
+      notifyError('Erro ao processar arquivo', 'Não foi possível ler o arquivo. Verifique se é um relatório do LIS válido.');
     } finally {
       setIsLoading(false);
     }
@@ -277,11 +266,7 @@ export default function ExtratoParticulares() {
     if (!user || selectedIds.size === 0) return;
 
     if (pendingJustifications.length > 0) {
-      toast({
-        title: 'Justificativas pendentes',
-        description: `${pendingJustifications.length} registro(s) precisam de justificativa antes de importar.`,
-        variant: 'destructive',
-      });
+      notifyError('Justificativas pendentes', `${pendingJustifications.length} registro(s) precisam de justificativa antes de importar.`);
       return;
     }
 
@@ -341,19 +326,12 @@ export default function ExtratoParticulares() {
 
       if (importError) console.warn('Erro ao registrar importação:', importError);
 
-      toast({
-        title: 'Importação concluída',
-        description: `${selectedIds.size} transações importadas com sucesso.`,
-      });
+      notifySuccess('Importação concluída', `${selectedIds.size} transações importadas com sucesso.`);
 
       navigate('/transactions');
     } catch (error) {
       console.error('Erro na importação:', error);
-      toast({
-        title: 'Erro na importação',
-        description: 'Ocorreu um erro ao importar as transações.',
-        variant: 'destructive',
-      });
+      notifyError('Erro na importação', 'Ocorreu um erro ao importar as transações.');
     } finally {
       setIsImporting(false);
     }

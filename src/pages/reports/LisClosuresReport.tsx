@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from '@/hooks/use-toast';
+import { notifySuccess, notifyError } from '@/lib/notify';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -136,7 +136,7 @@ export default function LisClosuresReport() {
       setClosures(closuresWithProfiles);
     } catch (error) {
       console.error('Erro ao buscar fechamentos:', error);
-      toast({ title: 'Erro', description: 'Erro ao buscar fechamentos', variant: 'destructive' });
+      notifyError('Erro', 'Erro ao buscar fechamentos');
     } finally {
       setLoading(false);
     }
@@ -230,7 +230,7 @@ export default function LisClosuresReport() {
     });
 
     doc.save(`fechamentos-lis-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
-    toast({ title: 'PDF gerado', description: 'Arquivo baixado com sucesso' });
+    notifySuccess('PDF gerado', 'Arquivo baixado com sucesso');
   };
 
   // Export to Excel
@@ -257,7 +257,7 @@ export default function LisClosuresReport() {
     XLSX.utils.book_append_sheet(wb, ws, 'Fechamentos LIS');
     XLSX.writeFile(wb, `fechamentos-lis-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
     
-    toast({ title: 'Excel gerado', description: 'Arquivo baixado com sucesso' });
+    notifySuccess('Excel gerado', 'Arquivo baixado com sucesso');
   };
 
   if (loading && units.length === 0) {
