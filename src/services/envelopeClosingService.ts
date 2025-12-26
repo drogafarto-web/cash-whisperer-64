@@ -62,7 +62,7 @@ export async function getAvailableItemsForEnvelope(unitId: string): Promise<LisI
     .eq('unit_id', unitId)
     .gt('cash_component', 0)
     .is('envelope_id', null)
-    .order('date', { ascending: true })
+    .order('patient_name', { ascending: true })
     .order('lis_code', { ascending: true });
 
   if (error) throw error;
