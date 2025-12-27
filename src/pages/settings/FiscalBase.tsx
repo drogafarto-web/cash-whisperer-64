@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -54,6 +54,7 @@ import {
   Circle,
   AlertTriangle,
   Loader2,
+  ArrowLeft,
 } from 'lucide-react';
 
 const PAYROLL_COLUMNS = [
@@ -79,6 +80,7 @@ const REVENUE_COLUMNS = [
 ];
 
 export default function FiscalBase() {
+  const navigate = useNavigate();
   const { isAdmin, isContador, isContabilidade, isLoading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('folha');
 
@@ -360,6 +362,18 @@ export default function FiscalBase() {
     <AppLayout>
       <TooltipProvider>
         <div className="space-y-6 max-w-7xl mx-auto">
+          <div className="flex items-center gap-3 mb-2">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => navigate('/accounting-panel')}
+              className="gap-1"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Voltar ao Painel
+            </Button>
+          </div>
+
           <ScreenGuide
             purpose="Nesta área você gerencia os dados fiscais e trabalhistas que alimentam os cálculos tributários."
             steps={[

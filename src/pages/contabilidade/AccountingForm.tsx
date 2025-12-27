@@ -20,6 +20,7 @@ import {
   Info,
   Loader2,
   XCircle,
+  Mail,
 } from 'lucide-react';
 
 const MONTH_NAMES = [
@@ -278,10 +279,32 @@ export default function AccountingForm() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
-          <CardContent className="pt-6 text-center">
+          <CardContent className="pt-6 text-center space-y-4">
             <XCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
             <h2 className="text-xl font-semibold mb-2">Acesso Negado</h2>
             <p className="text-muted-foreground">{error}</p>
+            
+            <div className="bg-muted/50 p-4 rounded-lg text-left space-y-2">
+              <p className="text-sm font-medium">Precisa de ajuda?</p>
+              <p className="text-sm text-muted-foreground">
+                Entre em contato com a empresa para solicitar um novo link de acesso.
+              </p>
+            </div>
+
+            <div className="pt-4 space-y-2">
+              <Button 
+                variant="outline" 
+                className="w-full gap-2"
+                onClick={() => {
+                  const subject = encodeURIComponent('Solicitação de novo link - Portal Contabilidade');
+                  const body = encodeURIComponent(`Olá,\n\nO link de acesso ao Portal da Contabilidade expirou ou está inválido.\n\nErro: ${error}\n\nPor favor, envie um novo link.\n\nObrigado!`);
+                  window.location.href = `mailto:?subject=${subject}&body=${body}`;
+                }}
+              >
+                <Mail className="h-4 w-4" />
+                Solicitar Novo Link por Email
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

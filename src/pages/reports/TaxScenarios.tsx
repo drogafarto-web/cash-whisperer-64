@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { format, subMonths, startOfMonth, endOfMonth, addMonths, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -37,6 +38,7 @@ import {
   Users,
   HelpCircle,
   FileDown,
+  ArrowLeft,
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Unit } from '@/types/database';
@@ -79,6 +81,7 @@ interface ExtendedTaxSimulationOutput extends TaxSimulationOutput {
 }
 
 export default function TaxScenarios() {
+  const navigate = useNavigate();
   const { isAdmin, unit } = useAuth();
   const [selectedUnitId, setSelectedUnitId] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), 'yyyy-MM'));
@@ -767,14 +770,25 @@ export default function TaxScenarios() {
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Calculator className="h-6 w-6" />
-              Cenários Tributários
-            </h1>
-            <p className="text-muted-foreground">
-              Simulação comparativa de regimes fiscais para laboratórios
-            </p>
+          <div className="flex items-center gap-3">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => navigate('/accounting-panel')}
+              className="gap-1"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Voltar ao Painel
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold flex items-center gap-2">
+                <Calculator className="h-6 w-6" />
+                Cenários Tributários
+              </h1>
+              <p className="text-muted-foreground">
+                Simulação comparativa de regimes fiscais para laboratórios
+              </p>
+            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">

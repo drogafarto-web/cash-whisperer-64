@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { TrendingUp, Wallet, FileText, DollarSign, Building2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { TrendingUp, Wallet, FileText, DollarSign, Building2, ArrowLeft } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useBillingSummary } from '@/features/billing';
 import { useQuery } from '@tanstack/react-query';
@@ -29,6 +31,7 @@ const currentYear = new Date().getFullYear();
 const currentMonth = new Date().getMonth() + 1;
 
 export default function BillingSummary() {
+  const navigate = useNavigate();
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth);
 
@@ -65,6 +68,17 @@ export default function BillingSummary() {
   return (
     <AppLayout>
       <div className="space-y-6">
+        {/* Back Button */}
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={() => navigate('/accounting-panel')}
+          className="gap-1"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Voltar ao Painel
+        </Button>
+
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>

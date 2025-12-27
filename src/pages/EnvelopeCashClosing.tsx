@@ -45,7 +45,9 @@ import {
   EnvelopeSummaryCard,
   EnvelopeComparisonCard,
   EnvelopeLabelPreview,
+  EnvelopeStepsIndicator,
 } from '@/components/envelope';
+import { NoActiveUnitMessage } from '@/components/layout/NoActiveUnitMessage';
 import {
   getAvailableItemsForEnvelope,
   createEnvelopeWithItems,
@@ -264,8 +266,17 @@ function EnvelopeCashClosingContent() {
     );
   }
 
-  // No items available
+  // No items available (includes case of no unit)
   if (step === 'no_items') {
+    // Check if it's because user has no unit
+    if (!activeUnit) {
+      return (
+        <AppLayout>
+          <NoActiveUnitMessage />
+        </AppLayout>
+      );
+    }
+
     return (
       <AppLayout>
         <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
@@ -365,6 +376,9 @@ function EnvelopeCashClosingContent() {
     return (
       <AppLayout>
         <div className="space-y-6 max-w-6xl mx-auto">
+          {/* Steps Indicator */}
+          <EnvelopeStepsIndicator currentStep="selection" />
+
           {/* Header */}
           <div className="text-center space-y-2">
             <h1 className="text-2xl font-bold text-foreground">
@@ -435,6 +449,9 @@ function EnvelopeCashClosingContent() {
   return (
     <AppLayout>
       <div className="space-y-6 max-w-lg mx-auto">
+        {/* Steps Indicator */}
+        <EnvelopeStepsIndicator currentStep="comparison" />
+
         {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-2xl font-bold text-foreground">

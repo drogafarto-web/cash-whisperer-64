@@ -44,6 +44,7 @@ import {
   RefreshCw,
   TrendingUp,
   TrendingDown,
+  ArrowLeft,
 } from 'lucide-react';
 import {
   LineChart,
@@ -204,6 +205,17 @@ export default function FatorRAudit() {
   return (
     <AppLayout>
       <div className="space-y-6">
+        {/* Back Button */}
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={() => navigate('/accounting-panel')}
+          className="gap-1"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Voltar ao Painel
+        </Button>
+
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
