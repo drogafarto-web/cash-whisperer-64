@@ -13,7 +13,9 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
+  ArrowLeft,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useCompetenceData, useLabSubmission, useLabDocuments } from '@/hooks/useAccountingCompetence';
@@ -96,6 +98,16 @@ export function AccountingKioskHome({
 
   return (
     <div className="space-y-6">
+      {/* Botão Voltar */}
+      <div className="flex items-center">
+        <Link to="/">
+          <Button variant="ghost" className="gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            Voltar
+          </Button>
+        </Link>
+      </div>
+
       {/* Header com informações da competência */}
       <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
         <div className="flex items-center justify-between">
