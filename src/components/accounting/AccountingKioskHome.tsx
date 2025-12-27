@@ -23,11 +23,13 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useCompetenceData, useLabSubmission, useLabDocuments, useCompetenceDocuments } from '@/hooks/useAccountingCompetence';
 
+export type AccountingSection = 'folha' | 'impostos' | 'receitas';
+
 interface AccountingKioskHomeProps {
   unitId: string | null;
   unitName: string;
   competence: Date;
-  onViewData: () => void;
+  onViewData: (section: AccountingSection) => void;
   onSendDocuments: () => void;
   isAccountingRole?: boolean;
 }
@@ -154,7 +156,7 @@ export function AccountingKioskHome({
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className={`transition-colors ${isAccountingRole ? 'hover:border-primary/50 cursor-pointer' : ''}`} onClick={isAccountingRole ? onViewData : undefined}>
+          <Card className={`transition-colors ${isAccountingRole ? 'hover:border-primary/50 cursor-pointer' : ''}`} onClick={isAccountingRole ? () => onViewData('folha') : undefined}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <Users className="h-4 w-4 text-blue-500" />
@@ -172,7 +174,7 @@ export function AccountingKioskHome({
             </CardContent>
           </Card>
 
-          <Card className={`transition-colors ${isAccountingRole ? 'hover:border-primary/50 cursor-pointer' : ''}`} onClick={isAccountingRole ? onViewData : undefined}>
+          <Card className={`transition-colors ${isAccountingRole ? 'hover:border-primary/50 cursor-pointer' : ''}`} onClick={isAccountingRole ? () => onViewData('impostos') : undefined}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <Wallet className="h-4 w-4 text-orange-500" />
@@ -199,7 +201,7 @@ export function AccountingKioskHome({
             </CardContent>
           </Card>
 
-          <Card className={`transition-colors ${isAccountingRole ? 'hover:border-primary/50 cursor-pointer' : ''}`} onClick={isAccountingRole ? onViewData : undefined}>
+          <Card className={`transition-colors ${isAccountingRole ? 'hover:border-primary/50 cursor-pointer' : ''}`} onClick={isAccountingRole ? () => onViewData('receitas') : undefined}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-green-500" />
