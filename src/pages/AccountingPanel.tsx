@@ -25,10 +25,11 @@ import { KioskBreadcrumb } from '@/components/layout/KioskBreadcrumb';
 import { AccountingKioskHome } from '@/components/accounting/AccountingKioskHome';
 import { AccountingViewData } from '@/components/accounting/AccountingViewData';
 import { AccountingSendDocuments } from '@/components/accounting/AccountingSendDocuments';
+import { AccountingDataForm } from '@/components/accounting/AccountingDataForm';
 import { canAccess, getPermissionLevel } from '@/lib/access-policy';
 import type { AppRole } from '@/types/database';
 
-type Step = 'home' | 'view-data' | 'send-documents';
+type Step = 'home' | 'view-data' | 'edit-data' | 'send-documents';
 
 interface Unit {
   id: string;
@@ -99,6 +100,7 @@ function AccountingPanelContent({ isAccountingRole }: { isAccountingRole: boolea
   const stepLabels: Record<Step, string> = {
     'home': 'Início',
     'view-data': 'Dados da Contabilidade',
+    'edit-data': 'Editar Dados',
     'send-documents': 'Enviar Documentos',
   };
 
@@ -185,7 +187,7 @@ function AccountingPanelContent({ isAccountingRole }: { isAccountingRole: boolea
             unitId={selectedUnitId}
             unitName={selectedUnit?.name || ''}
             competence={competence}
-            onViewData={() => setCurrentStep('view-data')}
+            onViewData={() => setCurrentStep(isAccountingRole ? 'edit-data' : 'view-data')}
             onSendDocuments={() => setCurrentStep('send-documents')}
             isAccountingRole={isAccountingRole}
           />
@@ -204,6 +206,15 @@ function AccountingPanelContent({ isAccountingRole }: { isAccountingRole: boolea
 
         {currentStep === 'send-documents' && (
           <AccountingSendDocuments 
+            unitId={selectedUnitId}
+            unitName={selectedUnit?.name || ''}
+            competence={competence}
+            onBack={() => setCurrentStep('home')}
+          />
+        )}
+
+        {currentStep === 'edit-data' && (
+          <AccountingDataForm 
             unitId={selectedUnitId}
             unitName={selectedUnit?.name || ''}
             competence={competence}

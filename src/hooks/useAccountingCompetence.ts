@@ -3,6 +3,83 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
+// ========================================
+// SAVE COMPETENCE DATA (for accounting role)
+// ========================================
+export function useSaveCompetenceData() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  
+  return useMutation({
+    mutationFn: async (data: {
+      unit_id: string;
+      ano: number;
+      mes: number;
+      total_folha?: number;
+      encargos?: number;
+      prolabore?: number;
+      num_funcionarios?: number;
+      das_valor?: number;
+      das_vencimento?: string | null;
+      darf_valor?: number;
+      darf_vencimento?: string | null;
+      gps_valor?: number;
+      gps_vencimento?: string | null;
+      inss_valor?: number;
+      inss_vencimento?: string | null;
+      fgts_valor?: number;
+      fgts_vencimento?: string | null;
+      iss_valor?: number;
+      iss_vencimento?: string | null;
+      receita_servicos?: number;
+      receita_outras?: number;
+      receita_observacoes?: string | null;
+    }) => {
+      // Check if exists
+      const { data: existing } = await supabase
+        .from('accounting_competence_data')
+        .select('id')
+        .eq('unit_id', data.unit_id)
+        .eq('ano', data.ano)
+        .eq('mes', data.mes)
+        .maybeSingle();
+      
+      const updatePayload = {
+        ...data,
+        status: 'informado',
+        informado_em: new Date().toISOString(),
+        informado_por: user?.id,
+      };
+      
+      if (existing) {
+        const { data: updated, error } = await supabase
+          .from('accounting_competence_data')
+          .update(updatePayload)
+          .eq('id', existing.id)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return updated;
+      } else {
+        const { data: created, error } = await supabase
+          .from('accounting_competence_data')
+          .insert(updatePayload)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        return created;
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ 
+        queryKey: ['accounting-competence-data', variables.unit_id, variables.ano, variables.mes] 
+      });
+    },
+  });
+}
+
 export interface CompetenceData {
   id?: string;
   unit_id: string;
