@@ -24,7 +24,8 @@ export type SystemArea =
   | 'tax_scenarios'
   | 'fator_r_audit'
   | 'patrimony'
-  | 'cashflow';
+  | 'cashflow'
+  | 'accounting_panel';
 
 // Permissões possíveis
 export type PermissionLevel = 'none' | 'view' | 'edit' | 'full';
@@ -52,6 +53,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Record<SystemArea, PermissionLeve
     fator_r_audit: 'full',
     patrimony: 'full',
     cashflow: 'full',
+    accounting_panel: 'full',
   },
   contador: {
     dashboard: 'view',
@@ -74,6 +76,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Record<SystemArea, PermissionLeve
     fator_r_audit: 'full',
     patrimony: 'none',
     cashflow: 'none',
+    accounting_panel: 'full',
   },
   contabilidade: {
     dashboard: 'view',
@@ -96,6 +99,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Record<SystemArea, PermissionLeve
     fator_r_audit: 'view',
     patrimony: 'full',
     cashflow: 'full',
+    accounting_panel: 'full',
   },
   financeiro: {
     dashboard: 'view',
@@ -118,6 +122,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Record<SystemArea, PermissionLeve
     fator_r_audit: 'none',
     patrimony: 'none',
     cashflow: 'view',
+    accounting_panel: 'edit',
   },
   gestor_unidade: {
     dashboard: 'view',
@@ -140,6 +145,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Record<SystemArea, PermissionLeve
     fator_r_audit: 'none',
     patrimony: 'none',
     cashflow: 'none',
+    accounting_panel: 'edit',
   },
   secretaria: {
     dashboard: 'view',
@@ -162,6 +168,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Record<SystemArea, PermissionLeve
     fator_r_audit: 'none',
     patrimony: 'none',
     cashflow: 'none',
+    accounting_panel: 'edit',
   },
 };
 
@@ -239,6 +246,7 @@ export const AREA_LABELS: Record<SystemArea, string> = {
   fator_r_audit: 'Auditoria Fator R',
   patrimony: 'Patrimônio',
   cashflow: 'Fluxo de Caixa',
+  accounting_panel: 'Painel Contabilidade',
 };
 
 // Áreas agrupadas para exibição no guia de papéis
@@ -325,6 +333,7 @@ export function getAllowedRoutes(role: AppRole | null): string[] {
     fator_r_audit: ['/settings/fator-r-audit'],
     patrimony: ['/reports/patrimony'],
     cashflow: ['/reports/cashflow-projection'],
+    accounting_panel: ['/accounting-panel', '/accounting-history'],
   };
   
   for (const [area, level] of Object.entries(permissions)) {

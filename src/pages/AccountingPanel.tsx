@@ -25,6 +25,8 @@ import { KioskBreadcrumb } from '@/components/layout/KioskBreadcrumb';
 import { AccountingKioskHome } from '@/components/accounting/AccountingKioskHome';
 import { AccountingViewData } from '@/components/accounting/AccountingViewData';
 import { AccountingSendDocuments } from '@/components/accounting/AccountingSendDocuments';
+import { canAccess, getPermissionLevel } from '@/lib/access-policy';
+import type { AppRole } from '@/types/database';
 
 type Step = 'home' | 'view-data' | 'send-documents';
 
@@ -51,7 +53,7 @@ function getCompetenceOptions() {
   return options; // Janeiro a Dezembro
 }
 
-function AccountingPanelContent() {
+function AccountingPanelContent({ isAccountingRole }: { isAccountingRole: boolean }) {
   const { profile, activeUnit, userUnits } = useAuth();
   const [currentStep, setCurrentStep] = useState<Step>('home');
   const [units, setUnits] = useState<Unit[]>([]);
@@ -185,6 +187,7 @@ function AccountingPanelContent() {
             competence={competence}
             onViewData={() => setCurrentStep('view-data')}
             onSendDocuments={() => setCurrentStep('send-documents')}
+            isAccountingRole={isAccountingRole}
           />
         )}
 
@@ -194,6 +197,8 @@ function AccountingPanelContent() {
             unitName={selectedUnit?.name || ''}
             competence={competence}
             onBack={() => setCurrentStep('home')}
+            readOnly={!isAccountingRole}
+            showDetails={isAccountingRole}
           />
         )}
 
@@ -221,8 +226,11 @@ export default function AccountingPanel() {
     return <Navigate to="/auth" replace />;
   }
 
-  const allowedRoles = ['admin', 'contador', 'contabilidade', 'financeiro'];
-  const hasAccess = isAdmin || (role && allowedRoles.includes(role));
+  // Usar access-policy para verificar acesso
+  const hasAccess = canAccess(role as AppRole | null, 'accounting_panel');
+  
+  // Perfis que veem tudo e podem editar dados da contabilidade
+  const isAccountingRole = isAdmin || ['contador', 'contabilidade'].includes(role || '');
 
   if (!hasAccess) {
     return (
@@ -231,7 +239,7 @@ export default function AccountingPanel() {
           <ShieldAlert className="h-5 w-5" />
           <AlertTitle>Acesso Restrito</AlertTitle>
           <AlertDescription className="mt-2">
-            Acesso restrito a contadores, contabilidade e financeiro.
+            Você não tem permissão para acessar o Painel de Contabilidade.
           </AlertDescription>
         </Alert>
         <div className="mt-4 flex justify-center">
@@ -243,5 +251,5 @@ export default function AccountingPanel() {
     );
   }
 
-  return <AccountingPanelContent />;
+  return <AccountingPanelContent isAccountingRole={isAccountingRole} />;
 }

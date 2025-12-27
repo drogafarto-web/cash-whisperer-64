@@ -24,6 +24,7 @@ interface AccountingKioskHomeProps {
   competence: Date;
   onViewData: () => void;
   onSendDocuments: () => void;
+  isAccountingRole?: boolean;
 }
 
 function StatusBadge({ status }: { status: 'pendente' | 'informado' | 'confirmado' | 'rascunho' | 'enviado' | 'recebido' }) {
@@ -51,7 +52,8 @@ export function AccountingKioskHome({
   unitName, 
   competence, 
   onViewData, 
-  onSendDocuments 
+  onSendDocuments,
+  isAccountingRole = true,
 }: AccountingKioskHomeProps) {
   const ano = competence.getFullYear();
   const mes = competence.getMonth() + 1;
@@ -114,16 +116,26 @@ export function AccountingKioskHome({
       {/* Dados informados pela contabilidade */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Receipt className="h-5 w-5 text-primary" />
-            Dados da Contabilidade
-          </h2>
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-primary" />
+              📋 Contabilidade Informa
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              {isAccountingRole 
+                ? 'Dados informados pela contabilidade' 
+                : 'Resumo dos dados informados pela contabilidade'}
+            </p>
+          </div>
           <StatusBadge status={competenceData?.status || 'pendente'} />
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Card Folha */}
-          <Card className="hover:border-primary/50 transition-colors cursor-pointer" onClick={onViewData}>
+          <Card 
+            className={`transition-colors ${isAccountingRole ? 'hover:border-primary/50 cursor-pointer' : 'opacity-90'}`} 
+            onClick={isAccountingRole ? onViewData : undefined}
+          >
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <Users className="h-4 w-4 text-blue-500" />
@@ -132,14 +144,23 @@ export function AccountingKioskHome({
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold">{formatCurrency(competenceData?.total_folha)}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {competenceData?.num_funcionarios || 0} funcionários
-              </p>
+              {isAccountingRole ? (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {competenceData?.num_funcionarios || 0} funcionários
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Total consolidado
+                </p>
+              )}
             </CardContent>
           </Card>
 
           {/* Card Impostos */}
-          <Card className="hover:border-primary/50 transition-colors cursor-pointer" onClick={onViewData}>
+          <Card 
+            className={`transition-colors ${isAccountingRole ? 'hover:border-primary/50 cursor-pointer' : 'opacity-90'}`} 
+            onClick={isAccountingRole ? onViewData : undefined}
+          >
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <Wallet className="h-4 w-4 text-orange-500" />
@@ -155,14 +176,23 @@ export function AccountingKioskHome({
                   (competenceData?.iss_valor || 0)
                 )}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                DAS + DARF + GPS + ISS
-              </p>
+              {isAccountingRole ? (
+                <p className="text-xs text-muted-foreground mt-1">
+                  DAS + DARF + GPS + ISS
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Total consolidado
+                </p>
+              )}
             </CardContent>
           </Card>
 
           {/* Card Receitas */}
-          <Card className="hover:border-primary/50 transition-colors cursor-pointer" onClick={onViewData}>
+          <Card 
+            className={`transition-colors ${isAccountingRole ? 'hover:border-primary/50 cursor-pointer' : 'opacity-90'}`} 
+            onClick={isAccountingRole ? onViewData : undefined}
+          >
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-green-500" />
@@ -171,9 +201,15 @@ export function AccountingKioskHome({
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold">{formatCurrency(competenceData?.receita_servicos)}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Serviços + {formatCurrency(competenceData?.receita_outras)} outras
-              </p>
+              {isAccountingRole ? (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Serviços + {formatCurrency(competenceData?.receita_outras)} outras
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Receita de serviços
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -188,10 +224,15 @@ export function AccountingKioskHome({
       {/* Separador */}
       <div className="border-t pt-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <FileUp className="h-5 w-5 text-primary" />
-            Enviar para Contabilidade
-          </h2>
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <FileUp className="h-5 w-5 text-primary" />
+              🧪 Laboratório Envia
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Documentos enviados pelo laboratório
+            </p>
+          </div>
           {submission && <StatusBadge status={submission.status} />}
         </div>
 
