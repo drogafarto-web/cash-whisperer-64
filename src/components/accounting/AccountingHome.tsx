@@ -1,17 +1,13 @@
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { 
-  TrendingUp, 
-  Users, 
-  FileText, 
-  Receipt, 
-  Download, 
-  Calculator,
-  Wallet
-} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { format, subMonths } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { format } from 'date-fns';
+import { useAccountingDashboard } from '@/hooks/useAccountingDashboard';
+import { AccountingDataCard } from './AccountingDataCard';
+import { AccountingDocumentsCard } from './AccountingDocumentsCard';
+import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from 'sonner';
 
 interface AccountingHomeProps {
   competence: Date;
@@ -20,80 +16,73 @@ interface AccountingHomeProps {
 
 export function AccountingHome({ competence, onGoToExports }: AccountingHomeProps) {
   const navigate = useNavigate();
-  const monthParam = format(competence, 'yyyy-MM');
+  const ano = competence.getFullYear();
+  const mes = competence.getMonth() + 1;
+  
+  const { data, isLoading, refetch } = useAccountingDashboard(ano, mes);
 
-  const cards = [
-    {
-      id: 'taxes',
-      icon: TrendingUp,
-      title: 'Impostos do Mês',
-      description: 'Cenários tributários e apuração',
-      badge: 'Simples Nacional',
-      badgeVariant: 'secondary' as const,
-      onClick: () => navigate(`/reports/tax-scenarios?month=${monthParam}`),
-    },
-    {
-      id: 'payroll',
-      icon: Users,
-      title: 'Folha de Pagamento',
-      description: 'Base fiscal e custos de pessoal',
-      onClick: () => navigate('/settings/fiscal-base'),
-    },
-    {
-      id: 'supplier-invoices',
-      icon: FileText,
-      title: 'NFs Fornecedores',
-      description: 'Notas fiscais recebidas',
-      onClick: () => navigate(`/payables/supplier-invoices?month=${monthParam}`),
-    },
-    {
-      id: 'client-invoices',
-      icon: Receipt,
-      title: 'NFs Clientes / Faturamento',
-      description: 'Notas emitidas e resumo',
-      onClick: () => navigate(`/billing/summary?month=${monthParam}`),
-    },
-    {
-      id: 'fator-r',
-      icon: Calculator,
-      title: 'Fator R / Anexos',
-      description: 'Evolução e alertas tributários',
-      onClick: () => navigate('/settings/fator-r-audit'),
-    },
-    {
-      id: 'cashflow',
-      icon: Wallet,
-      title: 'Fluxo de Caixa',
-      description: 'Projeção 12 meses',
-      onClick: () => navigate('/reports/cashflow-projection'),
-    },
-  ];
+  const handleSendLink = () => {
+    // Navigate to the accounting settings to send a new link
+    navigate('/settings/data-2025');
+    toast.info('Use a aba "Link Contabilidade" para enviar um novo link');
+  };
+
+  const handleViewAllDocuments = () => {
+    // For now, just show a toast - later can navigate to a dedicated page
+    toast.info('Visualização completa em desenvolvimento');
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <CardContent className="p-6">
+                <Skeleton className="h-4 w-24 mb-4" />
+                <Skeleton className="h-8 w-32 mb-2" />
+                <Skeleton className="h-3 w-20" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Grid principal com 6 cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {cards.map((card) => (
-          <Card 
-            key={card.id}
-            className="cursor-pointer hover:border-primary/50 hover:shadow-md transition-all group"
-            onClick={card.onClick}
-          >
-            <CardContent className="p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div className="p-3 rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                  <card.icon className="h-6 w-6" />
-                </div>
-                {card.badge && (
-                  <Badge variant={card.badgeVariant}>{card.badge}</Badge>
-                )}
-              </div>
-              <h3 className="text-lg font-semibold mb-1">{card.title}</h3>
-              <p className="text-sm text-muted-foreground">{card.description}</p>
-            </CardContent>
-          </Card>
-        ))}
+      {/* Grid principal com 4 cards de dados */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <AccountingDataCard 
+          type="impostos" 
+          data={{ impostos: data?.impostos }} 
+          competence={competence}
+        />
+        <AccountingDataCard 
+          type="receita" 
+          data={{ receita: data?.receita }} 
+          competence={competence}
+        />
+        <AccountingDataCard 
+          type="folha" 
+          data={{ folha: data?.folha }} 
+          competence={competence}
+        />
+        <AccountingDataCard 
+          type="fator-r" 
+          data={{ fatorR: data?.fatorR }} 
+          competence={competence}
+        />
       </div>
+
+      {/* Documentos da contabilidade */}
+      <AccountingDocumentsCard
+        documents={data?.documentos || []}
+        linkStatus={data?.linkStatus || { enviado: false, enviadoEm: null, usado: false, expirado: false }}
+        onSendLink={handleSendLink}
+        onViewAll={handleViewAllDocuments}
+      />
 
       {/* Card grande de Exportação */}
       <Card 

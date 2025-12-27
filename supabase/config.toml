@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.create-user-from-lis]
 verify_jwt = true
+
+[functions.ocr-tax-document]
+verify_jwt = false

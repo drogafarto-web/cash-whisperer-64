@@ -50,6 +50,99 @@ export type Database = {
         }
         Relationships: []
       }
+      accounting_documents: {
+        Row: {
+          ano: number
+          contact_id: string | null
+          created_at: string | null
+          created_by: string | null
+          data_pagamento: string | null
+          data_vencimento: string | null
+          file_name: string
+          file_path: string
+          file_size: number | null
+          id: string
+          mes: number
+          mime_type: string | null
+          observacoes: string | null
+          ocr_data: Json | null
+          ocr_status: string | null
+          status: string | null
+          tipo_documento: string
+          token_id: string | null
+          updated_at: string | null
+          updated_by: string | null
+          valor_documento: number | null
+          vinculado_a: string | null
+          vinculado_id: string | null
+        }
+        Insert: {
+          ano: number
+          contact_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          data_pagamento?: string | null
+          data_vencimento?: string | null
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          id?: string
+          mes: number
+          mime_type?: string | null
+          observacoes?: string | null
+          ocr_data?: Json | null
+          ocr_status?: string | null
+          status?: string | null
+          tipo_documento: string
+          token_id?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+          valor_documento?: number | null
+          vinculado_a?: string | null
+          vinculado_id?: string | null
+        }
+        Update: {
+          ano?: number
+          contact_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          data_pagamento?: string | null
+          data_vencimento?: string | null
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          id?: string
+          mes?: number
+          mime_type?: string | null
+          observacoes?: string | null
+          ocr_data?: Json | null
+          ocr_status?: string | null
+          status?: string | null
+          tipo_documento?: string
+          token_id?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+          valor_documento?: number | null
+          vinculado_a?: string | null
+          vinculado_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounting_documents_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounting_documents_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       accounting_email_logs: {
         Row: {
           contact_id: string | null
