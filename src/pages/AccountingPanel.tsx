@@ -74,14 +74,16 @@ function AccountingPanelContent() {
   // Carregar unidades
   useEffect(() => {
     async function loadUnits() {
-      const { data } = await supabase
+      // Type assertion to avoid TS2589 deep instantiation error
+      const client = supabase as any;
+      const { data } = await client
         .from('units')
         .select('id, name')
         .eq('active', true)
         .order('name');
       
       if (data) {
-        setUnits(data);
+        setUnits(data as Unit[]);
         // Se usuário tem unidade ativa, selecionar ela
         if (activeUnit?.id) {
           setSelectedUnitId(activeUnit.id);
