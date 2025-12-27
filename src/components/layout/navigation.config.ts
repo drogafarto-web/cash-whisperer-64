@@ -74,6 +74,7 @@ export const navigationGroups: NavGroup[] = [
     items: [
       { name: 'Painel Recepção', href: '/reception-panel', icon: MonitorSmartphone, roles: ['admin', 'secretaria', 'gestor_unidade'] },
       { name: 'Painel Contabilidade', href: '/accounting-panel', icon: Calculator, roles: ['admin', 'contabilidade', 'financeiro', 'contador'] },
+      { name: 'Histórico Contábil', href: '/accounting-history', icon: History, roles: ['admin', 'contabilidade', 'financeiro', 'contador'] },
       { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'secretaria', 'gestor_unidade', 'financeiro', 'contador'] },
       { name: 'Pendências', href: '/pendencias', icon: AlertCircle, roles: ['admin', 'contabilidade', 'gestor_unidade'] },
     ],

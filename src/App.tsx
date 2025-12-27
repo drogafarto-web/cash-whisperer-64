@@ -71,6 +71,7 @@ import PayablesDashboard from "./pages/payables/Dashboard";
 // Reception panel
 import ReceptionPanel from "./pages/ReceptionPanel";
 import AccountingPanel from "./pages/AccountingPanel";
+import AccountingHistory from "./pages/AccountingHistory";
 
 // System pages
 import About from "./pages/About";
@@ -90,6 +91,7 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/reception-panel" element={<ReceptionPanel />} />
             <Route path="/accounting-panel" element={<AccountingPanel />} />
+            <Route path="/accounting-history" element={<AccountingHistory />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/cash-closing" element={<CashClosingSimple />} />
