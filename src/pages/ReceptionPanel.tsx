@@ -12,6 +12,7 @@ import {
   ReceptionImport,
   ReceptionClientInvoice,
   ReceptionSupplierExpense,
+  ReceptionPayment,
   ReceptionStep,
 } from '@/components/reception';
 
@@ -125,6 +126,10 @@ function ReceptionPanelContent() {
             
             {currentStep === 'supplier-expense' && (
               <ReceptionSupplierExpense onBack={handleBack} unitId={activeUnit} />
+            )}
+            
+            {currentStep === 'payment' && (
+              <ReceptionPayment onBack={handleBack} unitId={activeUnit} />
             )}
           </>
         )}
