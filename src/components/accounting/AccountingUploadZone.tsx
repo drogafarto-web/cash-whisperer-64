@@ -316,54 +316,78 @@ export function AccountingUploadZone({
                   </div>
 
                   {file.status === 'uploading' && (
-                    <p className="text-xs text-muted-foreground">Enviando...</p>
+                    <p className="text-xs text-muted-foreground">Enviando arquivo...</p>
                   )}
                   {file.status === 'processing' && (
-                    <p className="text-xs text-muted-foreground">Processando OCR...</p>
+                    <p className="text-xs text-amber-600">Lendo documento automaticamente (OCR)...</p>
                   )}
                   {file.status === 'error' && (
-                    <p className="text-xs text-destructive">{file.error}</p>
+                    <div className="space-y-1">
+                      <p className="text-xs text-destructive font-medium">
+                        Erro ao processar arquivo
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {file.error?.includes('storage') 
+                          ? 'Não foi possível salvar o arquivo. Tente novamente.' 
+                          : file.error?.includes('OCR') || file.error?.includes('ocr')
+                          ? 'Arquivo salvo, mas não foi possível ler automaticamente. Preencha os campos manualmente.'
+                          : file.error || 'Erro desconhecido. Tente novamente.'}
+                      </p>
+                    </div>
                   )}
 
-                  {file.status === 'done' && file.ocrData && (
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <Label className="text-xs">Tipo</Label>
-                        <Select 
-                          value={file.ocrData.tipo_documento}
-                          onValueChange={(v) => updateFileType(file.id, v)}
-                        >
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {TIPO_OPTIONS.map(opt => (
-                              <SelectItem key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label className="text-xs">Valor (R$)</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          className="h-8 text-xs"
-                          defaultValue={file.ocrData.valor || ''}
-                          onBlur={(e) => updateFileValue(file.id, parseFloat(e.target.value) || 0)}
-                        />
+                  {file.status === 'done' && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-emerald-600 font-medium">
+                        ✓ Documento enviado com sucesso
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs">Tipo do Documento</Label>
+                          <Select 
+                            value={file.ocrData?.tipo_documento || 'outro'}
+                            onValueChange={(v) => updateFileType(file.id, v)}
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {TIPO_OPTIONS.map(opt => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Valor (R$)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="0,00"
+                            className="h-8 text-xs"
+                            defaultValue={file.ocrData?.valor || ''}
+                            onBlur={(e) => updateFileValue(file.id, parseFloat(e.target.value) || 0)}
+                          />
+                        </div>
                       </div>
                     </div>
                   )}
 
-                  {file.ocrData?.confidence !== undefined && (
+                  {file.status === 'done' && file.ocrData?.confidence !== undefined && (
                     <Badge 
                       variant={file.ocrData.confidence > 0.7 ? 'secondary' : 'outline'}
                       className="text-xs"
                     >
-                      OCR: {Math.round(file.ocrData.confidence * 100)}%
+                      {file.ocrData.confidence > 0.7 
+                        ? `Leitura automática: ${Math.round(file.ocrData.confidence * 100)}% confiança` 
+                        : `Leitura parcial: verifique os campos`}
+                    </Badge>
+                  )}
+                  {file.status === 'done' && !file.ocrData?.confidence && (
+                    <Badge variant="outline" className="text-xs">
+                      Preenchimento manual necessário
                     </Badge>
                   )}
                 </div>

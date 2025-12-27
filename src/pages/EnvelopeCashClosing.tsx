@@ -46,6 +46,7 @@ import {
   EnvelopeComparisonCard,
   EnvelopeLabelPreview,
   EnvelopeStepsIndicator,
+  EnvelopeConfirmModal,
 } from '@/components/envelope';
 import { NoActiveUnitMessage } from '@/components/layout/NoActiveUnitMessage';
 import {
@@ -75,6 +76,7 @@ function EnvelopeCashClosingContent() {
   const [countedCash, setCountedCash] = useState('');
   const [justificativa, setJustificativa] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [labelAlreadyPrinted, setLabelAlreadyPrinted] = useState(false);
   const [reprintCount, setReprintCount] = useState(0);
   
@@ -147,9 +149,7 @@ function EnvelopeCashClosingContent() {
     setStep('selection');
   };
 
-  const handleConfirmEnvelope = async () => {
-    if (!user || !activeUnit) return;
-    
+  const handleOpenConfirmModal = () => {
     const countedValue = parseFloat(countedCash.replace(',', '.')) || 0;
     const difference = Math.abs(countedValue - expectedCash);
     
@@ -158,8 +158,16 @@ function EnvelopeCashClosingContent() {
       toast.error('Informe uma justificativa para a diferença de valores');
       return;
     }
+    
+    setShowConfirmModal(true);
+  };
 
-    setIsSubmitting(true);
+  const handleConfirmEnvelope = async () => {
+    if (!user || !activeUnit) return;
+    
+    const countedValue = parseFloat(countedCash.replace(',', '.')) || 0;
+
+    setShowConfirmModal(false);
     try {
       const selectedItemIds = getSelectedIds();
       const envelope = await createEnvelopeWithItems({
@@ -194,7 +202,7 @@ function EnvelopeCashClosingContent() {
 
   const handlePrintLabel = async () => {
     if (!createdEnvelope || !user || !activeUnit) return;
-
+    setIsSubmitting(true);
     try {
       const printed = await checkLabelPrinted(createdEnvelope.id);
       setLabelAlreadyPrinted(printed);
@@ -487,7 +495,7 @@ function EnvelopeCashClosingContent() {
             Voltar
           </Button>
           <Button 
-            onClick={handleConfirmEnvelope}
+            onClick={handleOpenConfirmModal}
             disabled={isSubmitting || !countedCash}
             className="flex-1"
           >
@@ -504,6 +512,18 @@ function EnvelopeCashClosingContent() {
             )}
           </Button>
         </div>
+
+        {/* Modal de confirmação */}
+        <EnvelopeConfirmModal
+          open={showConfirmModal}
+          onOpenChange={setShowConfirmModal}
+          onConfirm={handleConfirmEnvelope}
+          selectedCount={selectedCount}
+          expectedCash={expectedCash}
+          countedCash={parseFloat(countedCash.replace(',', '.')) || 0}
+          justificativa={justificativa}
+          isSubmitting={isSubmitting}
+        />
       </div>
     </AppLayout>
   );
