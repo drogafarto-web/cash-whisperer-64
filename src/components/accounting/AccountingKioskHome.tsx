@@ -16,6 +16,7 @@ import {
   Clock,
   ArrowLeft,
   Paperclip,
+  Sparkles,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -73,15 +74,22 @@ export function AccountingKioskHome({
   const despesaCount = documents.filter(d => d.tipo === 'despesa').length;
   const extratoCount = documents.filter(d => d.tipo === 'extrato_bancario').length;
 
-  // Count attachments by category
-  const attachmentCounts = useMemo(() => {
+  // Count attachments by category and check OCR status
+  const { attachmentCounts, ocrStats } = useMemo(() => {
     const counts = { folha: 0, impostos: 0, receitas: 0 };
+    const ocr = { total: 0, processed: 0 };
+    
     competenceDocuments.forEach(doc => {
       if (doc.categoria === 'folha') counts.folha++;
-      else if (['das', 'darf', 'gps', 'inss', 'fgts', 'iss'].includes(doc.categoria)) counts.impostos++;
+      else if (['das', 'darf', 'gps', 'inss', 'fgts', 'iss'].includes(doc.categoria)) {
+        counts.impostos++;
+        ocr.total++;
+        if (doc.ocr_status === 'processado') ocr.processed++;
+      }
       else if (doc.categoria === 'receitas') counts.receitas++;
     });
-    return counts;
+    
+    return { attachmentCounts: counts, ocrStats: ocr };
   }, [competenceDocuments]);
 
   if (!unitId) {
@@ -170,9 +178,16 @@ export function AccountingKioskHome({
                 <Wallet className="h-4 w-4 text-orange-500" />
                 Impostos
                 {attachmentCounts.impostos > 0 && (
-                  <Badge variant="outline" className="gap-1 ml-auto text-xs">
-                    <Paperclip className="h-3 w-3" />{attachmentCounts.impostos}
-                  </Badge>
+                  <div className="flex items-center gap-1 ml-auto">
+                    <Badge variant="outline" className="gap-1 text-xs">
+                      <Paperclip className="h-3 w-3" />{attachmentCounts.impostos}
+                    </Badge>
+                    {ocrStats.processed > 0 && (
+                      <Badge variant="default" className="gap-1 text-xs bg-green-600">
+                        <Sparkles className="h-3 w-3" />{ocrStats.processed}
+                      </Badge>
+                    )}
+                  </div>
                 )}
               </CardTitle>
             </CardHeader>
