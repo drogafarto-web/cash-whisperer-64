@@ -28,6 +28,7 @@ import {
   ClipboardCheck,
   FileArchive,
   UserCog,
+  MonitorSmartphone,
 } from 'lucide-react';
 import { AppRole } from '@/types/database';
 
@@ -71,6 +72,7 @@ export const navigationGroups: NavGroup[] = [
     name: 'Visão Geral',
     icon: LayoutDashboard,
     items: [
+      { name: 'Painel Recepção', href: '/reception-panel', icon: MonitorSmartphone, roles: ['admin', 'secretaria', 'gestor_unidade'] },
       { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'secretaria', 'gestor_unidade', 'financeiro', 'contador'] },
       { name: 'Pendências', href: '/pendencias', icon: AlertCircle, roles: ['admin', 'contabilidade', 'gestor_unidade'] },
     ],
