@@ -22,6 +22,17 @@ export async function ocrBoleto(
   });
 
   if (error) throw error;
+  
+  // Edge function returns { ocrData: result }
+  if (data?.ocrData) {
+    return data.ocrData as BoletoOcrResult;
+  }
+  
+  // Handle case where error is in response body
+  if (data?.error) {
+    throw new Error(data.error);
+  }
+  
   return data as BoletoOcrResult;
 }
 
