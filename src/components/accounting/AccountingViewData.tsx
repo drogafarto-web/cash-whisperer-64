@@ -12,9 +12,18 @@ interface AccountingViewDataProps {
   unitName: string;
   competence: Date;
   onBack: () => void;
+  readOnly?: boolean;
+  showDetails?: boolean;
 }
 
-export function AccountingViewData({ unitId, unitName, competence, onBack }: AccountingViewDataProps) {
+export function AccountingViewData({ 
+  unitId, 
+  unitName, 
+  competence, 
+  onBack,
+  readOnly = false,
+  showDetails = true,
+}: AccountingViewDataProps) {
   const ano = competence.getFullYear();
   const mes = competence.getMonth() + 1;
   
@@ -68,15 +77,22 @@ export function AccountingViewData({ unitId, unitName, competence, onBack }: Acc
           <ArrowLeft className="h-4 w-4" />
           Voltar
         </Button>
-        <Badge variant={data.status === 'confirmado' ? 'default' : 'outline'}>
-          {data.status === 'confirmado' ? 'Confirmado' : data.status === 'informado' ? 'Informado' : 'Pendente'}
-        </Badge>
+        <div className="flex items-center gap-2">
+          {readOnly && (
+            <Badge variant="secondary">Somente Leitura</Badge>
+          )}
+          <Badge variant={data.status === 'confirmado' ? 'default' : 'outline'}>
+            {data.status === 'confirmado' ? 'Confirmado' : data.status === 'informado' ? 'Informado' : 'Pendente'}
+          </Badge>
+        </div>
       </div>
 
       <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
-        <p className="text-sm text-muted-foreground">Dados da Contabilidade</p>
+        <p className="text-sm text-muted-foreground">
+          📋 Dados da Contabilidade {readOnly && '(visualização)'}
+        </p>
         <p className="text-xl font-semibold capitalize">{competenceLabel} — {unitName}</p>
-        {data.informado_em && (
+        {data.informado_em && showDetails && (
           <p className="text-xs text-muted-foreground mt-1">
             Informado em: {format(new Date(data.informado_em), "dd/MM/yyyy 'às' HH:mm")}
           </p>
@@ -92,24 +108,32 @@ export function AccountingViewData({ unitId, unitName, competence, onBack }: Acc
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {showDetails ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Total Folha</p>
+                <p className="text-xl font-semibold">{formatCurrency(data.total_folha)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Encargos</p>
+                <p className="text-xl font-semibold">{formatCurrency(data.encargos)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Pró-labore</p>
+                <p className="text-xl font-semibold">{formatCurrency(data.prolabore)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Funcionários</p>
+                <p className="text-xl font-semibold">{data.num_funcionarios || 0}</p>
+              </div>
+            </div>
+          ) : (
             <div>
               <p className="text-sm text-muted-foreground">Total Folha</p>
-              <p className="text-xl font-semibold">{formatCurrency(data.total_folha)}</p>
+              <p className="text-2xl font-semibold">{formatCurrency(data.total_folha)}</p>
+              <p className="text-xs text-muted-foreground mt-1">Valor consolidado</p>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Encargos</p>
-              <p className="text-xl font-semibold">{formatCurrency(data.encargos)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Pró-labore</p>
-              <p className="text-xl font-semibold">{formatCurrency(data.prolabore)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Funcionários</p>
-              <p className="text-xl font-semibold">{data.num_funcionarios || 0}</p>
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
 
@@ -122,85 +146,102 @@ export function AccountingViewData({ unitId, unitName, competence, onBack }: Acc
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className="p-3 bg-muted/50 rounded-lg">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-sm font-medium">DAS</p>
-                {data.das_vencimento && (
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    {formatDate(data.das_vencimento)}
-                  </span>
-                )}
+          {showDetails ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-sm font-medium">DAS</p>
+                  {data.das_vencimento && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {formatDate(data.das_vencimento)}
+                    </span>
+                  )}
+                </div>
+                <p className="text-lg font-semibold">{formatCurrency(data.das_valor)}</p>
               </div>
-              <p className="text-lg font-semibold">{formatCurrency(data.das_valor)}</p>
-            </div>
 
-            <div className="p-3 bg-muted/50 rounded-lg">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-sm font-medium">DARF</p>
-                {data.darf_vencimento && (
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    {formatDate(data.darf_vencimento)}
-                  </span>
-                )}
+              <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-sm font-medium">DARF</p>
+                  {data.darf_vencimento && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {formatDate(data.darf_vencimento)}
+                    </span>
+                  )}
+                </div>
+                <p className="text-lg font-semibold">{formatCurrency(data.darf_valor)}</p>
               </div>
-              <p className="text-lg font-semibold">{formatCurrency(data.darf_valor)}</p>
-            </div>
 
-            <div className="p-3 bg-muted/50 rounded-lg">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-sm font-medium">GPS</p>
-                {data.gps_vencimento && (
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    {formatDate(data.gps_vencimento)}
-                  </span>
-                )}
+              <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-sm font-medium">GPS</p>
+                  {data.gps_vencimento && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {formatDate(data.gps_vencimento)}
+                    </span>
+                  )}
+                </div>
+                <p className="text-lg font-semibold">{formatCurrency(data.gps_valor)}</p>
               </div>
-              <p className="text-lg font-semibold">{formatCurrency(data.gps_valor)}</p>
-            </div>
 
-            <div className="p-3 bg-muted/50 rounded-lg">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-sm font-medium">INSS</p>
-                {data.inss_vencimento && (
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    {formatDate(data.inss_vencimento)}
-                  </span>
-                )}
+              <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-sm font-medium">INSS</p>
+                  {data.inss_vencimento && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {formatDate(data.inss_vencimento)}
+                    </span>
+                  )}
+                </div>
+                <p className="text-lg font-semibold">{formatCurrency(data.inss_valor)}</p>
               </div>
-              <p className="text-lg font-semibold">{formatCurrency(data.inss_valor)}</p>
-            </div>
 
-            <div className="p-3 bg-muted/50 rounded-lg">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-sm font-medium">FGTS</p>
-                {data.fgts_vencimento && (
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    {formatDate(data.fgts_vencimento)}
-                  </span>
-                )}
+              <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-sm font-medium">FGTS</p>
+                  {data.fgts_vencimento && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {formatDate(data.fgts_vencimento)}
+                    </span>
+                  )}
+                </div>
+                <p className="text-lg font-semibold">{formatCurrency(data.fgts_valor)}</p>
               </div>
-              <p className="text-lg font-semibold">{formatCurrency(data.fgts_valor)}</p>
-            </div>
 
-            <div className="p-3 bg-muted/50 rounded-lg">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-sm font-medium">ISS</p>
-                {data.iss_vencimento && (
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    {formatDate(data.iss_vencimento)}
-                  </span>
-                )}
+              <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-sm font-medium">ISS</p>
+                  {data.iss_vencimento && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {formatDate(data.iss_vencimento)}
+                    </span>
+                  )}
+                </div>
+                <p className="text-lg font-semibold">{formatCurrency(data.iss_valor)}</p>
               </div>
-              <p className="text-lg font-semibold">{formatCurrency(data.iss_valor)}</p>
             </div>
-          </div>
+          ) : (
+            <div>
+              <p className="text-sm text-muted-foreground">Total Impostos</p>
+              <p className="text-2xl font-semibold">
+                {formatCurrency(
+                  (data.das_valor || 0) + 
+                  (data.darf_valor || 0) + 
+                  (data.gps_valor || 0) + 
+                  (data.inss_valor || 0) + 
+                  (data.fgts_valor || 0) + 
+                  (data.iss_valor || 0)
+                )}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Valor consolidado (DAS + DARF + GPS + INSS + FGTS + ISS)</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -223,7 +264,7 @@ export function AccountingViewData({ unitId, unitName, competence, onBack }: Acc
               <p className="text-xl font-semibold">{formatCurrency(data.receita_outras)}</p>
             </div>
           </div>
-          {data.receita_observacoes && (
+          {data.receita_observacoes && showDetails && (
             <div className="mt-4 p-3 bg-muted/50 rounded-lg">
               <p className="text-sm text-muted-foreground mb-1">Observações</p>
               <p className="text-sm">{data.receita_observacoes}</p>
