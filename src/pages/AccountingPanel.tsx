@@ -79,7 +79,6 @@ function AccountingPanelContent() {
       const { data } = await client
         .from('units')
         .select('id, name')
-        .eq('active', true)
         .order('name');
       
       if (data) {
