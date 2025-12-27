@@ -20,6 +20,8 @@ export interface CompetenceDocument {
   file_size: number | null;
   mime_type: string | null;
   descricao: string | null;
+  ocr_status: string | null;
+  ocr_data: Record<string, unknown> | null;
   created_at: string;
   created_by: string | null;
 }

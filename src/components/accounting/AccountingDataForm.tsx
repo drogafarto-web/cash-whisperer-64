@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -64,6 +64,8 @@ const formSchema = z.object({
 });
 
 type FormData = z.infer<typeof formSchema>;
+
+type TaxType = 'das' | 'darf' | 'gps' | 'inss' | 'fgts' | 'iss';
 
 export function AccountingDataForm({ unitId, unitName, competence, onBack }: AccountingDataFormProps) {
   const ano = competence.getFullYear();
@@ -147,6 +149,16 @@ export function AccountingDataForm({ unitId, unitName, competence, onBack }: Acc
     }
   }, [existingData, form]);
 
+  // OCR completion handlers
+  const handleOcrComplete = useCallback((taxType: TaxType, result: { valor: number | null; vencimento: string | null }) => {
+    if (result.valor !== null) {
+      form.setValue(`${taxType}_valor` as keyof FormData, result.valor);
+    }
+    if (result.vencimento) {
+      form.setValue(`${taxType}_vencimento` as keyof FormData, result.vencimento);
+    }
+  }, [form]);
+
   const onSubmit = async (values: FormData) => {
     if (!unitId) {
       toast.error('Selecione uma unidade');
@@ -177,8 +189,8 @@ export function AccountingDataForm({ unitId, unitName, competence, onBack }: Acc
     );
   }
 
-  // Helper to render upload for taxes
-  const renderTaxUpload = (categoria: DocumentCategory) => {
+  // Helper to render upload for taxes with OCR callback
+  const renderTaxUpload = (categoria: TaxType) => {
     if (!unitId) return null;
     return (
       <AccountingFileUpload
@@ -190,6 +202,7 @@ export function AccountingDataForm({ unitId, unitName, competence, onBack }: Acc
         existingFile={documentsByCategory[categoria]}
         onUploadComplete={() => refetchDocuments()}
         onDeleteComplete={() => refetchDocuments()}
+        onOcrComplete={(result) => handleOcrComplete(categoria, result)}
       />
     );
   };

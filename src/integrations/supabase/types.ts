@@ -128,6 +128,8 @@ export type Database = {
           id: string
           mes: number
           mime_type: string | null
+          ocr_data: Json | null
+          ocr_status: string | null
           unit_id: string | null
         }
         Insert: {
@@ -142,6 +144,8 @@ export type Database = {
           id?: string
           mes: number
           mime_type?: string | null
+          ocr_data?: Json | null
+          ocr_status?: string | null
           unit_id?: string | null
         }
         Update: {
@@ -156,6 +160,8 @@ export type Database = {
           id?: string
           mes?: number
           mime_type?: string | null
+          ocr_data?: Json | null
+          ocr_status?: string | null
           unit_id?: string | null
         }
         Relationships: [

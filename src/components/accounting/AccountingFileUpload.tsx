@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -8,6 +8,10 @@ import {
   FileText, 
   Loader2,
   CheckCircle2,
+  FileSpreadsheet,
+  ExternalLink,
+  Sparkles,
+  AlertCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,16 +20,48 @@ import { useQueryClient } from '@tanstack/react-query';
 
 export type DocumentCategory = 'folha' | 'das' | 'darf' | 'gps' | 'inss' | 'fgts' | 'iss' | 'receitas';
 
+const TAX_CATEGORIES: DocumentCategory[] = ['das', 'darf', 'gps', 'inss', 'fgts', 'iss'];
+
+interface ExistingFile {
+  id: string;
+  file_name: string;
+  file_path: string;
+  mime_type?: string | null;
+  ocr_status?: string | null;
+  ocr_data?: Record<string, unknown> | null;
+}
+
+interface OcrResult {
+  valor: number | null;
+  vencimento: string | null;
+}
+
 interface AccountingFileUploadProps {
   unitId: string;
   ano: number;
   mes: number;
   categoria: DocumentCategory;
   label: string;
-  existingFile?: { id: string; file_name: string; file_path: string } | null;
+  existingFile?: ExistingFile | null;
   onUploadComplete?: () => void;
   onDeleteComplete?: () => void;
+  onOcrComplete?: (result: OcrResult) => void;
 }
+
+// Convert file to base64
+const fileToBase64 = (file: Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Remove data URL prefix
+      const base64 = result.split(',')[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+  });
+};
 
 export function AccountingFileUpload({ 
   unitId, 
@@ -36,12 +72,83 @@ export function AccountingFileUpload({
   existingFile,
   onUploadComplete,
   onDeleteComplete,
+  onOcrComplete,
 }: AccountingFileUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isProcessingOcr, setIsProcessingOcr] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
   const queryClient = useQueryClient();
+
+  const isTaxCategory = TAX_CATEGORIES.includes(categoria);
+
+  // Get public URL for preview
+  const publicUrl = useMemo(() => {
+    if (!existingFile?.file_path) return null;
+    const { data } = supabase.storage
+      .from('accounting-documents')
+      .getPublicUrl(existingFile.file_path);
+    return data.publicUrl;
+  }, [existingFile?.file_path]);
+
+  const processOcr = async (filePath: string, documentId: string, file: File) => {
+    setIsProcessingOcr(true);
+    try {
+      // Get the file content and convert to base64
+      const base64 = await fileToBase64(file);
+      
+      // Call OCR edge function
+      const { data: ocrResult, error: ocrError } = await supabase.functions.invoke('ocr-tax-document', {
+        body: { 
+          image_base64: base64, 
+          file_name: file.name 
+        }
+      });
+
+      if (ocrError) throw ocrError;
+
+      // Update document with OCR results
+      const ocrStatus = ocrResult?.success ? 'processado' : 'erro';
+      const ocrData = ocrResult?.data || null;
+
+      await supabase
+        .from('accounting_competence_documents')
+        .update({ 
+          ocr_status: ocrStatus,
+          ocr_data: ocrData,
+        })
+        .eq('id', documentId);
+
+      // If OCR was successful and we have values, call the callback
+      if (ocrResult?.success && ocrData) {
+        const valor = ocrData.valor;
+        const vencimento = ocrData.vencimento;
+        
+        if (valor !== null || vencimento !== null) {
+          onOcrComplete?.({ valor, vencimento });
+          toast.success(`${categoria.toUpperCase()} lido automaticamente via OCR`);
+        } else {
+          toast.info('OCR processado, mas não foi possível extrair valores. Preencha manualmente.');
+        }
+      } else {
+        toast.warning('Não foi possível ler automaticamente, preencha manualmente.');
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['competence-documents', unitId, ano, mes] });
+    } catch (error: any) {
+      console.error('OCR processing error:', error);
+      // Update document with error status
+      await supabase
+        .from('accounting_competence_documents')
+        .update({ ocr_status: 'erro' })
+        .eq('id', documentId);
+      
+      toast.warning('Não foi possível ler automaticamente, preencha manualmente.');
+    } finally {
+      setIsProcessingOcr(false);
+    }
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -73,7 +180,7 @@ export function AccountingFileUpload({
       if (uploadError) throw uploadError;
 
       // Insert metadata
-      const { error: insertError } = await supabase
+      const { data: insertedDoc, error: insertError } = await supabase
         .from('accounting_competence_documents')
         .insert({
           unit_id: unitId,
@@ -85,13 +192,21 @@ export function AccountingFileUpload({
           file_size: file.size,
           mime_type: file.type,
           created_by: user?.id,
-        });
+          ocr_status: isTaxCategory ? 'pendente' : null,
+        })
+        .select()
+        .single();
 
       if (insertError) throw insertError;
 
       toast.success('Arquivo enviado com sucesso');
       queryClient.invalidateQueries({ queryKey: ['competence-documents', unitId, ano, mes] });
       onUploadComplete?.();
+
+      // Process OCR for tax documents (PDF/images only)
+      if (isTaxCategory && insertedDoc && (file.type === 'application/pdf' || file.type.startsWith('image/'))) {
+        processOcr(filePath, insertedDoc.id, file);
+      }
     } catch (error: any) {
       console.error('Upload error:', error);
       toast.error('Erro ao enviar arquivo: ' + error.message);
@@ -134,35 +249,126 @@ export function AccountingFileUpload({
     }
   };
 
+  // Render preview based on mime type
+  const renderPreview = () => {
+    if (!existingFile || !publicUrl) return null;
+
+    const mimeType = existingFile.mime_type || '';
+
+    if (mimeType.startsWith('image/')) {
+      return (
+        <div className="mt-2">
+          <img 
+            src={publicUrl} 
+            alt={existingFile.file_name}
+            className="max-h-32 rounded border border-border object-contain"
+          />
+        </div>
+      );
+    }
+
+    if (mimeType === 'application/pdf') {
+      return (
+        <div className="mt-2">
+          <iframe 
+            src={publicUrl}
+            title={existingFile.file_name}
+            className="h-48 w-full rounded border border-border"
+          />
+        </div>
+      );
+    }
+
+    // For other types (spreadsheets, etc.), show icon + link
+    return (
+      <a 
+        href={publicUrl} 
+        target="_blank" 
+        rel="noopener noreferrer"
+        className="mt-2 flex items-center gap-2 text-sm text-primary hover:underline"
+      >
+        <FileSpreadsheet className="h-4 w-4" />
+        Abrir {existingFile.file_name}
+        <ExternalLink className="h-3 w-3" />
+      </a>
+    );
+  };
+
+  // Render OCR status badge
+  const renderOcrStatus = () => {
+    if (!existingFile || !isTaxCategory) return null;
+
+    const status = existingFile.ocr_status;
+    
+    if (status === 'processado') {
+      const ocrData = existingFile.ocr_data;
+      return (
+        <Badge variant="default" className="gap-1 bg-green-600">
+          <Sparkles className="h-3 w-3" />
+          OCR ✓
+          {ocrData?.valor && ` R$ ${Number(ocrData.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+        </Badge>
+      );
+    }
+
+    if (status === 'erro') {
+      return (
+        <Badge variant="destructive" className="gap-1">
+          <AlertCircle className="h-3 w-3" />
+          OCR falhou
+        </Badge>
+      );
+    }
+
+    if (status === 'pendente' || isProcessingOcr) {
+      return (
+        <Badge variant="secondary" className="gap-1">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Lendo...
+        </Badge>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <div className="mt-3 pt-3 border-t border-border/50">
       <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
         <Paperclip className="h-3 w-3" />
         {label}
+        {isTaxCategory && (
+          <span className="text-xs text-muted-foreground/70">(OCR automático)</span>
+        )}
       </div>
 
       {existingFile ? (
-        <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
-          <FileText className="h-4 w-4 text-primary" />
-          <span className="text-sm flex-1 truncate">{existingFile.file_name}</span>
-          <Badge variant="secondary" className="gap-1">
-            <CheckCircle2 className="h-3 w-3" />
-            Anexado
-          </Badge>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleDelete}
-            disabled={isDeleting}
-            className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-          >
-            {isDeleting ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <X className="h-3 w-3" />
-            )}
-          </Button>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
+            <FileText className="h-4 w-4 text-primary" />
+            <span className="text-sm flex-1 truncate">{existingFile.file_name}</span>
+            <Badge variant="secondary" className="gap-1">
+              <CheckCircle2 className="h-3 w-3" />
+              Anexado
+            </Badge>
+            {renderOcrStatus()}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+            >
+              {isDeleting ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <X className="h-3 w-3" />
+              )}
+            </Button>
+          </div>
+          {/* Preview inline */}
+          {renderPreview()}
         </div>
       ) : (
         <div>
