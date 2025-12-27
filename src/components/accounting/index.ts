@@ -7,3 +7,4 @@ export { AccountingKioskHome } from './AccountingKioskHome';
 export { AccountingViewData } from './AccountingViewData';
 export { AccountingSendDocuments } from './AccountingSendDocuments';
 export { AccountingDataForm } from './AccountingDataForm';
+export { AccountingFileUpload } from './AccountingFileUpload';

@@ -115,6 +115,59 @@ export type Database = {
           },
         ]
       }
+      accounting_competence_documents: {
+        Row: {
+          ano: number
+          categoria: string
+          created_at: string | null
+          created_by: string | null
+          descricao: string | null
+          file_name: string
+          file_path: string
+          file_size: number | null
+          id: string
+          mes: number
+          mime_type: string | null
+          unit_id: string | null
+        }
+        Insert: {
+          ano: number
+          categoria: string
+          created_at?: string | null
+          created_by?: string | null
+          descricao?: string | null
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          id?: string
+          mes: number
+          mime_type?: string | null
+          unit_id?: string | null
+        }
+        Update: {
+          ano?: number
+          categoria?: string
+          created_at?: string | null
+          created_by?: string | null
+          descricao?: string | null
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          id?: string
+          mes?: number
+          mime_type?: string | null
+          unit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounting_competence_documents_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       accounting_contacts: {
         Row: {
           ativo: boolean | null

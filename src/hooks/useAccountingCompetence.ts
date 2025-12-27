@@ -4,6 +4,49 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
 // ========================================
+// COMPETENCE DOCUMENTS (accounting uploads)
+// ========================================
+
+export type DocumentCategory = 'folha' | 'das' | 'darf' | 'gps' | 'inss' | 'fgts' | 'iss' | 'receitas';
+
+export interface CompetenceDocument {
+  id: string;
+  unit_id: string;
+  ano: number;
+  mes: number;
+  categoria: DocumentCategory;
+  file_name: string;
+  file_path: string;
+  file_size: number | null;
+  mime_type: string | null;
+  descricao: string | null;
+  created_at: string;
+  created_by: string | null;
+}
+
+// Fetch competence documents
+export function useCompetenceDocuments(unitId: string | null, ano: number, mes: number) {
+  return useQuery({
+    queryKey: ['competence-documents', unitId, ano, mes],
+    queryFn: async () => {
+      if (!unitId) return [];
+      
+      const { data, error } = await supabase
+        .from('accounting_competence_documents')
+        .select('*')
+        .eq('unit_id', unitId)
+        .eq('ano', ano)
+        .eq('mes', mes)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data as CompetenceDocument[];
+    },
+    enabled: !!unitId,
+  });
+}
+
+// ========================================
 // SAVE COMPETENCE DATA (for accounting role)
 // ========================================
 export function useSaveCompetenceData() {
