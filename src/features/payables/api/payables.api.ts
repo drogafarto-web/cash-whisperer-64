@@ -256,3 +256,74 @@ export async function checkDuplicatePayableByLinhaDigitavel(
   const { data } = await query.limit(1);
   return (data?.length ?? 0) > 0;
 }
+
+// Update file attachment for an existing payable
+export async function updatePayableFile(
+  id: string,
+  filePath: string,
+  fileName: string
+): Promise<Payable> {
+  const { data, error } = await supabase
+    .from('payables')
+    .update({
+      file_path: filePath,
+      file_name: fileName,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as Payable;
+}
+
+// Create payable and immediately mark as paid (for receipts without existing pending payables)
+export async function createPayableAndMarkAsPaid(
+  data: {
+    beneficiario: string;
+    beneficiario_cnpj?: string;
+    valor: number;
+    vencimento: string;
+    description?: string;
+    tipo: 'boleto' | 'pix';
+    linha_digitavel?: string;
+    codigo_barras?: string;
+    banco_codigo?: string;
+    banco_nome?: string;
+    unit_id?: string;
+    category_id?: string;
+  },
+  paidAmount: number,
+  paidMethod: string,
+  filePath?: string,
+  fileName?: string
+): Promise<Payable> {
+  const { data: result, error } = await supabase
+    .from('payables')
+    .insert({
+      beneficiario: data.beneficiario,
+      beneficiario_cnpj: data.beneficiario_cnpj,
+      valor: data.valor,
+      vencimento: data.vencimento,
+      description: data.description,
+      tipo: data.tipo,
+      linha_digitavel: data.linha_digitavel,
+      codigo_barras: data.codigo_barras,
+      banco_codigo: data.banco_codigo,
+      banco_nome: data.banco_nome,
+      unit_id: data.unit_id,
+      category_id: data.category_id,
+      file_path: filePath,
+      file_name: fileName,
+      status: 'pago',
+      paid_at: new Date().toISOString(),
+      paid_amount: paidAmount,
+      paid_method: paidMethod,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return result as Payable;
+}

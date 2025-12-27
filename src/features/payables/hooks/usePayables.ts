@@ -10,6 +10,8 @@ import {
   markPayableAsPaid,
   reconcilePayableWithBankItem,
   fetchPendingPayablesForReconciliation,
+  updatePayableFile,
+  createPayableAndMarkAsPaid,
 } from '../api/payables.api';
 import { PayableFormData, PayableStatus, Parcela } from '@/types/payables';
 
@@ -184,6 +186,72 @@ export function useReconcilePayable() {
     },
     onError: (error) => {
       toast.error('Erro na conciliação', { description: error.message });
+    },
+  });
+}
+
+export function useUpdatePayableFile() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      id,
+      filePath,
+      fileName,
+    }: {
+      id: string;
+      filePath: string;
+      fileName: string;
+    }) => updatePayableFile(id, filePath, fileName),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+    },
+    onError: (error) => {
+      toast.error('Erro ao anexar comprovante', { description: error.message });
+    },
+  });
+}
+
+export function useCreatePayableAndMarkAsPaid() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      data,
+      paidAmount,
+      paidMethod,
+      filePath,
+      fileName,
+    }: {
+      data: {
+        beneficiario: string;
+        beneficiario_cnpj?: string;
+        valor: number;
+        vencimento: string;
+        description?: string;
+        tipo: 'boleto' | 'pix';
+        linha_digitavel?: string;
+        codigo_barras?: string;
+        banco_codigo?: string;
+        banco_nome?: string;
+        unit_id?: string;
+        category_id?: string;
+      };
+      paidAmount: number;
+      paidMethod: string;
+      filePath?: string;
+      fileName?: string;
+    }) => createPayableAndMarkAsPaid(data, paidAmount, paidMethod, filePath, fileName),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      toast.success('Despesa criada e paga', { description: 'A despesa foi registrada como paga.' });
+    },
+    onError: (error: any) => {
+      let description = error.message;
+      if (error?.code === '23505') {
+        description = 'Esta despesa já foi cadastrada anteriormente.';
+      }
+      toast.error('Erro ao registrar despesa', { description });
     },
   });
 }

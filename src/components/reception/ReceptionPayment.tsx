@@ -1,15 +1,27 @@
-import { useState, useRef } from 'react';
-import { ArrowLeft, CreditCard, Smartphone, Upload, Loader2, CheckCircle, AlertTriangle, Search } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { ArrowLeft, CreditCard, Smartphone, Upload, Loader2, CheckCircle, AlertTriangle, Search, Clipboard, Plus, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
-import { usePayables, useMarkPayableAsPaid } from '@/features/payables/hooks/usePayables';
-import { ocrBoleto, fileToBase64 } from '@/features/payables/api/ocr.api';
-import { BoletoOcrResult, Payable } from '@/types/payables';
+import { 
+  usePayables, 
+  useMarkPayableAsPaid, 
+  useCreatePayableAndMarkAsPaid,
+  useUpdatePayableFile 
+} from '@/features/payables/hooks/usePayables';
+import { 
+  ocrBoleto, 
+  ocrReceipt, 
+  fileToBase64, 
+  uploadPayableFile,
+  normalizeBoletoOcr, 
+  normalizeReceiptOcr,
+  NormalizedPaymentOcr 
+} from '@/features/payables/api/ocr.api';
+import { Payable } from '@/types/payables';
 import { format } from 'date-fns';
 
 type PaymentStep = 'type' | 'upload' | 'review' | 'success';
@@ -30,26 +42,66 @@ export function ReceptionPayment({ onBack, unitId }: ReceptionPaymentProps) {
   const [step, setStep] = useState<PaymentStep>('type');
   const [paymentType, setPaymentType] = useState<PaymentType | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [ocrData, setOcrData] = useState<BoletoOcrResult | null>(null);
+  const [ocrData, setOcrData] = useState<NormalizedPaymentOcr | null>(null);
+  const [ocrError, setOcrError] = useState<string | null>(null);
   const [matchedPayable, setMatchedPayable] = useState<MatchResult | null>(null);
   const [possibleMatches, setPossibleMatches] = useState<MatchResult[]>([]);
   const [manualCode, setManualCode] = useState('');
   const [paidAmount, setPaidAmount] = useState<number | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadAreaRef = useRef<HTMLDivElement>(null);
 
-  const { data: pendingPayables = [] } = usePayables({ 
+  const { data: pendingPayables = [], isLoading: isLoadingPayables } = usePayables({ 
     status: 'pendente',
     unitId: unitId || undefined 
   });
   const markAsPaid = useMarkPayableAsPaid();
+  const createAndMarkAsPaid = useCreatePayableAndMarkAsPaid();
+  const updateFile = useUpdatePayableFile();
 
-  const findMatches = (ocrResult: BoletoOcrResult): MatchResult[] => {
+  // Handle clipboard paste
+  const handlePaste = useCallback(async (e: ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) {
+          handleFileUpload(file);
+        }
+        return;
+      }
+    }
+  }, [paymentType]);
+
+  useEffect(() => {
+    if (step === 'upload') {
+      document.addEventListener('paste', handlePaste);
+      return () => document.removeEventListener('paste', handlePaste);
+    }
+  }, [step, handlePaste]);
+
+  // Generate preview URL for uploaded file
+  useEffect(() => {
+    if (uploadedFile && uploadedFile.type.startsWith('image/')) {
+      const url = URL.createObjectURL(uploadedFile);
+      setPreviewUrl(url);
+      return () => URL.revokeObjectURL(url);
+    }
+    return () => setPreviewUrl(null);
+  }, [uploadedFile]);
+
+  const findMatches = (normalizedOcr: NormalizedPaymentOcr): MatchResult[] => {
     const matches: MatchResult[] = [];
 
     for (const payable of pendingPayables) {
-      // Match by linha digitavel (exact)
-      if (ocrResult.linha_digitavel && payable.linha_digitavel) {
-        const ocrLinha = ocrResult.linha_digitavel.replace(/[\s.]/g, '');
+      // Match by linha digitavel (exact) - only for boleto
+      if (normalizedOcr.identificador && payable.linha_digitavel) {
+        const ocrLinha = normalizedOcr.identificador.replace(/[\s.]/g, '');
         const payableLinha = payable.linha_digitavel.replace(/[\s.]/g, '');
         if (ocrLinha === payableLinha) {
           matches.push({ payable, confidence: 100, matchType: 'linha_digitavel' });
@@ -58,33 +110,32 @@ export function ReceptionPayment({ onBack, unitId }: ReceptionPaymentProps) {
       }
 
       // Match by value + due date
-      if (ocrResult.valor && ocrResult.vencimento) {
-        const valueDiff = Math.abs((payable.valor || 0) - ocrResult.valor);
-        const valueMatch = valueDiff < 0.01; // Exact value match
-        const dateMatch = payable.vencimento === ocrResult.vencimento;
+      if (normalizedOcr.valor && normalizedOcr.data) {
+        const valueDiff = Math.abs((payable.valor || 0) - normalizedOcr.valor);
+        const valueMatch = valueDiff < 0.01;
+        const dateMatch = payable.vencimento === normalizedOcr.data;
         
         if (valueMatch && dateMatch) {
           matches.push({ payable, confidence: 95, matchType: 'valor_data' });
           continue;
         }
         
-        // Close value match (within 1% )
-        if (valueDiff / ocrResult.valor < 0.01 && dateMatch) {
+        // Close value match (within 1%)
+        if (normalizedOcr.valor > 0 && valueDiff / normalizedOcr.valor < 0.01 && dateMatch) {
           matches.push({ payable, confidence: 85, matchType: 'valor_data' });
           continue;
         }
       }
 
       // Match by beneficiary name
-      if (ocrResult.beneficiario && payable.beneficiario) {
-        const ocrBenef = ocrResult.beneficiario.toLowerCase().trim();
+      if (normalizedOcr.beneficiario && payable.beneficiario) {
+        const ocrBenef = normalizedOcr.beneficiario.toLowerCase().trim();
         const payableBenef = payable.beneficiario.toLowerCase().trim();
         
         if (ocrBenef.includes(payableBenef) || payableBenef.includes(ocrBenef)) {
-          // Check if value is close (within 5%)
-          if (ocrResult.valor && payable.valor) {
-            const valueDiff = Math.abs((payable.valor || 0) - ocrResult.valor);
-            if (valueDiff / ocrResult.valor < 0.05) {
+          if (normalizedOcr.valor && payable.valor) {
+            const valueDiff = Math.abs((payable.valor || 0) - normalizedOcr.valor);
+            if (normalizedOcr.valor > 0 && valueDiff / normalizedOcr.valor < 0.05) {
               matches.push({ payable, confidence: 75, matchType: 'beneficiario' });
             }
           }
@@ -97,16 +148,36 @@ export function ReceptionPayment({ onBack, unitId }: ReceptionPaymentProps) {
 
   const handleFileUpload = async (file: File) => {
     setIsProcessing(true);
+    setOcrError(null);
+    setUploadedFile(file);
     
     try {
       const { base64, mimeType } = await fileToBase64(file);
-      const result = await ocrBoleto(base64, mimeType);
       
-      setOcrData(result);
-      setPaidAmount(result.valor || null);
+      let normalizedResult: NormalizedPaymentOcr;
+      
+      if (paymentType === 'boleto') {
+        const boletoResult = await ocrBoleto(base64, mimeType);
+        normalizedResult = normalizeBoletoOcr(boletoResult);
+      } else {
+        const receiptResult = await ocrReceipt(base64, mimeType);
+        normalizedResult = normalizeReceiptOcr(receiptResult);
+      }
+      
+      // Check if OCR returned useful data
+      if (!normalizedResult.valor && !normalizedResult.beneficiario) {
+        setOcrError('Não foi possível extrair dados do comprovante. Tente outra foto ou preencha manualmente.');
+        setOcrData(normalizedResult);
+        setPaidAmount(null);
+        setStep('review');
+        return;
+      }
+      
+      setOcrData(normalizedResult);
+      setPaidAmount(normalizedResult.valor || null);
       
       // Find matches
-      const matches = findMatches(result);
+      const matches = findMatches(normalizedResult);
       setPossibleMatches(matches);
       
       if (matches.length > 0 && matches[0].confidence >= 80) {
@@ -116,11 +187,39 @@ export function ReceptionPayment({ onBack, unitId }: ReceptionPaymentProps) {
       setStep('review');
     } catch (error) {
       console.error('OCR error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      setOcrError(`Erro ao processar: ${errorMessage}`);
       toast.error('Erro ao processar comprovante', {
-        description: 'Tente novamente ou insira os dados manualmente.',
+        description: errorMessage,
       });
+      // Still go to review so user can see the error and retry or enter manually
+      setStep('review');
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handlePasteFromClipboard = async () => {
+    try {
+      const clipboardItems = await navigator.clipboard.read();
+      for (const item of clipboardItems) {
+        for (const type of item.types) {
+          if (type.startsWith('image/')) {
+            const blob = await item.getType(type);
+            const file = new File([blob], `clipboard-${Date.now()}.png`, { type });
+            handleFileUpload(file);
+            return;
+          }
+        }
+      }
+      toast.error('Nenhuma imagem encontrada', {
+        description: 'Copie uma imagem antes de colar.',
+      });
+    } catch (error) {
+      console.error('Clipboard error:', error);
+      toast.error('Erro ao acessar clipboard', {
+        description: 'Verifique as permissões do navegador.',
+      });
     }
   };
 
@@ -130,7 +229,6 @@ export function ReceptionPayment({ onBack, unitId }: ReceptionPaymentProps) {
     setIsProcessing(true);
     const cleanCode = manualCode.replace(/[\s.]/g, '');
     
-    // Search in pending payables by linha_digitavel
     const matches = pendingPayables.filter(p => {
       if (!p.linha_digitavel) return false;
       const payableLinha = p.linha_digitavel.replace(/[\s.]/g, '');
@@ -147,15 +245,13 @@ export function ReceptionPayment({ onBack, unitId }: ReceptionPaymentProps) {
       setPossibleMatches([matchResult]);
       setPaidAmount(matches[0].valor || null);
       setOcrData({
-        linha_digitavel: manualCode,
-        codigo_barras: null,
-        banco_codigo: null,
-        banco_nome: null,
-        beneficiario: matches[0].beneficiario,
-        beneficiario_cnpj: matches[0].beneficiario_cnpj,
         valor: matches[0].valor,
-        vencimento: matches[0].vencimento,
+        data: matches[0].vencimento,
+        beneficiario: matches[0].beneficiario,
+        identificador: manualCode,
+        tipo: paymentType || 'boleto',
         confidence: 100,
+        raw: {} as any,
       });
       setStep('review');
     } else {
@@ -173,16 +269,91 @@ export function ReceptionPayment({ onBack, unitId }: ReceptionPaymentProps) {
     setIsProcessing(true);
     
     try {
+      // Upload file if we have one
+      let filePath: string | undefined;
+      let fileName: string | undefined;
+      
+      if (uploadedFile) {
+        try {
+          const folder = paymentType === 'boleto' ? 'boletos' : 'receipts';
+          const uploadResult = await uploadPayableFile(uploadedFile, folder);
+          filePath = uploadResult.path;
+          fileName = uploadedFile.name;
+        } catch (uploadError) {
+          console.warn('File upload failed, continuing without attachment:', uploadError);
+        }
+      }
+      
       await markAsPaid.mutateAsync({
         id: matchedPayable.payable.id,
         paidAmount: paidAmount || matchedPayable.payable.valor || 0,
         paidMethod: paymentType === 'pix' ? 'pix' : 'boleto',
       });
       
+      // Update file if we uploaded one
+      if (filePath && fileName) {
+        try {
+          await updateFile.mutateAsync({
+            id: matchedPayable.payable.id,
+            filePath,
+            fileName,
+          });
+        } catch (fileError) {
+          console.warn('Failed to attach file to payable:', fileError);
+        }
+      }
+      
       setStep('success');
     } catch (error) {
       console.error('Error marking as paid:', error);
       toast.error('Erro ao registrar pagamento');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleCreateAndPay = async () => {
+    if (!ocrData) return;
+    
+    setIsProcessing(true);
+    
+    try {
+      // Upload file if we have one
+      let filePath: string | undefined;
+      let fileName: string | undefined;
+      
+      if (uploadedFile) {
+        try {
+          const folder = paymentType === 'boleto' ? 'boletos' : 'receipts';
+          const uploadResult = await uploadPayableFile(uploadedFile, folder);
+          filePath = uploadResult.path;
+          fileName = uploadedFile.name;
+        } catch (uploadError) {
+          console.warn('File upload failed, continuing without attachment:', uploadError);
+        }
+      }
+      
+      const today = format(new Date(), 'yyyy-MM-dd');
+      
+      await createAndMarkAsPaid.mutateAsync({
+        data: {
+          beneficiario: ocrData.beneficiario || 'Não identificado',
+          valor: paidAmount || ocrData.valor || 0,
+          vencimento: ocrData.data || today,
+          tipo: paymentType || 'pix',
+          linha_digitavel: ocrData.tipo === 'boleto' && ocrData.identificador ? ocrData.identificador : undefined,
+          unit_id: unitId || undefined,
+        },
+        paidAmount: paidAmount || ocrData.valor || 0,
+        paidMethod: paymentType === 'pix' ? 'pix' : 'boleto',
+        filePath,
+        fileName,
+      });
+      
+      setStep('success');
+    } catch (error) {
+      console.error('Error creating and paying:', error);
+      toast.error('Erro ao criar e registrar pagamento');
     } finally {
       setIsProcessing(false);
     }
@@ -197,10 +368,13 @@ export function ReceptionPayment({ onBack, unitId }: ReceptionPaymentProps) {
     setStep('type');
     setPaymentType(null);
     setOcrData(null);
+    setOcrError(null);
     setMatchedPayable(null);
     setPossibleMatches([]);
     setManualCode('');
     setPaidAmount(null);
+    setUploadedFile(null);
+    setPreviewUrl(null);
   };
 
   const formatCurrency = (value: number | null) => {
@@ -218,6 +392,15 @@ export function ReceptionPayment({ onBack, unitId }: ReceptionPaymentProps) {
         </Button>
 
         <h2 className="text-2xl font-bold text-center mb-8">Registrar Pagamento</h2>
+
+        {/* Debug info */}
+        <div className="text-sm text-muted-foreground text-center mb-4">
+          {isLoadingPayables ? (
+            <span>Carregando despesas...</span>
+          ) : (
+            <span>Despesas pendentes carregadas: {pendingPayables.length}</span>
+          )}
+        </div>
 
         <div className="grid grid-cols-2 gap-6">
           <Button
@@ -270,8 +453,11 @@ export function ReceptionPayment({ onBack, unitId }: ReceptionPaymentProps) {
         <h2 className="text-2xl font-bold text-center mb-2">
           Enviar Comprovante de {paymentType === 'boleto' ? 'Boleto' : 'PIX'}
         </h2>
-        <p className="text-muted-foreground text-center mb-8">
-          Tire uma foto ou selecione o arquivo do comprovante
+        <p className="text-muted-foreground text-center mb-2">
+          Tire uma foto, selecione um arquivo ou cole uma imagem (Ctrl+V)
+        </p>
+        <p className="text-sm text-muted-foreground text-center mb-8">
+          Despesas pendentes disponíveis: {pendingPayables.length}
         </p>
 
         {isProcessing ? (
@@ -284,6 +470,7 @@ export function ReceptionPayment({ onBack, unitId }: ReceptionPaymentProps) {
           <>
             {/* Upload area */}
             <Card 
+              ref={uploadAreaRef}
               className="border-2 border-dashed cursor-pointer hover:border-primary hover:bg-primary/5 transition-all"
               onClick={() => fileInputRef.current?.click()}
             >
@@ -308,6 +495,16 @@ export function ReceptionPayment({ onBack, unitId }: ReceptionPaymentProps) {
                 if (file) handleFileUpload(file);
               }}
             />
+
+            {/* Paste from clipboard button */}
+            <Button
+              variant="outline"
+              className="w-full mt-4"
+              onClick={handlePasteFromClipboard}
+            >
+              <Clipboard className="h-4 w-4 mr-2" />
+              Colar imagem do clipboard (Ctrl+V)
+            </Button>
 
             {/* Manual code input */}
             <div className="mt-8">
@@ -352,6 +549,10 @@ export function ReceptionPayment({ onBack, unitId }: ReceptionPaymentProps) {
 
   // Step: Review and confirm
   if (step === 'review') {
+    const hasOcrData = ocrData && (ocrData.valor || ocrData.beneficiario);
+    const canConfirmExisting = !!matchedPayable;
+    const canCreateNew = hasOcrData || paidAmount;
+
     return (
       <div className="max-w-xl mx-auto">
         <Button variant="ghost" onClick={() => setStep('upload')} className="mb-6">
@@ -361,8 +562,33 @@ export function ReceptionPayment({ onBack, unitId }: ReceptionPaymentProps) {
 
         <h2 className="text-2xl font-bold text-center mb-6">Revisar Pagamento</h2>
 
+        {/* OCR Error */}
+        {ocrError && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>{ocrError}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Preview of uploaded file */}
+        {previewUrl && (
+          <Card className="mb-6">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 mb-3">
+                <ImageIcon className="h-4 w-4" />
+                <span className="text-sm font-medium">Comprovante enviado</span>
+              </div>
+              <img 
+                src={previewUrl} 
+                alt="Comprovante" 
+                className="max-h-48 mx-auto rounded border"
+              />
+            </CardContent>
+          </Card>
+        )}
+
         {/* OCR extracted data */}
-        {ocrData && (
+        {hasOcrData && (
           <Card className="mb-6">
             <CardContent className="pt-6">
               <h3 className="font-semibold mb-4">Dados do Comprovante</h3>
@@ -376,15 +602,21 @@ export function ReceptionPayment({ onBack, unitId }: ReceptionPaymentProps) {
                   <p className="font-medium">{formatCurrency(ocrData.valor)}</p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Vencimento:</span>
+                  <span className="text-muted-foreground">Data:</span>
                   <p className="font-medium">
-                    {ocrData.vencimento ? format(new Date(ocrData.vencimento + 'T12:00:00'), 'dd/MM/yyyy') : '-'}
+                    {ocrData.data ? format(new Date(ocrData.data + 'T12:00:00'), 'dd/MM/yyyy') : '-'}
                   </p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Banco:</span>
-                  <p className="font-medium">{ocrData.banco_nome || ocrData.banco_codigo || '-'}</p>
+                  <span className="text-muted-foreground">Tipo:</span>
+                  <p className="font-medium capitalize">{ocrData.tipo}</p>
                 </div>
+                {ocrData.identificador && (
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">Identificador:</span>
+                    <p className="font-medium text-xs break-all">{ocrData.identificador}</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -438,15 +670,42 @@ export function ReceptionPayment({ onBack, unitId }: ReceptionPaymentProps) {
             </CardContent>
           </Card>
         ) : (
-          <Alert variant="destructive" className="mb-6">
+          <Alert className="mb-6">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              Nenhuma despesa pendente encontrada para esse comprovante.
-              {possibleMatches.length > 0 && (
-                <span> Veja as sugestões abaixo.</span>
+              {pendingPayables.length === 0 ? (
+                <span>Não há despesas pendentes cadastradas. Você pode criar uma nova despesa e marcá-la como paga.</span>
+              ) : (
+                <span>
+                  Nenhuma despesa pendente corresponde a esse comprovante (de {pendingPayables.length} disponíveis).
+                  {possibleMatches.length > 0 && <span> Veja as sugestões abaixo.</span>}
+                </span>
               )}
             </AlertDescription>
           </Alert>
+        )}
+
+        {/* Manual value input when no match and no OCR value */}
+        {!matchedPayable && (
+          <Card className="mb-6">
+            <CardContent className="pt-6">
+              <h3 className="font-semibold mb-4">Dados do Pagamento</h3>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="manual-value">Valor Pago *</Label>
+                  <Input
+                    id="manual-value"
+                    type="number"
+                    step="0.01"
+                    placeholder="0,00"
+                    value={paidAmount || ''}
+                    onChange={(e) => setPaidAmount(parseFloat(e.target.value) || null)}
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Other possible matches */}
@@ -478,23 +737,52 @@ export function ReceptionPayment({ onBack, unitId }: ReceptionPaymentProps) {
         )}
 
         {/* Actions */}
-        <div className="flex gap-4">
-          <Button variant="outline" onClick={handleReset} className="flex-1">
+        <div className="flex flex-col gap-3">
+          {canConfirmExisting && (
+            <Button 
+              onClick={handleConfirmPayment}
+              disabled={isProcessing}
+              size="lg"
+              className="w-full"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Registrando...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Confirmar Pagamento
+                </>
+              )}
+            </Button>
+          )}
+          
+          {!matchedPayable && canCreateNew && (
+            <Button 
+              onClick={handleCreateAndPay}
+              disabled={isProcessing || !paidAmount}
+              size="lg"
+              className="w-full"
+              variant={matchedPayable ? 'outline' : 'default'}
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Criando...
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Criar Despesa e Marcar como Paga
+                </>
+              )}
+            </Button>
+          )}
+          
+          <Button variant="outline" onClick={handleReset} className="w-full">
             Cancelar
-          </Button>
-          <Button 
-            onClick={handleConfirmPayment}
-            disabled={!matchedPayable || isProcessing}
-            className="flex-1"
-          >
-            {isProcessing ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Registrando...
-              </>
-            ) : (
-              'Confirmar Pagamento'
-            )}
           </Button>
         </div>
       </div>
@@ -514,30 +802,30 @@ export function ReceptionPayment({ onBack, unitId }: ReceptionPaymentProps) {
           A despesa foi marcada como paga com sucesso.
         </p>
 
-        {matchedPayable && (
-          <Card className="mb-8 text-left">
-            <CardContent className="pt-6">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-muted-foreground">Beneficiário:</span>
-                  <p className="font-medium">{matchedPayable.payable.beneficiario}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Valor Pago:</span>
-                  <p className="font-medium">{formatCurrency(paidAmount)}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Método:</span>
-                  <p className="font-medium capitalize">{paymentType}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Data:</span>
-                  <p className="font-medium">{format(new Date(), 'dd/MM/yyyy HH:mm')}</p>
-                </div>
+        <Card className="mb-8 text-left">
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">Beneficiário:</span>
+                <p className="font-medium">
+                  {matchedPayable?.payable.beneficiario || ocrData?.beneficiario || 'Não identificado'}
+                </p>
               </div>
-            </CardContent>
-          </Card>
-        )}
+              <div>
+                <span className="text-muted-foreground">Valor Pago:</span>
+                <p className="font-medium">{formatCurrency(paidAmount)}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Método:</span>
+                <p className="font-medium capitalize">{paymentType}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Data:</span>
+                <p className="font-medium">{format(new Date(), 'dd/MM/yyyy HH:mm')}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="flex gap-4">
           <Button variant="outline" onClick={onBack} className="flex-1">
