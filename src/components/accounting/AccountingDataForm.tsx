@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -28,7 +28,8 @@ import {
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { useCompetenceData, useSaveCompetenceData } from '@/hooks/useAccountingCompetence';
+import { useCompetenceData, useSaveCompetenceData, useCompetenceDocuments, type DocumentCategory } from '@/hooks/useAccountingCompetence';
+import { AccountingFileUpload } from './AccountingFileUpload';
 
 interface AccountingDataFormProps {
   unitId: string | null;
@@ -69,9 +70,30 @@ export function AccountingDataForm({ unitId, unitName, competence, onBack }: Acc
   const mes = competence.getMonth() + 1;
   
   const { data: existingData, isLoading } = useCompetenceData(unitId, ano, mes);
+  const { data: documents = [], refetch: refetchDocuments } = useCompetenceDocuments(unitId, ano, mes);
   const saveMutation = useSaveCompetenceData();
   
   const competenceLabel = format(competence, "MMMM 'de' yyyy", { locale: ptBR });
+
+  // Group documents by category
+  const documentsByCategory = useMemo(() => {
+    const grouped: Record<DocumentCategory, typeof documents[0] | null> = {
+      folha: null,
+      das: null,
+      darf: null,
+      gps: null,
+      inss: null,
+      fgts: null,
+      iss: null,
+      receitas: null,
+    };
+    documents.forEach(doc => {
+      if (doc.categoria && !grouped[doc.categoria as DocumentCategory]) {
+        grouped[doc.categoria as DocumentCategory] = doc;
+      }
+    });
+    return grouped;
+  }, [documents]);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -154,6 +176,23 @@ export function AccountingDataForm({ unitId, unitName, competence, onBack }: Acc
       </div>
     );
   }
+
+  // Helper to render upload for taxes
+  const renderTaxUpload = (categoria: DocumentCategory) => {
+    if (!unitId) return null;
+    return (
+      <AccountingFileUpload
+        unitId={unitId}
+        ano={ano}
+        mes={mes}
+        categoria={categoria}
+        label="Anexar guia (opcional)"
+        existingFile={documentsByCategory[categoria]}
+        onUploadComplete={() => refetchDocuments()}
+        onDeleteComplete={() => refetchDocuments()}
+      />
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -240,6 +279,19 @@ export function AccountingDataForm({ unitId, unitName, competence, onBack }: Acc
                   )}
                 />
               </div>
+              {/* File Upload for Folha */}
+              {unitId && (
+                <AccountingFileUpload
+                  unitId={unitId}
+                  ano={ano}
+                  mes={mes}
+                  categoria="folha"
+                  label="Anexar folha (PDF/planilha)"
+                  existingFile={documentsByCategory.folha}
+                  onUploadComplete={() => refetchDocuments()}
+                  onDeleteComplete={() => refetchDocuments()}
+                />
+              )}
             </CardContent>
           </Card>
 
@@ -284,6 +336,7 @@ export function AccountingDataForm({ unitId, unitName, competence, onBack }: Acc
                       </FormItem>
                     )}
                   />
+                  {renderTaxUpload('das')}
                 </div>
 
                 {/* DARF */}
@@ -317,6 +370,7 @@ export function AccountingDataForm({ unitId, unitName, competence, onBack }: Acc
                       </FormItem>
                     )}
                   />
+                  {renderTaxUpload('darf')}
                 </div>
 
                 {/* GPS */}
@@ -350,6 +404,7 @@ export function AccountingDataForm({ unitId, unitName, competence, onBack }: Acc
                       </FormItem>
                     )}
                   />
+                  {renderTaxUpload('gps')}
                 </div>
 
                 {/* INSS */}
@@ -383,6 +438,7 @@ export function AccountingDataForm({ unitId, unitName, competence, onBack }: Acc
                       </FormItem>
                     )}
                   />
+                  {renderTaxUpload('inss')}
                 </div>
 
                 {/* FGTS */}
@@ -416,6 +472,7 @@ export function AccountingDataForm({ unitId, unitName, competence, onBack }: Acc
                       </FormItem>
                     )}
                   />
+                  {renderTaxUpload('fgts')}
                 </div>
 
                 {/* ISS */}
@@ -449,6 +506,7 @@ export function AccountingDataForm({ unitId, unitName, competence, onBack }: Acc
                       </FormItem>
                     )}
                   />
+                  {renderTaxUpload('iss')}
                 </div>
               </div>
             </CardContent>
@@ -509,11 +567,28 @@ export function AccountingDataForm({ unitId, unitName, competence, onBack }: Acc
                   </FormItem>
                 )}
               />
+              {/* File Upload for Receitas */}
+              {unitId && (
+                <AccountingFileUpload
+                  unitId={unitId}
+                  ano={ano}
+                  mes={mes}
+                  categoria="receitas"
+                  label="Anexar relatório de faturamento (opcional)"
+                  existingFile={documentsByCategory.receitas}
+                  onUploadComplete={() => refetchDocuments()}
+                  onDeleteComplete={() => refetchDocuments()}
+                />
+              )}
             </CardContent>
           </Card>
 
           {/* Submit button */}
-          <div className="flex justify-center pt-4">
+          <div className="flex justify-between pt-4">
+            <Button type="button" variant="outline" onClick={onBack} className="gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Voltar
+            </Button>
             <Button 
               type="submit"
               size="lg" 
