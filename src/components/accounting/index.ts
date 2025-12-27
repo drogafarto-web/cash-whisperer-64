@@ -3,3 +3,7 @@ export { AccountingHome } from './AccountingHome';
 export { AccountingDataCard } from './AccountingDataCard';
 export { AccountingDocumentsCard } from './AccountingDocumentsCard';
 export { AccountingUploadZone } from './AccountingUploadZone';
+export { AccountingKioskHome } from './AccountingKioskHome';
+export { AccountingViewData } from './AccountingViewData';
+export { AccountingSendDocuments } from './AccountingSendDocuments';
+export { AccountingDataForm } from './AccountingDataForm';
