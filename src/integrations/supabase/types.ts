@@ -14,6 +14,107 @@ export type Database = {
   }
   public: {
     Tables: {
+      accounting_competence_data: {
+        Row: {
+          ano: number
+          created_at: string | null
+          darf_valor: number | null
+          darf_vencimento: string | null
+          das_valor: number | null
+          das_vencimento: string | null
+          encargos: number | null
+          fgts_valor: number | null
+          fgts_vencimento: string | null
+          gps_valor: number | null
+          gps_vencimento: string | null
+          id: string
+          informado_em: string | null
+          informado_por: string | null
+          inss_valor: number | null
+          inss_vencimento: string | null
+          iss_valor: number | null
+          iss_vencimento: string | null
+          mes: number
+          num_funcionarios: number | null
+          prolabore: number | null
+          receita_observacoes: string | null
+          receita_outras: number | null
+          receita_servicos: number | null
+          status: string | null
+          total_folha: number | null
+          unit_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ano: number
+          created_at?: string | null
+          darf_valor?: number | null
+          darf_vencimento?: string | null
+          das_valor?: number | null
+          das_vencimento?: string | null
+          encargos?: number | null
+          fgts_valor?: number | null
+          fgts_vencimento?: string | null
+          gps_valor?: number | null
+          gps_vencimento?: string | null
+          id?: string
+          informado_em?: string | null
+          informado_por?: string | null
+          inss_valor?: number | null
+          inss_vencimento?: string | null
+          iss_valor?: number | null
+          iss_vencimento?: string | null
+          mes: number
+          num_funcionarios?: number | null
+          prolabore?: number | null
+          receita_observacoes?: string | null
+          receita_outras?: number | null
+          receita_servicos?: number | null
+          status?: string | null
+          total_folha?: number | null
+          unit_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ano?: number
+          created_at?: string | null
+          darf_valor?: number | null
+          darf_vencimento?: string | null
+          das_valor?: number | null
+          das_vencimento?: string | null
+          encargos?: number | null
+          fgts_valor?: number | null
+          fgts_vencimento?: string | null
+          gps_valor?: number | null
+          gps_vencimento?: string | null
+          id?: string
+          informado_em?: string | null
+          informado_por?: string | null
+          inss_valor?: number | null
+          inss_vencimento?: string | null
+          iss_valor?: number | null
+          iss_vencimento?: string | null
+          mes?: number
+          num_funcionarios?: number | null
+          prolabore?: number | null
+          receita_observacoes?: string | null
+          receita_outras?: number | null
+          receita_servicos?: number | null
+          status?: string | null
+          total_folha?: number | null
+          unit_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounting_competence_data_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       accounting_contacts: {
         Row: {
           ativo: boolean | null
@@ -187,6 +288,131 @@ export type Database = {
             columns: ["token_id"]
             isOneToOne: false
             referencedRelation: "accounting_tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accounting_lab_documents: {
+        Row: {
+          ano: number
+          created_at: string | null
+          created_by: string | null
+          descricao: string | null
+          file_name: string
+          file_path: string
+          file_size: number | null
+          id: string
+          mes: number
+          mime_type: string | null
+          submission_id: string | null
+          tipo: string
+          unit_id: string | null
+          valor: number | null
+        }
+        Insert: {
+          ano: number
+          created_at?: string | null
+          created_by?: string | null
+          descricao?: string | null
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          id?: string
+          mes: number
+          mime_type?: string | null
+          submission_id?: string | null
+          tipo: string
+          unit_id?: string | null
+          valor?: number | null
+        }
+        Update: {
+          ano?: number
+          created_at?: string | null
+          created_by?: string | null
+          descricao?: string | null
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          id?: string
+          mes?: number
+          mime_type?: string | null
+          submission_id?: string | null
+          tipo?: string
+          unit_id?: string | null
+          valor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounting_lab_documents_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_lab_submissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounting_lab_documents_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accounting_lab_submissions: {
+        Row: {
+          ano: number
+          created_at: string | null
+          enviado_em: string | null
+          enviado_por: string | null
+          id: string
+          mes: number
+          observacoes: string | null
+          recebido_em: string | null
+          recebido_por: string | null
+          receita_outras_lab: number | null
+          receita_servicos_lab: number | null
+          status: string | null
+          unit_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ano: number
+          created_at?: string | null
+          enviado_em?: string | null
+          enviado_por?: string | null
+          id?: string
+          mes: number
+          observacoes?: string | null
+          recebido_em?: string | null
+          recebido_por?: string | null
+          receita_outras_lab?: number | null
+          receita_servicos_lab?: number | null
+          status?: string | null
+          unit_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ano?: number
+          created_at?: string | null
+          enviado_em?: string | null
+          enviado_por?: string | null
+          id?: string
+          mes?: number
+          observacoes?: string | null
+          recebido_em?: string | null
+          recebido_por?: string | null
+          receita_outras_lab?: number | null
+          receita_servicos_lab?: number | null
+          status?: string | null
+          unit_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounting_lab_submissions_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
             referencedColumns: ["id"]
           },
         ]
