@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -32,11 +33,13 @@ import {
   Calendar,
   ChevronDown,
   ChevronUp,
+  ArrowLeft,
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { runCashflowProjection, CashflowProjectionResult, CashflowWeek } from '@/services/cashflowProjection';
 
 export default function CashflowProjection() {
+  const navigate = useNavigate();
   const { isAdmin, unit } = useAuth();
   const [selectedUnitId, setSelectedUnitId] = useState<string>('all');
   const [weeksToProject, setWeeksToProject] = useState<string>('8');
@@ -99,6 +102,17 @@ export default function CashflowProjection() {
   return (
     <AppLayout>
       <div className="space-y-6">
+        {/* Back Button */}
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={() => navigate('/accounting-panel')}
+          className="gap-1"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Voltar ao Painel
+        </Button>
+
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
