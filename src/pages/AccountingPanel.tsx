@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/hooks/useAuth';
 import { AccountingHome, AccountingExports } from '@/components/accounting';
+import { KioskBreadcrumb } from '@/components/layout/KioskBreadcrumb';
 
 type Step = 'home' | 'exports';
 
@@ -79,6 +80,17 @@ function AccountingPanelContent() {
 
       {/* Conteúdo principal */}
       <main className="container mx-auto px-4 py-8">
+        {/* Breadcrumb quando não está na home */}
+        {currentStep !== 'home' && (
+          <div className="mb-6">
+            <KioskBreadcrumb 
+              homeHref="/accounting-panel"
+              homeLabel="Contabilidade"
+              items={[{ label: 'Exportações' }]}
+            />
+          </div>
+        )}
+
         {currentStep === 'home' && (
           <AccountingHome 
             competence={competence}

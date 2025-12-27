@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { RequireFunction } from '@/components/auth/RequireFunction';
+import { KioskBreadcrumb } from '@/components/layout/KioskBreadcrumb';
 import { useAuth } from '@/hooks/useAuth';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -66,9 +67,31 @@ function ReceptionPanelContent() {
     setNoItemsAlert(false);
   };
 
+  // Helper para pegar o nome da tela atual
+  const getStepLabel = (step: ReceptionStep): string => {
+    switch (step) {
+      case 'import': return 'Importar Movimento';
+      case 'client-invoice': return 'Notas para Clientes';
+      case 'supplier-expense': return 'Notas de Fornecedores';
+      case 'payment': return 'Registrar Pagamento';
+      default: return '';
+    }
+  };
+
   return (
     <AppLayout>
       <div className="container py-6">
+        {/* Breadcrumb */}
+        {currentStep !== 'home' && (
+          <div className="mb-4">
+            <KioskBreadcrumb 
+              homeHref="/reception-panel"
+              homeLabel="Recepção"
+              items={[{ label: getStepLabel(currentStep) }]}
+            />
+          </div>
+        )}
+
         {/* Header simplificado */}
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold tracking-tight">Painel Recepção</h1>
