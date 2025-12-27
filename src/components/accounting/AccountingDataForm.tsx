@@ -31,10 +31,13 @@ import { toast } from 'sonner';
 import { useCompetenceData, useSaveCompetenceData, useCompetenceDocuments, type DocumentCategory } from '@/hooks/useAccountingCompetence';
 import { AccountingFileUpload } from './AccountingFileUpload';
 
+export type FormSection = 'folha' | 'impostos' | 'receitas';
+
 interface AccountingDataFormProps {
   unitId: string | null;
   unitName: string;
   competence: Date;
+  section?: FormSection;
   onBack: () => void;
 }
 
@@ -67,7 +70,13 @@ type FormData = z.infer<typeof formSchema>;
 
 type TaxType = 'das' | 'darf' | 'gps' | 'inss' | 'fgts' | 'iss';
 
-export function AccountingDataForm({ unitId, unitName, competence, onBack }: AccountingDataFormProps) {
+const sectionLabels: Record<FormSection, string> = {
+  folha: 'Folha de Pagamento',
+  impostos: 'Impostos',
+  receitas: 'Receitas',
+};
+
+export function AccountingDataForm({ unitId, unitName, competence, section, onBack }: AccountingDataFormProps) {
   const ano = competence.getFullYear();
   const mes = competence.getMonth() + 1;
   
@@ -220,16 +229,17 @@ export function AccountingDataForm({ unitId, unitName, competence, onBack }: Acc
       </div>
 
       <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
-        <p className="text-sm text-muted-foreground">📋 Informar Dados Contábeis</p>
+        <p className="text-sm text-muted-foreground">📋 Informar {section ? sectionLabels[section] : 'Dados Contábeis'}</p>
         <p className="text-xl font-semibold capitalize">{competenceLabel} — {unitName}</p>
         <p className="text-xs text-muted-foreground mt-1">
-          Preencha os dados de folha, impostos e receitas para esta competência
+          {section ? `Preencha os dados de ${sectionLabels[section].toLowerCase()}` : 'Preencha os dados de folha, impostos e receitas para esta competência'}
         </p>
       </div>
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           {/* Folha de Pagamento */}
+          {(!section || section === 'folha') && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -307,8 +317,10 @@ export function AccountingDataForm({ unitId, unitName, competence, onBack }: Acc
               )}
             </CardContent>
           </Card>
+          )}
 
           {/* Impostos */}
+          {(!section || section === 'impostos') && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -524,8 +536,10 @@ export function AccountingDataForm({ unitId, unitName, competence, onBack }: Acc
               </div>
             </CardContent>
           </Card>
+          )}
 
           {/* Receitas */}
+          {(!section || section === 'receitas') && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -595,6 +609,7 @@ export function AccountingDataForm({ unitId, unitName, competence, onBack }: Acc
               )}
             </CardContent>
           </Card>
+          )}
 
           {/* Submit button */}
           <div className="flex justify-between pt-4">

@@ -22,7 +22,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { KioskBreadcrumb } from '@/components/layout/KioskBreadcrumb';
-import { AccountingKioskHome } from '@/components/accounting/AccountingKioskHome';
+import { AccountingKioskHome, type AccountingSection } from '@/components/accounting/AccountingKioskHome';
 import { AccountingViewData } from '@/components/accounting/AccountingViewData';
 import { AccountingSendDocuments } from '@/components/accounting/AccountingSendDocuments';
 import { AccountingDataForm } from '@/components/accounting/AccountingDataForm';
@@ -57,6 +57,7 @@ function getCompetenceOptions() {
 function AccountingPanelContent({ isAccountingRole }: { isAccountingRole: boolean }) {
   const { profile, activeUnit, userUnits } = useAuth();
   const [currentStep, setCurrentStep] = useState<Step>('home');
+  const [activeSection, setActiveSection] = useState<AccountingSection | undefined>(undefined);
   const [units, setUnits] = useState<Unit[]>([]);
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   
@@ -187,7 +188,10 @@ function AccountingPanelContent({ isAccountingRole }: { isAccountingRole: boolea
             unitId={selectedUnitId}
             unitName={selectedUnit?.name || ''}
             competence={competence}
-            onViewData={() => setCurrentStep(isAccountingRole ? 'edit-data' : 'view-data')}
+            onViewData={(section) => {
+              setActiveSection(section);
+              setCurrentStep(isAccountingRole ? 'edit-data' : 'view-data');
+            }}
             onSendDocuments={() => setCurrentStep('send-documents')}
             isAccountingRole={isAccountingRole}
           />
@@ -218,7 +222,11 @@ function AccountingPanelContent({ isAccountingRole }: { isAccountingRole: boolea
             unitId={selectedUnitId}
             unitName={selectedUnit?.name || ''}
             competence={competence}
-            onBack={() => setCurrentStep('home')}
+            section={activeSection}
+            onBack={() => {
+              setActiveSection(undefined);
+              setCurrentStep('home');
+            }}
           />
         )}
       </main>
