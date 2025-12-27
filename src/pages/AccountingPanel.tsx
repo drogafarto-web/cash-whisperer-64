@@ -36,22 +36,19 @@ interface Unit {
 // Gerar competências a partir de Jan/2026
 function getCompetenceOptions() {
   const options = [];
-  const now = new Date();
   const startYear = 2026;
-  const startMonth = 0; // Janeiro
   
-  let current = new Date(startYear, startMonth, 1);
-  
-  while (current <= now || options.length === 0) {
+  // Gerar todos os 12 meses de 2026
+  for (let month = 0; month < 12; month++) {
+    const date = new Date(startYear, month, 1);
     options.push({
-      value: new Date(current),
-      label: format(current, "MMMM 'de' yyyy", { locale: ptBR }),
-      key: `${current.getFullYear()}-${current.getMonth()}`,
+      value: new Date(date),
+      label: format(date, "MMMM 'de' yyyy", { locale: ptBR }),
+      key: `${date.getFullYear()}-${date.getMonth()}`,
     });
-    current.setMonth(current.getMonth() + 1);
   }
   
-  return options.reverse(); // Mais recente primeiro
+  return options; // Janeiro a Dezembro
 }
 
 function AccountingPanelContent() {
