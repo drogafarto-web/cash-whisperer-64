@@ -68,6 +68,9 @@ import Boletos from "./pages/payables/Boletos";
 import PayablesReconciliation from "./pages/payables/Reconciliation";
 import PayablesDashboard from "./pages/payables/Dashboard";
 
+// Reception panel
+import ReceptionPanel from "./pages/ReceptionPanel";
+
 // System pages
 import About from "./pages/About";
 import Changelog from "./pages/Changelog";
@@ -84,6 +87,7 @@ const App = () => (
             <Route path="/" element={<Navigate to="/transactions" replace />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/reception-panel" element={<ReceptionPanel />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/cash-closing" element={<CashClosingSimple />} />
