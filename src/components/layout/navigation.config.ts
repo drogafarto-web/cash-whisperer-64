@@ -147,6 +147,7 @@ export const navigationGroups: NavGroup[] = [
     icon: CreditCard,
     items: [
       { name: 'Dashboard', href: '/payables/dashboard', icon: LayoutDashboard, roles: ['admin', 'contabilidade', 'financeiro'] },
+      { name: 'Docs Tributários', href: '/payables/tax-documents', icon: Calculator, roles: ['admin', 'contabilidade', 'financeiro', 'contador'] },
       { name: 'Notas Fornecedor', href: '/payables/supplier-invoices', icon: FileInput, roles: ['admin', 'contabilidade', 'financeiro'] },
       { name: 'Boletos', href: '/payables/boletos', icon: Barcode, roles: ['admin', 'contabilidade', 'gestor_unidade', 'financeiro'] },
       { name: 'Conciliação', href: '/payables/reconciliation', icon: GitMerge, roles: ['admin', 'contabilidade', 'financeiro'] },

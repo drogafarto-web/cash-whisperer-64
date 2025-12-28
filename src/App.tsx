@@ -67,6 +67,7 @@ import SupplierInvoices from "./pages/payables/SupplierInvoices";
 import Boletos from "./pages/payables/Boletos";
 import PayablesReconciliation from "./pages/payables/Reconciliation";
 import PayablesDashboard from "./pages/payables/Dashboard";
+import TaxDocuments from "./pages/payables/TaxDocuments";
 
 // Reception panel
 import ReceptionPanel from "./pages/ReceptionPanel";
@@ -137,6 +138,7 @@ const App = () => (
             <Route path="/billing/payers" element={<Payers />} />
             <Route path="/billing/summary" element={<BillingSummary />} />
             <Route path="/payables/dashboard" element={<PayablesDashboard />} />
+            <Route path="/payables/tax-documents" element={<TaxDocuments />} />
             <Route path="/payables/supplier-invoices" element={<SupplierInvoices />} />
             <Route path="/payables/boletos" element={<Boletos />} />
             <Route path="/payables/reconciliation" element={<PayablesReconciliation />} />

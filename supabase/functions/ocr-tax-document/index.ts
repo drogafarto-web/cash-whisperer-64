@@ -14,6 +14,9 @@ interface OCRResult {
   linha_digitavel: string | null;
   cnpj: string | null;
   competencia: { ano: number; mes: number } | null;
+  beneficiario: string | null;
+  pix_key: string | null;
+  pix_tipo: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria' | null;
   confidence: number;
   raw_text: string;
 }
@@ -60,7 +63,10 @@ serve(async (req) => {
   "codigo_barras": string com código de barras completo ou null,
   "linha_digitavel": string com linha digitável formatada ou null,
   "cnpj": string apenas números ou null,
+  "beneficiario": string nome do beneficiário/destinatário ou null,
   "competencia": { "ano": 2024, "mes": 11 } ou null,
+  "pix_key": string chave PIX se encontrada ou null,
+  "pix_tipo": "cpf" | "cnpj" | "email" | "telefone" | "aleatoria" ou null,
   "confidence": 0.0 a 1.0 (sua confiança na extração)
 }
 
@@ -73,6 +79,7 @@ Regras importantes:
 - folha: resumo/holerite de folha de pagamento
 - nf_servico: nota fiscal de serviços
 - outro: qualquer outro tipo de documento
+- PIX: procure por chave PIX, QR code PIX, copia e cola PIX
 
 Se não conseguir identificar algum campo, retorne null para ele.
 Retorne APENAS o JSON, sem explicações.`
@@ -117,7 +124,10 @@ Retorne APENAS o JSON, sem explicações.`
         codigo_barras: parsed.codigo_barras || null,
         linha_digitavel: parsed.linha_digitavel || null,
         cnpj: parsed.cnpj || null,
+        beneficiario: parsed.beneficiario || null,
         competencia: parsed.competencia || null,
+        pix_key: parsed.pix_key || null,
+        pix_tipo: parsed.pix_tipo || null,
         confidence: parsed.confidence || 0.5,
         raw_text: content,
       };
@@ -130,7 +140,10 @@ Retorne APENAS o JSON, sem explicações.`
         codigo_barras: null,
         linha_digitavel: null,
         cnpj: null,
+        beneficiario: null,
         competencia: null,
+        pix_key: null,
+        pix_tipo: null,
         confidence: 0,
         raw_text: content,
       };
