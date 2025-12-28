@@ -28,6 +28,7 @@ import {
   useSubmitToAccounting,
 } from '@/hooks/useAccountingCompetence';
 import { AccountingOcrResultCard } from './AccountingOcrResultCard';
+import { PaymentDataModal } from '@/components/payables/PaymentDataModal';
 import { processAccountingDocument, AnalyzedDocResult } from '@/services/accountingOcrService';
 import { useNavigate } from 'react-router-dom';
 
@@ -60,6 +61,11 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
   const [observacoes, setObservacoes] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [ocrResults, setOcrResults] = useState<OcrResult[]>([]);
+  
+  // Payment data modal state
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [selectedPayableId, setSelectedPayableId] = useState<string | null>(null);
+  const [selectedPayableInfo, setSelectedPayableInfo] = useState<{ beneficiario?: string; valor?: number }>({});
   
   const { data: submission, isLoading: loadingSubmission } = useLabSubmission(unitId, ano, mes);
   const { data: documents = [], isLoading: loadingDocs } = useLabDocuments(submission?.id || null);
@@ -224,6 +230,18 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
     }
   };
 
+  const handleAddPaymentData = (payableId: string) => {
+    // Find the OCR result for this payable to get context info
+    const ocrResult = ocrResults.find(r => r.recordId === payableId);
+    
+    setSelectedPayableId(payableId);
+    setSelectedPayableInfo({
+      beneficiario: ocrResult?.result.issuerName || undefined,
+      valor: ocrResult?.result.netValue || ocrResult?.result.totalValue || undefined,
+    });
+    setPaymentModalOpen(true);
+  };
+
   const isReadOnly = submission?.status === 'enviado' || submission?.status === 'recebido';
 
   if (loadingSubmission) {
@@ -351,6 +369,7 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
               isDuplicate={ocr.isDuplicate}
               duplicateId={ocr.duplicateId}
               onViewRecord={handleViewRecord}
+              onAddPaymentData={handleAddPaymentData}
             />
           ))}
         </div>
@@ -441,6 +460,17 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
         <div className="text-center text-sm text-muted-foreground">
           Enviado em {format(new Date(submission.enviado_em), "dd/MM/yyyy 'às' HH:mm")}
         </div>
+      )}
+
+      {/* Payment Data Modal */}
+      {selectedPayableId && (
+        <PaymentDataModal
+          open={paymentModalOpen}
+          onOpenChange={setPaymentModalOpen}
+          payableId={selectedPayableId}
+          payableBeneficiario={selectedPayableInfo.beneficiario}
+          payableValor={selectedPayableInfo.valor}
+        />
       )}
     </div>
   );

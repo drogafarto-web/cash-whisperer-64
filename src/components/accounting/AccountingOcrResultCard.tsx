@@ -1,4 +1,4 @@
-import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, TrendingDown, ExternalLink } from 'lucide-react';
+import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, TrendingDown, ExternalLink, CreditCard } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ interface AccountingOcrResultCardProps {
   isDuplicate?: boolean;
   duplicateId?: string;
   onViewRecord?: (type: 'invoice' | 'payable', id: string) => void;
+  onAddPaymentData?: (payableId: string) => void;
 }
 
 export function AccountingOcrResultCard({
@@ -25,6 +26,7 @@ export function AccountingOcrResultCard({
   isDuplicate,
   duplicateId,
   onViewRecord,
+  onAddPaymentData,
 }: AccountingOcrResultCardProps) {
   const formatCurrency = (value: number | null) => {
     if (value === null || value === undefined) return '—';
@@ -202,6 +204,19 @@ export function AccountingOcrResultCard({
             >
               <ExternalLink className="h-3 w-3" />
               Ver registro
+            </Button>
+          )}
+
+          {/* Add payment data button - only for payables that were just created */}
+          {recordCreated && recordType === 'payable' && recordId && onAddPaymentData && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onAddPaymentData(recordId)}
+              className="gap-1 text-xs border-primary/30 text-primary hover:bg-primary/10"
+            >
+              <CreditCard className="h-3 w-3" />
+              Adicionar Boleto/PIX
             </Button>
           )}
         </div>
