@@ -19,8 +19,11 @@ import {
   DollarSign,
   ArrowRightLeft,
   Loader2,
+  Copy,
+  Landmark,
 } from 'lucide-react';
-import { AnalyzedDocResult } from '@/services/accountingOcrService';
+import { AnalyzedDocResult, DOCUMENT_TYPE_LABELS, isTaxDocument } from '@/services/accountingOcrService';
+import { toast } from 'sonner';
 
 interface DocumentConfirmationModalProps {
   open: boolean;
@@ -41,7 +44,8 @@ export function DocumentConfirmationModal({
   onCancel,
   isConfirming = false,
 }: DocumentConfirmationModalProps) {
-  // Allow user to change classification
+  // Allow user to change classification (mas não para guias tributárias)
+  const isTaxDoc = isTaxDocument(result.documentType);
   const [selectedType, setSelectedType] = useState<'revenue' | 'expense'>(
     result.type === 'unknown' ? 'expense' : result.type
   );
@@ -69,19 +73,31 @@ export function DocumentConfirmationModal({
   };
 
   const handleToggleType = () => {
-    setSelectedType(prev => prev === 'revenue' ? 'expense' : 'revenue');
+    if (!isTaxDoc) {
+      setSelectedType(prev => prev === 'revenue' ? 'expense' : 'revenue');
+    }
   };
 
   const handleConfirm = () => {
     onConfirm(selectedType);
   };
 
+  const handleCopy = (text: string | null, label: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    toast.success(`${label} copiado!`);
+  };
+
+  const docTypeLabel = DOCUMENT_TYPE_LABELS[result.documentType] || result.documentType;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {isRevenue ? (
+            {isTaxDoc ? (
+              <Landmark className="h-5 w-5 text-blue-600" />
+            ) : isRevenue ? (
               <FileText className="h-5 w-5 text-emerald-600" />
             ) : (
               <Receipt className="h-5 w-5 text-amber-600" />
@@ -94,18 +110,31 @@ export function DocumentConfirmationModal({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {/* Document Type Badge */}
+          {isTaxDoc && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-50 border border-blue-200">
+              <Landmark className="h-5 w-5 text-blue-600" />
+              <div>
+                <p className="font-medium text-blue-800">{docTypeLabel}</p>
+                <p className="text-sm text-blue-600">Guia tributária - classificada automaticamente como despesa</p>
+              </div>
+            </div>
+          )}
+
           {/* Classification Badge */}
           <div className="flex items-center justify-between p-4 rounded-lg bg-muted">
             <div className="flex items-center gap-3">
               <Badge 
                 variant={isRevenue ? 'default' : 'secondary'}
                 className={`text-base px-3 py-1 ${
-                  isRevenue 
-                    ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' 
-                    : 'bg-amber-100 text-amber-700 hover:bg-amber-100'
+                  isTaxDoc
+                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-100'
+                    : isRevenue 
+                      ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100' 
+                      : 'bg-amber-100 text-amber-700 hover:bg-amber-100'
                 }`}
               >
-                {isRevenue ? '📥 RECEITA' : '📤 DESPESA'}
+                {isTaxDoc ? `🏛️ ${docTypeLabel}` : isRevenue ? '📥 RECEITA' : '📤 DESPESA'}
               </Badge>
               
               {!isUnknown && (
@@ -118,19 +147,21 @@ export function DocumentConfirmationModal({
               )}
             </div>
 
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleToggleType}
-              className="gap-2"
-            >
-              <ArrowRightLeft className="h-4 w-4" />
-              {isRevenue ? 'É Despesa' : 'É Receita'}
-            </Button>
+            {!isTaxDoc && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleToggleType}
+                className="gap-2"
+              >
+                <ArrowRightLeft className="h-4 w-4" />
+                {isRevenue ? 'É Despesa' : 'É Receita'}
+              </Button>
+            )}
           </div>
 
           {/* Classification reason */}
-          {(isUnknown || isLowConfidence) && (
+          {(isUnknown || isLowConfidence) && !isTaxDoc && (
             <div className="flex gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200">
               <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
               <div className="text-sm text-amber-800">
@@ -153,6 +184,66 @@ export function DocumentConfirmationModal({
             </div>
           )}
 
+          {/* Payment Info for Tax Documents */}
+          {(result.codigoBarras || result.linhaDigitavel || result.pixKey) && (
+            <div className="space-y-2 p-3 rounded-lg bg-muted/30 border">
+              <h4 className="text-sm font-medium flex items-center gap-2">
+                <Copy className="h-4 w-4" />
+                Dados para Pagamento
+              </h4>
+              
+              {result.linhaDigitavel && (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs text-muted-foreground">Linha Digitável</span>
+                    <p className="text-xs font-mono truncate">{result.linhaDigitavel}</p>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleCopy(result.linhaDigitavel, 'Linha digitável')}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+
+              {result.codigoBarras && !result.linhaDigitavel && (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs text-muted-foreground">Código de Barras</span>
+                    <p className="text-xs font-mono truncate">{result.codigoBarras}</p>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleCopy(result.codigoBarras, 'Código de barras')}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+
+              {result.pixKey && (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs text-muted-foreground">
+                      Chave PIX ({result.pixTipo || 'desconhecido'})
+                    </span>
+                    <p className="text-xs font-mono truncate">{result.pixKey}</p>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleCopy(result.pixKey, 'Chave PIX')}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Extracted data */}
           <div className="space-y-3">
             <h4 className="text-sm font-medium text-muted-foreground">Dados Extraídos</h4>
@@ -162,12 +253,14 @@ export function DocumentConfirmationModal({
               <div className="flex items-center gap-2 text-sm">
                 <Building2 className="h-4 w-4 text-muted-foreground" />
                 <span className="text-muted-foreground">
-                  {isRevenue ? 'Cliente:' : 'Fornecedor:'}
+                  {isTaxDoc ? 'Contribuinte:' : isRevenue ? 'Cliente:' : 'Fornecedor:'}
                 </span>
                 <span className="font-medium">
-                  {isRevenue 
-                    ? result.customerName || 'Não identificado' 
-                    : result.issuerName || 'Não identificado'
+                  {isTaxDoc
+                    ? result.issuerName || 'Não identificado'
+                    : isRevenue 
+                      ? result.customerName || 'Não identificado' 
+                      : result.issuerName || 'Não identificado'
                   }
                 </span>
               </div>
@@ -177,7 +270,18 @@ export function DocumentConfirmationModal({
                 <div className="flex items-center gap-2 text-sm pl-6">
                   <span className="text-muted-foreground">CNPJ:</span>
                   <span className="font-mono text-xs">
-                    {isRevenue ? result.customerCnpj : result.issuerCnpj}
+                    {isTaxDoc ? result.issuerCnpj : isRevenue ? result.customerCnpj : result.issuerCnpj}
+                  </span>
+                </div>
+              )}
+
+              {/* Competence for tax documents */}
+              {isTaxDoc && result.competenceYear && result.competenceMonth && (
+                <div className="flex items-center gap-2 text-sm">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Competência:</span>
+                  <span className="font-medium">
+                    {String(result.competenceMonth).padStart(2, '0')}/{result.competenceYear}
                   </span>
                 </div>
               )}
@@ -227,7 +331,13 @@ export function DocumentConfirmationModal({
           <Button 
             onClick={handleConfirm}
             disabled={isConfirming}
-            className={isRevenue ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700'}
+            className={
+              isTaxDoc 
+                ? 'bg-blue-600 hover:bg-blue-700'
+                : isRevenue 
+                  ? 'bg-emerald-600 hover:bg-emerald-700' 
+                  : 'bg-amber-600 hover:bg-amber-700'
+            }
           >
             {isConfirming ? (
               <>
@@ -237,7 +347,7 @@ export function DocumentConfirmationModal({
             ) : (
               <>
                 <CheckCircle2 className="h-4 w-4 mr-2" />
-                Confirmar como {isRevenue ? 'Receita' : 'Despesa'}
+                Confirmar como {isTaxDoc ? docTypeLabel : isRevenue ? 'Receita' : 'Despesa'}
               </>
             )}
           </Button>

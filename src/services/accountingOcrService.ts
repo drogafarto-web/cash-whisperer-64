@@ -2,9 +2,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { convertPdfToImage, blobToBase64 } from '@/utils/pdfToImage';
 
+// Tipos de documentos tributários (sempre despesa)
+const TAX_DOCUMENT_TYPES = ['darf', 'gps', 'das', 'fgts', 'inss_guia'];
+
 export interface AnalyzedDocResult {
   type: 'revenue' | 'expense' | 'unknown';
-  documentType: 'nfse' | 'nf_produto' | 'boleto' | 'recibo' | 'extrato' | 'outro';
+  documentType: 'nfse' | 'nf_produto' | 'boleto' | 'recibo' | 'extrato' | 'darf' | 'gps' | 'das' | 'fgts' | 'inss_guia' | 'outro';
   issuerCnpj: string | null;
   customerCnpj: string | null;
   issuerName: string | null;
@@ -27,7 +30,32 @@ export interface AnalyzedDocResult {
   classificationReason: string;
   competenceYear: number | null;
   competenceMonth: number | null;
+  // Novos campos para guias tributárias
+  codigoBarras: string | null;
+  linhaDigitavel: string | null;
+  pixKey: string | null;
+  pixTipo: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria' | null;
   error?: string;
+}
+
+// Labels para tipos de documento
+export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
+  nfse: 'NFS-e',
+  nf_produto: 'NF Produto',
+  boleto: 'Boleto',
+  recibo: 'Recibo',
+  extrato: 'Extrato',
+  darf: 'DARF',
+  gps: 'GPS',
+  das: 'DAS',
+  fgts: 'FGTS',
+  inss_guia: 'INSS',
+  outro: 'Outro',
+};
+
+// Verifica se é documento tributário
+export function isTaxDocument(documentType: string): boolean {
+  return TAX_DOCUMENT_TYPES.includes(documentType);
 }
 
 // Normaliza CNPJ para comparação
@@ -270,16 +298,30 @@ export async function createPayableFromOcr(
     }
 
     // Determinar tipo de payable
-  let tipo: 'boleto' | 'parcela' | 'avulso' | 'recibo' = 'avulso';
-  if (result.documentType === 'boleto') {
-    tipo = 'boleto';
-  } else if (result.documentType === 'recibo') {
-    tipo = 'recibo';
-  }
+    let tipo: 'boleto' | 'parcela' | 'avulso' | 'recibo' = 'avulso';
+    if (result.documentType === 'boleto') {
+      tipo = 'boleto';
+    } else if (result.documentType === 'recibo') {
+      tipo = 'recibo';
+    }
 
-    const payableData = {
+    // Determinar beneficiário para guias tributárias
+    let beneficiario = result.issuerName || 'FORNECEDOR NÃO IDENTIFICADO';
+    if (isTaxDocument(result.documentType)) {
+      const docLabel = DOCUMENT_TYPE_LABELS[result.documentType] || result.documentType.toUpperCase();
+      beneficiario = `${docLabel} - Receita Federal`;
+      if (result.documentType === 'gps') {
+        beneficiario = 'GPS - Previdência Social';
+      } else if (result.documentType === 'fgts') {
+        beneficiario = 'FGTS - Caixa Econômica Federal';
+      } else if (result.documentType === 'das') {
+        beneficiario = 'DAS - Simples Nacional';
+      }
+    }
+
+    const payableData: Record<string, any> = {
       unit_id: unitId,
-      beneficiario: result.issuerName || 'FORNECEDOR NÃO IDENTIFICADO',
+      beneficiario,
       beneficiario_cnpj: normalizeCnpj(result.issuerCnpj),
       valor: result.totalValue || 0,
       vencimento,
@@ -292,6 +334,18 @@ export async function createPayableFromOcr(
       file_bucket: 'accounting-documents',
       ocr_confidence: typeof result.confidence === 'number' ? Number(result.confidence.toFixed(3)) : null,
     };
+
+    // Adicionar campos extras para guias tributárias
+    if (result.codigoBarras) {
+      payableData.codigo_barras = result.codigoBarras;
+    }
+    if (result.linhaDigitavel) {
+      payableData.linha_digitavel = result.linhaDigitavel;
+    }
+    if (result.pixKey) {
+      payableData.pix_key = result.pixKey;
+      payableData.pix_tipo = result.pixTipo;
+    }
 
     const { data, error } = await supabase
       .from('payables')
