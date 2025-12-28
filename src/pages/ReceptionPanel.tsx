@@ -12,7 +12,6 @@ import {
   ReceptionHome,
   ReceptionImport,
   ReceptionDocumentUpload,
-  ReceptionPayment,
   ReceptionStep,
 } from '@/components/reception';
 
@@ -70,8 +69,7 @@ function ReceptionPanelContent() {
   const getStepLabel = (step: ReceptionStep): string => {
     switch (step) {
       case 'import': return 'Importar Movimento';
-      case 'document-upload': return 'Cadastrar Documentos';
-      case 'payment': return 'Registrar Pagamento';
+      case 'document-upload': return 'Lançar Documentos';
       default: return '';
     }
   };
@@ -143,10 +141,6 @@ function ReceptionPanelContent() {
             
             {currentStep === 'document-upload' && (
               <ReceptionDocumentUpload onBack={handleBack} unitId={activeUnit} />
-            )}
-            
-            {currentStep === 'payment' && (
-              <ReceptionPayment onBack={handleBack} unitId={activeUnit} />
             )}
           </>
         )}
