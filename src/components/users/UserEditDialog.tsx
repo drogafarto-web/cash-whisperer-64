@@ -17,17 +17,9 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from '@/components/ui/select';
-import { Loader2, Star, Building2, Briefcase, Link2, Check, Shield, AlertTriangle, User, Phone, Calendar, CreditCard } from 'lucide-react';
+import { Loader2, Star, Building2, Briefcase, Link2, Check, Shield, AlertTriangle, Phone, Calendar, CreditCard } from 'lucide-react';
 import { Unit, AppRole } from '@/types/database';
 import { OPERATIONAL_FUNCTIONS } from '@/hooks/useProfileFunctions';
-import { LisUser } from '@/hooks/useLisUsers';
 import { ROLE_CONFIG } from '@/lib/access-policy';
 import { cn } from '@/lib/utils';
 
@@ -49,7 +41,6 @@ interface UserEditDialogProps {
   onOpenChange: (open: boolean) => void;
   user: UserForEdit | null;
   units: Unit[];
-  unlinkedLisUsers: LisUser[];
   currentUnitIds: string[];
   primaryUnitId?: string;
   currentFunctions: string[];
@@ -72,7 +63,6 @@ export function UserEditDialog({
   onOpenChange,
   user,
   units,
-  unlinkedLisUsers,
   currentUnitIds,
   primaryUnitId: initialPrimaryUnitId,
   currentFunctions,
@@ -120,16 +110,11 @@ export function UserEditDialog({
     );
   };
 
-  const handleLisUserSelect = (login: string) => {
-    if (login === 'none') {
-      setLisLogin('');
+  const handleLisLoginChange = (value: string) => {
+    setLisLogin(value || '');
+    // If clearing, also clear the ID
+    if (!value) {
       setLisId(null);
-    } else {
-      const lisUser = lisUserOptions.find(u => u.login === login);
-      if (lisUser) {
-        setLisLogin(lisUser.login);
-        setLisId(lisUser.lis_id);
-      }
     }
   };
 
@@ -143,19 +128,13 @@ export function UserEditDialog({
     });
   };
 
-  // Include current user's lis_login in options if it exists
-  const lisUserOptions = [...unlinkedLisUsers];
-  if (user?.lis_login && !lisUserOptions.find(u => u.login === user.lis_login)) {
-    lisUserOptions.unshift({
-      id: 'current',
-      lis_id: user.lis_id || null,
-      login: user.lis_login,
-      nome: user.lis_login,
-      active: true,
-      created_at: '',
-      updated_at: '',
-    });
-  }
+  // Show current user's lis_login if it exists
+  const currentLisUserOption = user?.lis_login ? {
+    id: 'current',
+    lis_id: user.lis_id || null,
+    login: user.lis_login,
+    nome: user.lis_login,
+  } : null;
 
   // Get user initials for avatar
   const getInitials = (name: string) => {
@@ -294,19 +273,11 @@ export function UserEditDialog({
                 <Link2 className="w-4 h-4 text-primary" />
                 <Label className="font-medium">Login LIS</Label>
               </div>
-              <Select value={lisLogin || 'none'} onValueChange={handleLisUserSelect}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um operador LIS" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhum</SelectItem>
-                  {lisUserOptions.map(lisUser => (
-                    <SelectItem key={lisUser.login} value={lisUser.login}>
-                      {lisUser.login} - {lisUser.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input
+                value={lisLogin}
+                onChange={(e) => handleLisLoginChange(e.target.value)}
+                placeholder="Digite o login LIS do operador"
+              />
               {lisLogin && (
                 <div className="flex gap-2">
                   <Badge variant="outline" className="text-xs">

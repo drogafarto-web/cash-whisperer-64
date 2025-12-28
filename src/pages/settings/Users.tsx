@@ -49,7 +49,7 @@ import { Profile, AppRole, Unit } from '@/types/database';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { Plus, Loader2, UserCog, Building2, Search, UserX, UserCheck, Clock, Mail, MailPlus, Pencil, Star, Briefcase, Link2, AlertTriangle, Upload, FileSpreadsheet } from 'lucide-react';
+import { Plus, Loader2, UserCog, Building2, Search, UserX, UserCheck, Clock, Mail, MailPlus, Pencil, Star, Briefcase, Link2, FileSpreadsheet } from 'lucide-react';
 
 // Componentes RBAC
 import { RoleSummaryPanel } from '@/components/users/RoleSummaryPanel';
@@ -62,9 +62,7 @@ import { ROLE_CONFIG } from '@/lib/access-policy';
 // Hooks
 import { useAllProfileUnits, useUpdateProfileUnits, ProfileUnit } from '@/hooks/useProfileUnits';
 import { useAllProfileFunctions, useUpdateProfileFunctions, OPERATIONAL_FUNCTIONS, ProfileFunction } from '@/hooks/useProfileFunctions';
-import { useUnlinkedLisUsers, useLinkLisLogin, useLisUsers } from '@/hooks/useLisUsers';
-import { LisImportModal } from '@/components/users/LisImportModal';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useLinkLisLogin } from '@/hooks/useLisUsers';
 
 interface UserWithRole extends Profile {
   role?: AppRole;
@@ -118,16 +116,12 @@ export default function UsersSettings() {
   const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
   const [isEditSubmitting, setIsEditSubmitting] = useState(false);
   
-  // LIS Import modal state
-  const [isLisImportOpen, setIsLisImportOpen] = useState(false);
-  
   // Excel Import modal state
   const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
 
   // Fetch profile units and functions
   const { data: allProfileUnits = [] } = useAllProfileUnits();
   const { data: allProfileFunctions = [] } = useAllProfileFunctions();
-  const { data: unlinkedLisUsers = [] } = useUnlinkedLisUsers();
   
   // Mutations
   const updateProfileUnits = useUpdateProfileUnits();
@@ -462,19 +456,6 @@ export default function UsersSettings() {
                 Importar Excel
               </Button>
               
-              {unlinkedLisUsers.length > 0 && (
-                <Button 
-                  variant="outline" 
-                  onClick={() => setIsLisImportOpen(true)}
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Importar do LIS
-                  <Badge variant="secondary" className="ml-2">
-                    {unlinkedLisUsers.length}
-                  </Badge>
-                </Button>
-              )}
-              
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
                   <Button>
@@ -495,30 +476,6 @@ export default function UsersSettings() {
               </Dialog>
             </div>
           </div>
-
-          {/* Unlinked LIS operators alert */}
-          {unlinkedLisUsers.length > 0 && (
-            <Alert className="border-amber-500/50 bg-amber-500/10">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <AlertTitle className="text-amber-700 dark:text-amber-400">
-                Operadores LIS não vinculados
-              </AlertTitle>
-              <AlertDescription className="text-amber-600 dark:text-amber-300">
-                {unlinkedLisUsers.length} operador(es) do LIS ainda não foram vinculados a usuários do sistema: {' '}
-                <span className="font-medium">
-                  {unlinkedLisUsers.slice(0, 5).map(u => u.login).join(', ')}
-                  {unlinkedLisUsers.length > 5 && ` e mais ${unlinkedLisUsers.length - 5}...`}
-                </span>
-                <Button 
-                  variant="link" 
-                  className="h-auto p-0 ml-2 text-amber-700 dark:text-amber-300 underline"
-                  onClick={() => setIsLisImportOpen(true)}
-                >
-                  Vincular agora
-                </Button>
-              </AlertDescription>
-            </Alert>
-          )}
 
           {/* Role Summary Panel */}
           <RoleSummaryPanel
@@ -825,7 +782,6 @@ export default function UsersSettings() {
           onOpenChange={(open) => !open && setEditingUser(null)}
           user={editingUser}
           units={units}
-          unlinkedLisUsers={unlinkedLisUsers}
           currentUnitIds={editingUserUnitIds}
           primaryUnitId={editingUserPrimaryUnitId}
           currentFunctions={editingUserFunctions}
@@ -867,16 +823,6 @@ export default function UsersSettings() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-
-        {/* LIS Import Modal */}
-        <LisImportModal
-          open={isLisImportOpen}
-          onOpenChange={setIsLisImportOpen}
-          unlinkedLisUsers={unlinkedLisUsers}
-          existingUsers={users.map(u => ({ id: u.id, name: u.name, email: u.email, lis_login: u.lis_login }))}
-          units={units}
-          onSuccess={fetchUsers}
-        />
 
         {/* Excel Import Modal */}
         <ExcelImportModal
