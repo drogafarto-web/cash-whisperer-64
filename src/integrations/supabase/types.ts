@@ -2857,10 +2857,14 @@ export type Database = {
       }
       units: {
         Row: {
+          capital_social: number | null
           centraliza_tributos_federais: boolean | null
           cnpj: string | null
           code: string
           created_at: string
+          data_abertura: string | null
+          data_opcao_simples: string | null
+          data_situacao_cadastral: string | null
           endereco: string | null
           id: string
           inscricao_estadual: string | null
@@ -2868,18 +2872,28 @@ export type Database = {
           municipio_codigo_ibge: string | null
           municipio_nome: string | null
           name: string
+          natureza_juridica: string | null
           nome_fantasia: string | null
+          opcao_mei: boolean | null
+          opcao_simples: boolean | null
           parent_unit_id: string | null
+          porte: string | null
           razao_social: string | null
+          situacao_cadastral: string | null
           telefone: string | null
+          tipo_unidade_receita: string | null
           uf: string | null
           unit_type: string | null
         }
         Insert: {
+          capital_social?: number | null
           centraliza_tributos_federais?: boolean | null
           cnpj?: string | null
           code: string
           created_at?: string
+          data_abertura?: string | null
+          data_opcao_simples?: string | null
+          data_situacao_cadastral?: string | null
           endereco?: string | null
           id?: string
           inscricao_estadual?: string | null
@@ -2887,18 +2901,28 @@ export type Database = {
           municipio_codigo_ibge?: string | null
           municipio_nome?: string | null
           name: string
+          natureza_juridica?: string | null
           nome_fantasia?: string | null
+          opcao_mei?: boolean | null
+          opcao_simples?: boolean | null
           parent_unit_id?: string | null
+          porte?: string | null
           razao_social?: string | null
+          situacao_cadastral?: string | null
           telefone?: string | null
+          tipo_unidade_receita?: string | null
           uf?: string | null
           unit_type?: string | null
         }
         Update: {
+          capital_social?: number | null
           centraliza_tributos_federais?: boolean | null
           cnpj?: string | null
           code?: string
           created_at?: string
+          data_abertura?: string | null
+          data_opcao_simples?: string | null
+          data_situacao_cadastral?: string | null
           endereco?: string | null
           id?: string
           inscricao_estadual?: string | null
@@ -2906,10 +2930,16 @@ export type Database = {
           municipio_codigo_ibge?: string | null
           municipio_nome?: string | null
           name?: string
+          natureza_juridica?: string | null
           nome_fantasia?: string | null
+          opcao_mei?: boolean | null
+          opcao_simples?: boolean | null
           parent_unit_id?: string | null
+          porte?: string | null
           razao_social?: string | null
+          situacao_cadastral?: string | null
           telefone?: string | null
+          tipo_unidade_receita?: string | null
           uf?: string | null
           unit_type?: string | null
         }
