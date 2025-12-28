@@ -11,8 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   ReceptionHome,
   ReceptionImport,
-  ReceptionClientInvoice,
-  ReceptionSupplierExpense,
+  ReceptionDocumentUpload,
   ReceptionPayment,
   ReceptionStep,
 } from '@/components/reception';
@@ -71,8 +70,7 @@ function ReceptionPanelContent() {
   const getStepLabel = (step: ReceptionStep): string => {
     switch (step) {
       case 'import': return 'Importar Movimento';
-      case 'client-invoice': return 'Notas para Clientes';
-      case 'supplier-expense': return 'Notas de Fornecedores';
+      case 'document-upload': return 'Cadastrar Documentos';
       case 'payment': return 'Registrar Pagamento';
       default: return '';
     }
@@ -143,12 +141,8 @@ function ReceptionPanelContent() {
               <ReceptionImport onBack={handleBack} unitId={activeUnit} />
             )}
             
-            {currentStep === 'client-invoice' && (
-              <ReceptionClientInvoice onBack={handleBack} unitId={activeUnit} />
-            )}
-            
-            {currentStep === 'supplier-expense' && (
-              <ReceptionSupplierExpense onBack={handleBack} unitId={activeUnit} />
+            {currentStep === 'document-upload' && (
+              <ReceptionDocumentUpload onBack={handleBack} unitId={activeUnit} />
             )}
             
             {currentStep === 'payment' && (

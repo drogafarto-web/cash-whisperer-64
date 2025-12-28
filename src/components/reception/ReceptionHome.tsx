@@ -1,7 +1,7 @@
-import { FileUp, Wallet, FileText, Receipt, Banknote } from 'lucide-react';
+import { FileUp, Wallet, FileText, Banknote, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-export type ReceptionStep = 'home' | 'import' | 'client-invoice' | 'supplier-expense' | 'payment';
+export type ReceptionStep = 'home' | 'import' | 'document-upload' | 'payment';
 
 interface ReceptionHomeProps {
   onNavigate: (step: ReceptionStep) => void;
@@ -25,18 +25,11 @@ export function ReceptionHome({ onNavigate, onCheckEnvelope }: ReceptionHomeProp
       onClick: onCheckEnvelope,
     },
     {
-      id: 'client-invoice' as ReceptionStep,
-      label: 'Notas para Clientes',
-      icon: FileText,
-      description: 'NF-e e recibos',
-      onClick: () => onNavigate('client-invoice'),
-    },
-    {
-      id: 'supplier-expense' as ReceptionStep,
-      label: 'Notas de Fornecedores',
-      icon: Receipt,
-      description: 'Despesas e boletos',
-      onClick: () => onNavigate('supplier-expense'),
+      id: 'document-upload' as ReceptionStep,
+      label: 'Cadastrar Documentos',
+      icon: Sparkles,
+      description: 'NF-e, recibos e notas de fornecedores com IA',
+      onClick: () => onNavigate('document-upload'),
     },
     {
       id: 'payment' as ReceptionStep,
@@ -67,26 +60,6 @@ export function ReceptionHome({ onNavigate, onCheckEnvelope }: ReceptionHomeProp
           </Button>
         ))}
       </div>
-      
-      {/* 5th button spanning full width */}
-      {(() => {
-        const PaymentIcon = buttons[4].icon;
-        return (
-          <Button
-            variant="outline"
-            className="w-full h-32 mt-6 flex flex-col items-center justify-center gap-3 text-xl font-semibold border-2 hover:border-primary hover:bg-primary/5 transition-all"
-            onClick={buttons[4].onClick}
-          >
-            <PaymentIcon className="h-10 w-10 text-primary" />
-            <div className="text-center">
-              <div>{buttons[4].label}</div>
-              <div className="text-sm font-normal text-muted-foreground mt-1">
-                {buttons[4].description}
-              </div>
-            </div>
-          </Button>
-        );
-      })()}
     </div>
   );
 }
