@@ -139,7 +139,7 @@ export default function TransactionsReport() {
         .select(`
           *,
           unit:units(*),
-          account:accounts(*),
+          account:accounts!transactions_account_id_fkey(*),
           category:categories(*)
         `)
         .gte('date', format(startDate, 'yyyy-MM-dd'))

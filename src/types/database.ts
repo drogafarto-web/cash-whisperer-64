@@ -1,5 +1,6 @@
 export type AppRole = 'admin' | 'secretaria' | 'contabilidade' | 'gestor_unidade' | 'financeiro' | 'contador';
 export type AccountType = 'CAIXA' | 'CONTA_BANCARIA' | 'OPERADORA_CARTAO';
+export type BankAccountType = 'operacional_principal' | 'recebiveis_cartao_pix' | 'recebiveis_cartao_credito' | 'caixa' | 'conta_bancaria';
 export type PartnerType = 'CLIENTE' | 'FORNECEDOR';
 export type UnitType = 'MATRIZ' | 'FILIAL_COM_NF' | 'POSTO_COLETA_SEM_NF';
 export type RegimeTributario = 'SIMPLES_NACIONAL' | 'LUCRO_PRESUMIDO' | 'LUCRO_REAL';
@@ -71,6 +72,15 @@ export interface Account {
   type: AccountType;
   created_at: string;
   updated_at: string;
+  // Dados bancários
+  institution: string | null;
+  institution_code: string | null;
+  agency: string | null;
+  account_number: string | null;
+  account_type: BankAccountType | null;
+  is_default: boolean;
+  holder_name: string | null;
+  holder_document: string | null;
   // Joined data
   unit?: Unit;
 }

@@ -23,9 +23,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Copy, Check, FileText, CreditCard, QrCode, Barcode, Calendar, Building2 } from 'lucide-react';
+import { Copy, Check, FileText, CreditCard, QrCode, Barcode, Calendar, Building2, Landmark, Star } from 'lucide-react';
 import { TaxDocumentOcrResult, TAX_DOCUMENT_LABELS, TaxDocumentType } from '@/types/payables';
 import { supabase } from '@/integrations/supabase/client';
+import { useBankAccounts, useDefaultBankAccount } from '@/hooks/useBankAccounts';
 
 interface TaxDocumentConfirmModalProps {
   isOpen: boolean;
@@ -50,6 +51,7 @@ export interface ConfirmData {
   competencia: { ano: number; mes: number } | null;
   categoryId: string | null;
   unitId: string | null;
+  paymentBankAccountId: string | null;
 }
 
 interface Category {
@@ -89,6 +91,11 @@ export function TaxDocumentConfirmModal({
   const [units, setUnits] = useState<Unit[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [selectedUnitId, setSelectedUnitId] = useState<string>(unitId || '');
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState<string>('');
+  
+  // Carregar contas bancárias
+  const { data: bankAccounts = [] } = useBankAccounts(unitId);
+  const { data: defaultBankAccount } = useDefaultBankAccount();
 
   // Load categories and units
   useEffect(() => {
@@ -145,6 +152,13 @@ export function TaxDocumentConfirmModal({
     if (unitId) setSelectedUnitId(unitId);
   }, [unitId]);
 
+  // Selecionar conta padrão
+  useEffect(() => {
+    if (defaultBankAccount && !selectedBankAccountId) {
+      setSelectedBankAccountId(defaultBankAccount.id);
+    }
+  }, [defaultBankAccount, selectedBankAccountId]);
+
   const handleCopy = async (text: string, field: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -181,6 +195,7 @@ export function TaxDocumentConfirmModal({
         competencia: ocrResult?.competencia || null,
         categoryId: selectedCategoryId || null,
         unitId: selectedUnitId || null,
+        paymentBankAccountId: selectedBankAccountId || null,
       });
       onClose();
     } catch (error) {
@@ -426,6 +441,36 @@ export function TaxDocumentConfirmModal({
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="col-span-2">
+                    <Label className="flex items-center gap-2">
+                      <Landmark className="h-4 w-4" />
+                      Conta para Pagamento
+                    </Label>
+                    <Select value={selectedBankAccountId} onValueChange={setSelectedBankAccountId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a conta bancária..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {bankAccounts.map((acc) => (
+                          <SelectItem key={acc.id} value={acc.id}>
+                            <div className="flex items-center gap-2">
+                              {acc.is_default && <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />}
+                              {acc.name}
+                              {acc.institution_code && (
+                                <span className="text-muted-foreground text-xs">({acc.institution_code})</span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedBankAccountId && bankAccounts.find(a => a.id === selectedBankAccountId)?.agency && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Ag {bankAccounts.find(a => a.id === selectedBankAccountId)?.agency} • 
+                        Cc {bankAccounts.find(a => a.id === selectedBankAccountId)?.account_number}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
