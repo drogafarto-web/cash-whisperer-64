@@ -36,8 +36,34 @@ function normalizeCnpj(cnpj: string | null): string | null {
   return cnpj.replace(/[^\d]/g, '');
 }
 
-// Analisa documento via edge function
-export async function analyzeAccountingDocument(
+// Verifica se arquivo é XML
+function isXmlFile(file: File): boolean {
+  return file.type === 'text/xml' || 
+         file.type === 'application/xml' || 
+         file.name.toLowerCase().endsWith('.xml');
+}
+
+// Analisa XML via edge function (parse estruturado, sem OCR)
+async function analyzeAccountingXml(
+  xmlContent: string,
+  unitId: string
+): Promise<AnalyzedDocResult> {
+  console.log('Analyzing XML with structured parser...');
+  
+  const { data, error } = await supabase.functions.invoke('analyze-accounting-xml', {
+    body: { xml: xmlContent, unitId },
+  });
+
+  if (error) {
+    console.error('Error analyzing XML:', error);
+    throw error;
+  }
+
+  return data as AnalyzedDocResult;
+}
+
+// Analisa documento via edge function (OCR com IA)
+async function analyzeAccountingImage(
   file: File,
   unitId: string
 ): Promise<AnalyzedDocResult> {
@@ -74,6 +100,21 @@ export async function analyzeAccountingDocument(
   }
 
   return data as AnalyzedDocResult;
+}
+
+// Função principal de análise - decide entre XML ou OCR
+export async function analyzeAccountingDocument(
+  file: File,
+  unitId: string
+): Promise<AnalyzedDocResult> {
+  // Se for XML, usar parse estruturado (mais rápido e preciso)
+  if (isXmlFile(file)) {
+    const xmlContent = await file.text();
+    return analyzeAccountingXml(xmlContent, unitId);
+  }
+  
+  // Caso contrário, usar OCR com IA
+  return analyzeAccountingImage(file, unitId);
 }
 
 // Verifica duplicidade de invoice
