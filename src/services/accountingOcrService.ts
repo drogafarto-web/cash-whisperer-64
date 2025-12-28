@@ -38,6 +38,8 @@ export interface AnalyzedDocResult {
   linhaDigitavel: string | null;
   pixKey: string | null;
   pixTipo: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria' | null;
+  // Sugestão contextual para o atendente
+  attendantSuggestion: string | null;
   error?: string;
 }
 
