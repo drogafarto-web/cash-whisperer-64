@@ -13,6 +13,7 @@ import {
 import { AccountingDocument } from '@/hooks/useAccountingDashboard';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatCurrencyNullable } from '@/lib/utils';
 
 interface AccountingDocumentsCardProps {
   documents: AccountingDocument[];
@@ -50,11 +51,6 @@ export function AccountingDocumentsCard({
   onViewAll,
   linkStatus 
 }: AccountingDocumentsCardProps) {
-  const formatCurrency = (value: number | null) => {
-    if (value === null) return '-';
-    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  };
-
   const getLinkStatusBadge = () => {
     if (!linkStatus.enviado) return null;
     if (linkStatus.expirado) return <Badge variant="destructive">Expirado</Badge>;
@@ -112,7 +108,7 @@ export function AccountingDocumentsCard({
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-medium">
-                      {formatCurrency(doc.valor_documento)}
+                      {formatCurrencyNullable(doc.valor_documento)}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {statusConfig.label}

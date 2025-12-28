@@ -16,6 +16,7 @@ import {
   ReferenceArea,
 } from 'recharts';
 import { TrendingUp, TrendingDown, AlertTriangle, Target, Lightbulb } from 'lucide-react';
+import { formatCurrency } from '@/lib/utils';
 
 interface FatorRDataPoint {
   mes: string;

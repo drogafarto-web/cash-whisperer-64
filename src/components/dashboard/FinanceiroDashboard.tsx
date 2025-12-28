@@ -21,6 +21,7 @@ import {
   Calendar,
   Loader2,
 } from 'lucide-react';
+import { formatCurrency } from '@/lib/utils';
 
 interface PayablesSummary {
   vencidos: number;
@@ -106,12 +107,9 @@ export function FinanceiroDashboard() {
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
-      setIsLoading(false);
+    setIsLoading(false);
     }
   };
-
-  const formatCurrency = (value: number) =>
-    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   const quickActions = [
     {

@@ -22,3 +22,8 @@ export function formatDateTime(date: string | Date): string {
 export function formatPercent(value: number, decimals: number = 2): string {
   return `${(value * 100).toFixed(decimals)}%`;
 }
+
+export function formatCurrencyNullable(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '--';
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}

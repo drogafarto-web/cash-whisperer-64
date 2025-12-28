@@ -2,14 +2,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, AlertCircle, ArrowRight } from 'lucide-react';
 import type { AccountingAuditData } from '@/hooks/useAccountingAudit';
+import { formatCurrency } from '@/lib/utils';
 
 interface AuditRevenueCardProps {
   revenueComparison: AccountingAuditData['revenueComparison'];
 }
-
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-};
 
 function getComparisonStatus(diff: number): { status: 'ok' | 'warning' | 'error'; icon: React.ReactNode } {
   const absDiff = Math.abs(diff);

@@ -1,5 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { QrCode, FileText } from 'lucide-react';
+import { formatCurrency } from '@/lib/utils';
 
 interface PaymentSummaryCardProps {
   totalAmount: number;
@@ -14,13 +15,6 @@ export function PaymentSummaryCard({
   totalAvailable,
   label = 'Total selecionado',
 }: PaymentSummaryCardProps) {
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    });
-  };
-
   return (
     <Card className="bg-teal-50 dark:bg-teal-900/20 border-teal-200 dark:border-teal-800">
       <CardContent className="p-4">

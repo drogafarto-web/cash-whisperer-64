@@ -3,15 +3,11 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { CheckCircle, AlertCircle, XCircle, FileText, Clock } from 'lucide-react';
 import type { TaxComparison } from '@/hooks/useAccountingAudit';
+import { formatCurrencyNullable } from '@/lib/utils';
 
 interface AuditTaxesCardProps {
   taxComparisons: TaxComparison[];
 }
-
-const formatCurrency = (value: number | null) => {
-  if (value === null) return '--';
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-};
 
 const statusIcons: Record<TaxComparison['status'], React.ReactNode> = {
   ok: <CheckCircle className="h-4 w-4 text-emerald-500" />,
@@ -51,10 +47,10 @@ export function AuditTaxesCard({ taxComparisons }: AuditTaxesCardProps) {
                 <TableRow key={tax.imposto} className={tax.status === 'error' ? 'bg-red-50/50 dark:bg-red-950/20' : ''}>
                   <TableCell className="font-medium">{tax.imposto}</TableCell>
                   <TableCell className="text-right font-mono text-sm">
-                    {formatCurrency(tax.valorInformado)}
+                    {formatCurrencyNullable(tax.valorInformado)}
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm">
-                    {formatCurrency(tax.valorOcr)}
+                    {formatCurrencyNullable(tax.valorOcr)}
                   </TableCell>
                   <TableCell className="text-right">
                     {tax.valorOcr !== null && (

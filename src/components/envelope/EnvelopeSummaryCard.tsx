@@ -1,5 +1,6 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Wallet, FileText } from 'lucide-react';
+import { formatCurrency } from '@/lib/utils';
 
 interface EnvelopeSummaryCardProps {
   expectedCash: number;
@@ -12,13 +13,6 @@ export function EnvelopeSummaryCard({
   selectedCount,
   totalAvailable,
 }: EnvelopeSummaryCardProps) {
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    });
-  };
-
   return (
     <Card className="bg-primary/5 border-primary/20">
       <CardContent className="p-4">

@@ -3,6 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { CheckCircle2, AlertCircle, XCircle } from 'lucide-react';
+import { formatCurrency } from '@/lib/utils';
 
 interface EnvelopeComparisonCardProps {
   expectedCash: number;
@@ -24,13 +25,6 @@ export function EnvelopeComparisonCard({
   const countedValue = parseFloat(countedCash.replace(',', '.')) || 0;
   const difference = countedValue - expectedCash;
   const absDifference = Math.abs(difference);
-
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    });
-  };
 
   // Determinar status da comparação
   const getStatus = () => {

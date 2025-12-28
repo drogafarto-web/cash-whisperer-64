@@ -32,7 +32,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useUpdatePayable } from '@/features/payables/hooks/usePayables';
 import { useBoletoOcr } from '@/features/payables/hooks/usePayableOcr';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { cn, formatCurrency } from '@/lib/utils';
 import type { Payable, BoletoOcrResult } from '@/types/payables';
 import { Calendar as CalendarIcon } from 'lucide-react';
 
@@ -185,9 +185,6 @@ export function PayableDetailModal({
     setOcrSuggestion(null);
   };
 
-  const formatCurrencyCompare = (value: number) =>
-    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
   const handleSave = async () => {
     if (!payable) return;
     setIsUploading(true);
@@ -288,9 +285,6 @@ export function PayableDetailModal({
       <span className="font-medium text-right">{value || '-'}</span>
     </div>
   );
-
-  const formatCurrency = (value: number) =>
-    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   return (
     <>
@@ -645,10 +639,10 @@ export function PayableDetailModal({
                         <span>Valor:</span>
                         <span>
                           <span className="text-muted-foreground line-through mr-2">
-                            {formatCurrencyCompare(formData.valor)}
+                            {formatCurrency(formData.valor)}
                           </span>
                           <span className="text-primary font-medium">
-                            {formatCurrencyCompare(ocrSuggestion.valor)}
+                            {formatCurrency(ocrSuggestion.valor)}
                           </span>
                         </span>
                       </div>

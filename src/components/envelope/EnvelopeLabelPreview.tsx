@@ -4,6 +4,7 @@ import { Printer, Download, Copy, CheckCircle2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { formatCurrency } from '@/lib/utils';
 
 interface EnvelopeLabelPreviewProps {
   envelopeId: string;
@@ -34,13 +35,6 @@ export function EnvelopeLabelPreview({
   onPrintLabel,
   onDownloadZpl,
 }: EnvelopeLabelPreviewProps) {
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    });
-  };
-
   const formatDateTime = (dateStr: string) => {
     try {
       return format(new Date(dateStr), "dd/MM/yyyy HH:mm", { locale: ptBR });

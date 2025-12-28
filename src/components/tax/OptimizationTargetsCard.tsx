@@ -4,6 +4,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Target, TrendingUp, DollarSign, ArrowRight, Lightbulb, Calculator } from 'lucide-react';
 import { TaxParameters, TaxScenarioResult, calculateProlaboreAdjustment, calculateAnexoSavings, calculateAliquotaEfetivaSimples } from '@/services/taxSimulator';
+import { formatCurrency } from '@/lib/utils';
 
 interface OptimizationTarget {
   title: string;
@@ -36,9 +37,6 @@ export function OptimizationTargetsCard({
   cenarios,
   regimeAtual,
 }: OptimizationTargetsCardProps) {
-  const formatCurrency = (value: number) =>
-    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
   const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`;
 
   // Calcular ajuste de pró-labore necessário

@@ -1,6 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { CreditCard, FileText, TrendingDown } from 'lucide-react';
 import { CardTotals } from '@/services/paymentResolutionService';
+import { formatCurrency } from '@/lib/utils';
 
 interface CardFeesSummaryCardProps {
   cardTotals: CardTotals;
@@ -13,13 +14,6 @@ export function CardFeesSummaryCard({
   selectedCount,
   totalAvailable,
 }: CardFeesSummaryCardProps) {
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    });
-  };
-
   const feePercent = cardTotals.grossAmount > 0
     ? ((cardTotals.feeAmount / cardTotals.grossAmount) * 100).toFixed(1)
     : '0.0';

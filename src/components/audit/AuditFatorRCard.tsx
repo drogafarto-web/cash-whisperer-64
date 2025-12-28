@@ -3,15 +3,12 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react';
 import type { AccountingAuditData } from '@/hooks/useAccountingAudit';
+import { formatCurrency } from '@/lib/utils';
 
 interface AuditFatorRCardProps {
   competenceData: AccountingAuditData['competenceData'];
   fatorR: AccountingAuditData['fatorR'];
 }
-
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-};
 
 export function AuditFatorRCard({ competenceData, fatorR }: AuditFatorRCardProps) {
   const statusConfig = {
