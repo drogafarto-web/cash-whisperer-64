@@ -164,5 +164,6 @@ export function useAccountingDocuments(ano: number, mes: number) {
       if (error) throw error;
       return data;
     },
+    staleTime: 1000 * 60 * 5, // 5 minutos
   });
 }

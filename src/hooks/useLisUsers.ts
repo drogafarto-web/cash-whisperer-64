@@ -24,6 +24,7 @@ export function useLisUsers() {
       if (error) throw error;
       return data as LisUser[];
     },
+    staleTime: 1000 * 60 * 10, // 10 minutos
   });
 }
 
@@ -31,28 +32,28 @@ export function useUnlinkedLisUsers() {
   return useQuery({
     queryKey: ['unlinked-lis-users'],
     queryFn: async () => {
-      // Get all LIS users
-      const { data: lisUsers, error: lisError } = await supabase
-        .from('lis_users')
-        .select('*')
-        .eq('active', true)
-        .order('nome');
+      // Buscar LIS users e profiles em paralelo para eliminar N+1
+      const [lisUsersResult, profilesResult] = await Promise.all([
+        supabase
+          .from('lis_users')
+          .select('*')
+          .eq('active', true)
+          .order('nome'),
+        supabase
+          .from('profiles')
+          .select('lis_login')
+          .not('lis_login', 'is', null),
+      ]);
       
-      if (lisError) throw lisError;
+      if (lisUsersResult.error) throw lisUsersResult.error;
+      if (profilesResult.error) throw profilesResult.error;
       
-      // Get all profiles with lis_login set
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('lis_login')
-        .not('lis_login', 'is', null);
-      
-      if (profilesError) throw profilesError;
-      
-      const linkedLogins = new Set(profiles?.map(p => p.lis_login?.toUpperCase()) || []);
+      const linkedLogins = new Set(profilesResult.data?.map(p => p.lis_login?.toUpperCase()) || []);
       
       // Filter to only unlinked users
-      return (lisUsers || []).filter(u => !linkedLogins.has(u.login.toUpperCase())) as LisUser[];
+      return (lisUsersResult.data || []).filter(u => !linkedLogins.has(u.login.toUpperCase())) as LisUser[];
     },
+    staleTime: 1000 * 60 * 5, // 5 minutos
   });
 }
 
