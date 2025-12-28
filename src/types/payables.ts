@@ -97,3 +97,33 @@ export interface PayableFormData {
 // Status types
 export type PayableStatus = 'PENDENTE' | 'PAGO' | 'VENCIDO' | 'CANCELADO';
 export type SupplierInvoiceStatus = 'pendente' | 'parcial' | 'quitada' | 'cancelada';
+
+// Tax Document OCR types
+export type TaxDocumentType = 'das' | 'darf' | 'gps' | 'inss' | 'fgts' | 'folha' | 'nf_servico' | 'outro';
+export type PixKeyType = 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria';
+
+export interface TaxDocumentOcrResult {
+  tipo_documento: TaxDocumentType;
+  valor: number | null;
+  vencimento: string | null;
+  codigo_barras: string | null;
+  linha_digitavel: string | null;
+  cnpj: string | null;
+  beneficiario: string | null;
+  competencia: { ano: number; mes: number } | null;
+  pix_key: string | null;
+  pix_tipo: PixKeyType | null;
+  confidence: number;
+  raw_text?: string;
+}
+
+export const TAX_DOCUMENT_LABELS: Record<TaxDocumentType, string> = {
+  das: 'DAS - Simples Nacional',
+  darf: 'DARF',
+  gps: 'GPS',
+  inss: 'INSS',
+  fgts: 'FGTS',
+  folha: 'Folha de Pagamento',
+  nf_servico: 'NF de Serviço',
+  outro: 'Outro',
+};
