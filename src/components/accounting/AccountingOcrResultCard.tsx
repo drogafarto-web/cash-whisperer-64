@@ -1,4 +1,4 @@
-import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, TrendingDown, ExternalLink, CreditCard } from 'lucide-react';
+import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, TrendingDown, ExternalLink, CreditCard, Lightbulb } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -159,6 +159,19 @@ export function AccountingOcrResultCard({
             </div>
           </div>
         </div>
+
+        {/* Sugestão do Assistente IA */}
+        {result.attendantSuggestion && (
+          <div className="mt-4 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+            <div className="flex items-start gap-2">
+              <Lightbulb className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs font-medium text-primary mb-1">Sugestão do Assistente IA</p>
+                <p className="text-sm text-foreground/80">{result.attendantSuggestion}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Status row */}
         <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/50">

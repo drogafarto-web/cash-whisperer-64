@@ -43,6 +43,8 @@ interface AnalyzedDocResult {
   linhaDigitavel: string | null;
   pixKey: string | null;
   pixTipo: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria' | null;
+  // Sugestão contextual para o atendente
+  attendantSuggestion: string | null;
 }
 
 // Normaliza CNPJ removendo pontuação
@@ -214,6 +216,18 @@ CAMPOS A EXTRAIR:
 - Código de barras e Linha digitável
 - Chave PIX (se encontrada)
 
+GERE UMA SUGESTÃO CONTEXTUAL (campo attendant_suggestion) para o atendente que explique:
+1. O que é este documento e qual seu propósito
+2. Como ele deve ser cadastrado (receita, despesa, categoria sugerida)
+3. Pontos de atenção (vencimentos, retenções, duplicidades comuns)
+4. Próximos passos recomendados
+
+Exemplos de sugestões:
+- Holerite: "Este é o holerite do funcionário [Nome] ref. [Mês/Ano]. Cadastre como DESPESA de Folha de Pagamento. Valor líquido: R$ X. Verifique se as guias de FGTS e INSS do mês já foram lançadas separadamente."
+- NFS-e emitida: "Esta NFS-e foi emitida pelo LabClin para [Cliente]. Cadastre como RECEITA. Há retenção de ISS de R$ X que deve ser considerada no valor líquido."
+- Boleto de fornecedor: "Boleto de [Fornecedor] com vencimento em [Data]. Cadastre como DESPESA. Verifique se já existe boleto similar cadastrado para evitar duplicidade."
+- DARF: "Guia DARF para pagamento de tributo federal. Cadastre como DESPESA na categoria Impostos. Vencimento: [Data]. Valor: R$ X."
+
 Retorne os dados no formato JSON. Para valores monetários, use números. Para datas, use YYYY-MM-DD.`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -226,14 +240,15 @@ Retorne os dados no formato JSON. Para valores monetários, use números. Para d
         model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:${mimeType || 'image/png'};base64,${imageBase64}`
-                }
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: `data:${mimeType || 'image/png'};base64,${imageBase64}`,
+                    detail: 'high'
+                  }
               },
               {
                 type: 'text',
@@ -348,9 +363,13 @@ Retorne os dados no formato JSON. Para valores monetários, use números. Para d
                   confidence: {
                     type: 'number',
                     description: 'Nível de confiança da extração (0 a 1)'
+                  },
+                  attendant_suggestion: {
+                    type: 'string',
+                    description: 'Sugestão contextual para o atendente explicando: 1) O que é o documento, 2) Como deve ser cadastrado (receita/despesa, categoria), 3) Pontos de atenção (vencimentos, retenções), 4) Próximos passos. Escreva de forma clara e objetiva em português.'
                   }
                 },
-                required: ['document_type', 'confidence']
+                required: ['document_type', 'confidence', 'attendant_suggestion']
               }
             }
           }
@@ -467,6 +486,8 @@ Retorne os dados no formato JSON. Para valores monetários, use números. Para d
       linhaDigitavel: extractedData.linha_digitavel || null,
       pixKey: extractedData.pix_key || null,
       pixTipo: extractedData.pix_tipo || null,
+      // Sugestão contextual para o atendente
+      attendantSuggestion: extractedData.attendant_suggestion || null,
     };
 
     console.log('Final result with classification:', result);
