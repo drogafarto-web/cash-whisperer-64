@@ -330,13 +330,13 @@ export function AccountingKioskHome({
           <Card className="hover:border-primary/50 transition-colors cursor-pointer" onClick={onSendDocuments}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <FileText className="h-4 w-4 text-purple-500" />
-                Notas Fiscais
+                <Paperclip className="h-4 w-4 text-purple-500" />
+                Comprovantes NFs
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold">{nfCount}</p>
-              <p className="text-xs text-muted-foreground">arquivos enviados</p>
+              <p className="text-xs text-muted-foreground">PDFs anexados p/ contabilidade</p>
             </CardContent>
           </Card>
 
