@@ -93,18 +93,27 @@ export function TaxDocumentConfirmModal({
   // Load categories and units
   useEffect(() => {
     const loadCategories = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('categories')
-        .select('id, name, type')
-        .eq('type', 'SAIDA')
-        .eq('active', true)
-        .order('name');
-      if (data) setCategories(data as any);
+        .select('*');
+      if (!error && data) {
+        const filtered = data
+          .filter((c: any) => c.type === 'SAIDA' && c.active)
+          .sort((a: any, b: any) => a.name.localeCompare(b.name));
+        setCategories(filtered.map((c: any) => ({ id: c.id, name: c.name, type: c.type })));
+      }
     };
     
     const loadUnits = async () => {
-      const result = await supabase.from('units').select('id, name').eq('active', true);
-      if (result.data) setUnits(result.data as any);
+      const { data, error } = await supabase
+        .from('units')
+        .select('*');
+      if (!error && data) {
+        const filtered = data
+          .filter((u: any) => u.active)
+          .sort((a: any, b: any) => a.name.localeCompare(b.name));
+        setUnits(filtered.map((u: any) => ({ id: u.id, name: u.name })));
+      }
     };
     
     loadCategories();
