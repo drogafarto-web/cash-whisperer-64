@@ -248,10 +248,12 @@ export async function createPayableFromOcr(
     }
 
     // Determinar tipo de payable
-    let tipo: 'boleto' | 'pix' | 'outros' = 'outros';
-    if (result.documentType === 'boleto') {
-      tipo = 'boleto';
-    }
+  let tipo: 'boleto' | 'parcela' | 'avulso' | 'recibo' = 'avulso';
+  if (result.documentType === 'boleto') {
+    tipo = 'boleto';
+  } else if (result.documentType === 'recibo') {
+    tipo = 'recibo';
+  }
 
     const payableData = {
       unit_id: unitId,
