@@ -2861,13 +2861,18 @@ export type Database = {
           cnpj: string | null
           code: string
           created_at: string
+          endereco: string | null
           id: string
           inscricao_estadual: string | null
           inscricao_municipal: string | null
           municipio_codigo_ibge: string | null
           municipio_nome: string | null
           name: string
+          nome_fantasia: string | null
           parent_unit_id: string | null
+          razao_social: string | null
+          telefone: string | null
+          uf: string | null
           unit_type: string | null
         }
         Insert: {
@@ -2875,13 +2880,18 @@ export type Database = {
           cnpj?: string | null
           code: string
           created_at?: string
+          endereco?: string | null
           id?: string
           inscricao_estadual?: string | null
           inscricao_municipal?: string | null
           municipio_codigo_ibge?: string | null
           municipio_nome?: string | null
           name: string
+          nome_fantasia?: string | null
           parent_unit_id?: string | null
+          razao_social?: string | null
+          telefone?: string | null
+          uf?: string | null
           unit_type?: string | null
         }
         Update: {
@@ -2889,13 +2899,18 @@ export type Database = {
           cnpj?: string | null
           code?: string
           created_at?: string
+          endereco?: string | null
           id?: string
           inscricao_estadual?: string | null
           inscricao_municipal?: string | null
           municipio_codigo_ibge?: string | null
           municipio_nome?: string | null
           name?: string
+          nome_fantasia?: string | null
           parent_unit_id?: string | null
+          razao_social?: string | null
+          telefone?: string | null
+          uf?: string | null
           unit_type?: string | null
         }
         Relationships: [
