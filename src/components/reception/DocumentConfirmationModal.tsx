@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -33,6 +34,7 @@ import {
   Wallet,
   QrCode,
   ArrowUpDown,
+  BanknoteIcon,
 } from 'lucide-react';
 import { AnalyzedDocResult, DOCUMENT_TYPE_LABELS, isTaxDocument } from '@/services/accountingOcrService';
 import { toast } from 'sonner';
@@ -44,7 +46,7 @@ interface DocumentConfirmationModalProps {
   onOpenChange: (open: boolean) => void;
   result: AnalyzedDocResult;
   fileName: string;
-  onConfirm: (type: 'revenue' | 'expense', extras?: { description?: string; paymentMethod?: PaymentMethodType }) => void;
+  onConfirm: (type: 'revenue' | 'expense', extras?: { description?: string; paymentMethod?: PaymentMethodType; needsReconciliation?: boolean }) => void;
   onCancel: () => void;
   isConfirming?: boolean;
 }
@@ -67,6 +69,8 @@ export function DocumentConfirmationModal({
   // New fields for service description and payment method
   const [serviceDescription, setServiceDescription] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>('');
+  // Flag for revenue reconciliation - default to true
+  const [needsReconciliation, setNeedsReconciliation] = useState(true);
 
   const isRevenue = selectedType === 'revenue';
   const isExpense = selectedType === 'expense' || isTaxDoc;
@@ -101,7 +105,9 @@ export function DocumentConfirmationModal({
     const extras = isExpense ? {
       description: serviceDescription || undefined,
       paymentMethod: paymentMethod || undefined,
-    } : undefined;
+    } : {
+      needsReconciliation,
+    };
     onConfirm(selectedType, extras);
   };
 
@@ -388,6 +394,34 @@ export function DocumentConfirmationModal({
                     </SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+          )}
+
+          {/* Reconciliation flag - only for revenues */}
+          {isRevenue && !isTaxDoc && (
+            <div className="border-t pt-4">
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+                <Checkbox
+                  id="needs-reconciliation"
+                  checked={needsReconciliation}
+                  onCheckedChange={(checked) => setNeedsReconciliation(checked === true)}
+                  className="mt-0.5"
+                />
+                <div className="flex-1">
+                  <Label 
+                    htmlFor="needs-reconciliation" 
+                    className="text-sm font-medium text-emerald-800 cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2">
+                      <BanknoteIcon className="h-4 w-4" />
+                      Conciliar com extrato bancário
+                    </div>
+                  </Label>
+                  <p className="text-xs text-emerald-600 mt-1">
+                    Esta NF-e será vinculada a um lançamento de entrada no extrato bancário
+                  </p>
+                </div>
               </div>
             </div>
           )}
