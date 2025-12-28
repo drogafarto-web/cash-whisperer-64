@@ -142,26 +142,42 @@ export async function checkDuplicateInvoice(
   return { isDuplicate: false };
 }
 
-// Verifica duplicidade de payable
+// Verifica duplicidade de payable por CNPJ + document_number
 export async function checkDuplicatePayable(
   issuerCnpj: string | null,
-  documentNumber: string | null
+  documentNumber: string | null,
+  valor?: number | null,
+  vencimento?: string | null
 ): Promise<{ isDuplicate: boolean; existingId?: string }> {
-  if (!issuerCnpj || !documentNumber) {
-    return { isDuplicate: false };
-  }
-
   const normalizedCnpj = normalizeCnpj(issuerCnpj);
   
-  const { data } = await supabase
-    .from('payables')
-    .select('id')
-    .eq('beneficiario_cnpj', normalizedCnpj)
-    .or(`description.ilike.%${documentNumber}%`)
-    .limit(1);
+  // Verificação primária: CNPJ + document_number (mais precisa)
+  if (normalizedCnpj && documentNumber) {
+    const { data } = await supabase
+      .from('payables')
+      .select('id')
+      .eq('beneficiario_cnpj', normalizedCnpj)
+      .eq('document_number', documentNumber)
+      .limit(1);
 
-  if (data && data.length > 0) {
-    return { isDuplicate: true, existingId: data[0].id };
+    if (data && data.length > 0) {
+      return { isDuplicate: true, existingId: data[0].id };
+    }
+  }
+
+  // Verificação secundária: CNPJ + valor + vencimento (fallback)
+  if (normalizedCnpj && valor && vencimento) {
+    const { data } = await supabase
+      .from('payables')
+      .select('id')
+      .eq('beneficiario_cnpj', normalizedCnpj)
+      .eq('valor', valor)
+      .eq('vencimento', vencimento)
+      .limit(1);
+
+    if (data && data.length > 0) {
+      return { isDuplicate: true, existingId: data[0].id };
+    }
   }
 
   return { isDuplicate: false };
