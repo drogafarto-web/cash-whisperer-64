@@ -1,6 +1,8 @@
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { convertPdfToImage, blobToBase64 } from '@/utils/pdfToImage';
+import { DuplicateCheckResult } from '@/types/duplicateCheck';
+import { checkPayableDuplicateComprehensive } from './duplicateCheckService';
 
 // Tipos de documentos tributários (sempre despesa)
 const TAX_DOCUMENT_TYPES = ['darf', 'gps', 'das', 'fgts', 'inss_guia'];
@@ -389,7 +391,8 @@ export async function processAccountingDocument(
   unitId: string,
   filePath: string,
   competenceYear: number,
-  competenceMonth: number
+  competenceMonth: number,
+  options?: { skipDuplicateCheck?: boolean }
 ): Promise<{
   result: AnalyzedDocResult;
   recordCreated: boolean;
@@ -397,6 +400,7 @@ export async function processAccountingDocument(
   recordId?: string;
   isDuplicate?: boolean;
   duplicateId?: string;
+  duplicateCheck?: DuplicateCheckResult;
 }> {
   // Analisar documento
   const result = await analyzeAccountingDocument(file, unitId);
@@ -439,6 +443,47 @@ export async function processAccountingDocument(
   }
 
   if (result.type === 'expense') {
+    // Verificação de duplicidade multi-nível para despesas
+    if (!options?.skipDuplicateCheck) {
+      const duplicateCheck = await checkPayableDuplicateComprehensive(result);
+      
+      // Se bloqueado, retorna imediatamente sem criar
+      if (duplicateCheck.level === 'blocked') {
+        return {
+          result,
+          recordCreated: false,
+          isDuplicate: true,
+          duplicateId: duplicateCheck.existingId,
+          duplicateCheck,
+          recordType: 'payable',
+        };
+      }
+      
+      // Se alta/média confiança, retorna para confirmação do usuário
+      if (duplicateCheck.level === 'high' || duplicateCheck.level === 'medium') {
+        return {
+          result,
+          recordCreated: false,
+          duplicateCheck,
+          recordType: 'payable',
+        };
+      }
+      
+      // Se baixa confiança, cria mas retorna o aviso
+      if (duplicateCheck.level === 'low') {
+        const createResult = await createPayableFromOcr(result, unitId, filePath, file.name);
+        
+        return {
+          result,
+          recordCreated: createResult.success,
+          recordType: 'payable',
+          recordId: createResult.id,
+          duplicateCheck, // Passa o aviso para exibição
+        };
+      }
+    }
+    
+    // Sem duplicidade ou skip, criar normalmente
     const createResult = await createPayableFromOcr(result, unitId, filePath, file.name);
     
     if (createResult.error === 'duplicate') {
@@ -460,4 +505,14 @@ export async function processAccountingDocument(
   }
 
   return { result, recordCreated: false };
+}
+
+// Função para criar payable após confirmação de duplicidade
+export async function createPayableAfterDuplicateConfirmation(
+  result: AnalyzedDocResult,
+  unitId: string,
+  filePath: string,
+  fileName: string
+): Promise<{ success: boolean; id?: string; error?: string }> {
+  return createPayableFromOcr(result, unitId, filePath, fileName);
 }

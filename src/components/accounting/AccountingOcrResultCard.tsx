@@ -4,6 +4,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { AnalyzedDocResult } from '@/services/accountingOcrService';
+import { DuplicateCheckResult } from '@/types/duplicateCheck';
+import { DuplicateAlert } from './DuplicateAlert';
 
 interface AccountingOcrResultCardProps {
   result: AnalyzedDocResult;
@@ -13,8 +15,10 @@ interface AccountingOcrResultCardProps {
   recordId?: string;
   isDuplicate?: boolean;
   duplicateId?: string;
+  duplicateCheck?: DuplicateCheckResult;
   onViewRecord?: (type: 'invoice' | 'payable', id: string) => void;
   onAddPaymentData?: (payableId: string) => void;
+  onConfirmDuplicate?: () => void;
 }
 
 export function AccountingOcrResultCard({
@@ -25,8 +29,10 @@ export function AccountingOcrResultCard({
   recordId,
   isDuplicate,
   duplicateId,
+  duplicateCheck,
   onViewRecord,
   onAddPaymentData,
+  onConfirmDuplicate,
 }: AccountingOcrResultCardProps) {
   const formatCurrency = (value: number | null) => {
     if (value === null || value === undefined) return '—';
@@ -159,6 +165,17 @@ export function AccountingOcrResultCard({
             </div>
           </div>
         </div>
+
+        {/* Alerta de duplicidade multi-nível */}
+        {duplicateCheck && duplicateCheck.level !== 'none' && (
+          <div className="mt-4">
+            <DuplicateAlert
+              duplicateCheck={duplicateCheck}
+              onViewExisting={(id) => onViewRecord?.(recordType || 'payable', id)}
+              onConfirmContinue={onConfirmDuplicate}
+            />
+          </div>
+        )}
 
         {/* Sugestão do Assistente IA */}
         {result.attendantSuggestion && (
