@@ -7,7 +7,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { 
   ArrowLeft, 
   FileText, 
-  Receipt, 
   FileUp, 
   Upload, 
   Trash2, 
@@ -29,7 +28,15 @@ import {
 } from '@/hooks/useAccountingCompetence';
 import { AccountingOcrResultCard } from './AccountingOcrResultCard';
 import { PaymentDataModal } from '@/components/payables/PaymentDataModal';
-import { processAccountingDocument, AnalyzedDocResult } from '@/services/accountingOcrService';
+import { DocumentConfirmationModal } from '@/components/reception/DocumentConfirmationModal';
+import { 
+  analyzeAccountingDocument, 
+  createInvoiceFromOcr, 
+  createPayableFromOcr,
+  checkDuplicateInvoice,
+  checkDuplicatePayable,
+  AnalyzedDocResult 
+} from '@/services/accountingOcrService';
 import { useNavigate } from 'react-router-dom';
 
 interface AccountingSendDocumentsProps {
@@ -39,7 +46,7 @@ interface AccountingSendDocumentsProps {
   onBack: () => void;
 }
 
-type DocumentType = 'nf' | 'despesa' | 'extrato_bancario';
+type DocumentType = 'documento' | 'extrato_bancario';
 
 interface OcrResult {
   docId: string;
@@ -52,15 +59,26 @@ interface OcrResult {
   duplicateId?: string;
 }
 
+interface PendingDocument {
+  file: File;
+  filePath: string;
+  docId: string;
+  result: AnalyzedDocResult;
+}
+
 export function AccountingSendDocuments({ unitId, unitName, competence, onBack }: AccountingSendDocumentsProps) {
   const navigate = useNavigate();
   const ano = competence.getFullYear();
   const mes = competence.getMonth() + 1;
   
-  const [activeTab, setActiveTab] = useState<DocumentType>('nf');
+  const [activeTab, setActiveTab] = useState<DocumentType>('documento');
   const [observacoes, setObservacoes] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [ocrResults, setOcrResults] = useState<OcrResult[]>([]);
+  
+  // Confirmation modal state
+  const [pendingDocument, setPendingDocument] = useState<PendingDocument | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
   
   // Payment data modal state
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -77,10 +95,13 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
   
   const competenceLabel = format(competence, "MMMM 'de' yyyy", { locale: ptBR });
   
-  const filteredDocs = documents.filter(d => d.tipo === activeTab);
+  // Filter documents - "documento" shows both nf and despesa types
+  const filteredDocs = activeTab === 'documento' 
+    ? documents.filter(d => d.tipo === 'nf' || d.tipo === 'despesa')
+    : documents.filter(d => d.tipo === 'extrato_bancario');
 
-  // Verifica se a aba atual suporta OCR inteligente
-  const supportsOcr = activeTab === 'nf' || activeTab === 'despesa';
+  // Documento tab supports OCR
+  const supportsOcr = activeTab === 'documento';
   
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length || !unitId) return;
@@ -105,17 +126,17 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
       }
     }
     
-    // Upload do arquivo
+    // Upload the file first (with temporary type, will be updated after confirmation)
     const uploadResult = await uploadMutation.mutateAsync({
       file,
       submission_id: submissionId,
       unit_id: unitId,
       ano,
       mes,
-      tipo: activeTab,
+      tipo: supportsOcr ? 'nf' : 'extrato_bancario', // Temporary, may change after confirmation
     });
 
-    // Se suporta OCR e é NF ou Despesa, processar automaticamente
+    // If supports OCR, analyze and show confirmation modal
     if (supportsOcr && uploadResult?.id) {
       setIsAnalyzing(true);
       
@@ -125,45 +146,17 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
           duration: 10000,
         });
 
-        const ocrResult = await processAccountingDocument(
-          file,
-          unitId,
-          uploadResult.file_path || '',
-          ano,
-          mes
-        );
-
+        const analysisResult = await analyzeAccountingDocument(file, unitId);
+        
         toast.dismiss('ocr-analyzing');
 
-        // Adicionar resultado à lista
-        const newOcrResult: OcrResult = {
+        // Store pending document and show confirmation modal
+        setPendingDocument({
+          file,
+          filePath: uploadResult.file_path || '',
           docId: uploadResult.id,
-          fileName: file.name,
-          result: ocrResult.result,
-          recordCreated: ocrResult.recordCreated,
-          recordType: ocrResult.recordType,
-          recordId: ocrResult.recordId,
-          isDuplicate: ocrResult.isDuplicate,
-          duplicateId: ocrResult.duplicateId,
-        };
-
-        setOcrResults(prev => [newOcrResult, ...prev]);
-
-        // Mostrar toast apropriado
-        if (ocrResult.isDuplicate) {
-          toast.warning('Documento já cadastrado', {
-            description: 'Este documento já existe no sistema.',
-          });
-        } else if (ocrResult.recordCreated) {
-          const typeLabel = ocrResult.recordType === 'invoice' ? 'Faturamento' : 'Despesas';
-          toast.success(`Cadastrado em ${typeLabel}`, {
-            description: `${ocrResult.result.type === 'revenue' ? 'Receita' : 'Despesa'} identificada automaticamente.`,
-          });
-        } else if (ocrResult.result.type === 'unknown') {
-          toast.info('Classificação manual necessária', {
-            description: 'Não foi possível identificar automaticamente se é receita ou despesa.',
-          });
-        }
+          result: analysisResult,
+        });
 
       } catch (error) {
         toast.dismiss('ocr-analyzing');
@@ -178,7 +171,127 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
     
     // Reset input
     e.target.value = '';
-  }, [unitId, ano, mes, activeTab, submission?.id, submissionMutation, uploadMutation, supportsOcr]);
+  }, [unitId, ano, mes, submission?.id, submissionMutation, uploadMutation, supportsOcr]);
+
+  const handleConfirmClassification = async (selectedType: 'revenue' | 'expense') => {
+    if (!pendingDocument || !unitId) return;
+    
+    setIsConfirming(true);
+    
+    try {
+      const { file, filePath, docId, result } = pendingDocument;
+      
+      // Update the result type if user changed it
+      const finalResult = { ...result, type: selectedType };
+      
+      let recordCreated = false;
+      let recordType: 'invoice' | 'payable' | undefined;
+      let recordId: string | undefined;
+      let isDuplicate = false;
+      let duplicateId: string | undefined;
+      
+      if (selectedType === 'revenue') {
+        // Check for duplicate invoice
+        const dupCheck = await checkDuplicateInvoice(
+          finalResult.issuerCnpj,
+          finalResult.documentNumber
+        );
+        
+        if (dupCheck.isDuplicate) {
+          isDuplicate = true;
+          duplicateId = dupCheck.existingId;
+        } else {
+          // Create invoice
+          const invoiceResult = await createInvoiceFromOcr(
+            finalResult,
+            unitId,
+            filePath,
+            file.name,
+            ano,
+            mes
+          );
+          
+          if (invoiceResult.success) {
+            recordCreated = true;
+            recordType = 'invoice';
+            recordId = invoiceResult.id;
+          }
+        }
+      } else {
+        // Check for duplicate payable
+        const dupCheck = await checkDuplicatePayable(
+          finalResult.issuerCnpj,
+          finalResult.documentNumber,
+          finalResult.netValue || finalResult.totalValue,
+          finalResult.dueDate
+        );
+        
+        if (dupCheck.isDuplicate) {
+          isDuplicate = true;
+          duplicateId = dupCheck.existingId;
+        } else {
+          // Create payable
+          const payableResult = await createPayableFromOcr(
+            finalResult,
+            unitId,
+            filePath,
+            file.name
+          );
+          
+          if (payableResult.success) {
+            recordCreated = true;
+            recordType = 'payable';
+            recordId = payableResult.id;
+          }
+        }
+      }
+      
+      // Add to OCR results list
+      const newOcrResult: OcrResult = {
+        docId,
+        fileName: file.name,
+        result: finalResult,
+        recordCreated,
+        recordType,
+        recordId,
+        isDuplicate,
+        duplicateId,
+      };
+      
+      setOcrResults(prev => [newOcrResult, ...prev]);
+      
+      // Show appropriate toast
+      if (isDuplicate) {
+        toast.warning('Documento já cadastrado', {
+          description: 'Este documento já existe no sistema.',
+        });
+      } else if (recordCreated) {
+        const typeLabel = recordType === 'invoice' ? 'Faturamento' : 'Despesas';
+        toast.success(`Cadastrado em ${typeLabel}`, {
+          description: `${selectedType === 'revenue' ? 'Receita' : 'Despesa'} registrada com sucesso.`,
+        });
+      }
+      
+      // Close modal
+      setPendingDocument(null);
+      
+    } catch (error) {
+      console.error('Error confirming classification:', error);
+      toast.error('Erro ao salvar documento');
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
+  const handleCancelClassification = () => {
+    // User cancelled - document file is already uploaded but no record created
+    if (pendingDocument) {
+      toast.info('Classificação cancelada', {
+        description: 'O arquivo foi mantido, mas nenhum registro foi criado.',
+      });
+    }
+    setPendingDocument(null);
+  };
 
   const handleDelete = async (doc: typeof documents[0]) => {
     if (!doc.id || !submission?.id) return;
@@ -189,7 +302,7 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
       submission_id: submission.id,
     });
 
-    // Remover do OCR results se existir
+    // Remove from OCR results if exists
     setOcrResults(prev => prev.filter(r => r.docId !== doc.id));
   };
 
@@ -231,7 +344,6 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
   };
 
   const handleAddPaymentData = (payableId: string) => {
-    // Find the OCR result for this payable to get context info
     const ocrResult = ocrResults.find(r => r.recordId === payableId);
     
     setSelectedPayableId(payableId);
@@ -243,6 +355,10 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
   };
 
   const isReadOnly = submission?.status === 'enviado' || submission?.status === 'recebido';
+
+  // Count documents for tabs
+  const documentCount = documents.filter(d => d.tipo === 'nf' || d.tipo === 'despesa').length;
+  const extratoCount = documents.filter(d => d.tipo === 'extrato_bancario').length;
 
   if (loadingSubmission) {
     return (
@@ -274,29 +390,20 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
         </div>
         <p className="text-xl font-semibold capitalize">{competenceLabel} — {unitName}</p>
         <p className="text-xs text-muted-foreground mt-1">
-          <span className="text-primary font-medium">OCR Inteligente:</span> documentos são analisados automaticamente e cadastrados como Receita ou Despesa
+          <span className="text-primary font-medium">IA Inteligente:</span> documentos são analisados e você confirma se é Receita ou Despesa antes de salvar
         </p>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs - Simplified: Documentos (OCR) and Extrato */}
       <div className="flex gap-2 border-b pb-2">
         <Button 
-          variant={activeTab === 'nf' ? 'default' : 'ghost'}
+          variant={activeTab === 'documento' ? 'default' : 'ghost'}
           size="sm"
-          onClick={() => setActiveTab('nf')}
+          onClick={() => setActiveTab('documento')}
           className="gap-2"
         >
           <FileText className="h-4 w-4" />
-          Notas Fiscais ({documents.filter(d => d.tipo === 'nf').length})
-        </Button>
-        <Button 
-          variant={activeTab === 'despesa' ? 'default' : 'ghost'}
-          size="sm"
-          onClick={() => setActiveTab('despesa')}
-          className="gap-2"
-        >
-          <Receipt className="h-4 w-4" />
-          Despesas ({documents.filter(d => d.tipo === 'despesa').length})
+          Documentos ({documentCount})
         </Button>
         <Button 
           variant={activeTab === 'extrato_bancario' ? 'default' : 'ghost'}
@@ -305,7 +412,7 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
           className="gap-2"
         >
           <FileUp className="h-4 w-4" />
-          Extrato ({documents.filter(d => d.tipo === 'extrato_bancario').length})
+          Extrato Bancário ({extratoCount})
         </Button>
       </div>
 
@@ -332,16 +439,14 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
               </div>
               <p className="text-sm font-medium">
                 {isAnalyzing ? 'Analisando documento com IA...' : (
-                  <>
-                    {activeTab === 'nf' && 'Clique para adicionar Nota Fiscal'}
-                    {activeTab === 'despesa' && 'Clique para adicionar Comprovante de Despesa'}
-                    {activeTab === 'extrato_bancario' && 'Clique para adicionar Extrato Bancário'}
-                  </>
+                  supportsOcr 
+                    ? 'Clique para adicionar Documento' 
+                    : 'Clique para adicionar Extrato Bancário'
                 )}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 {supportsOcr ? (
-                  'PDF, XML, JPG ou PNG • Análise automática com IA'
+                  'PDF, XML, JPG ou PNG • A IA identifica se é Receita ou Despesa'
                 ) : (
                   'PDF, XML, JPG ou PNG'
                 )}
@@ -460,6 +565,19 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
         <div className="text-center text-sm text-muted-foreground">
           Enviado em {format(new Date(submission.enviado_em), "dd/MM/yyyy 'às' HH:mm")}
         </div>
+      )}
+
+      {/* Document Confirmation Modal */}
+      {pendingDocument && (
+        <DocumentConfirmationModal
+          open={!!pendingDocument}
+          onOpenChange={(open) => !open && handleCancelClassification()}
+          result={pendingDocument.result}
+          fileName={pendingDocument.file.name}
+          onConfirm={handleConfirmClassification}
+          onCancel={handleCancelClassification}
+          isConfirming={isConfirming}
+        />
       )}
 
       {/* Payment Data Modal */}
