@@ -16,6 +16,7 @@ import {
   Calculator,
   Loader2,
 } from 'lucide-react';
+import { formatCurrency } from '@/lib/utils';
 
 interface CashComparisonCardProps {
   expectedCash: number;

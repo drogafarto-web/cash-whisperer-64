@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   Circle,
 } from 'lucide-react';
+import { formatCurrency } from '@/lib/utils';
 
 interface TodayTransaction {
   id: string;
@@ -162,13 +163,6 @@ export function AttendantDashboard() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(value);
   };
 
   const dailyTasks: DailyTask[] = [

@@ -6,6 +6,7 @@ import { ArrowLeft, Users, Wallet, TrendingUp, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useCompetenceData } from '@/hooks/useAccountingCompetence';
+import { formatCurrencyNullable } from '@/lib/utils';
 
 interface AccountingViewDataProps {
   unitId: string | null;
@@ -31,12 +32,7 @@ export function AccountingViewData({
   
   const competenceLabel = format(competence, "MMMM 'de' yyyy", { locale: ptBR });
 
-  const formatCurrency = (value: number | null | undefined) => {
-    if (!value) return 'R$ 0,00';
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-  };
-
-  const formatDate = (date: string | null) => {
+  const formatDateLocal = (date: string | null) => {
     if (!date) return '—';
     return format(new Date(date), 'dd/MM/yyyy');
   };
@@ -112,15 +108,15 @@ export function AccountingViewData({
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Total Folha</p>
-                <p className="text-xl font-semibold">{formatCurrency(data.total_folha)}</p>
+                <p className="text-xl font-semibold">{formatCurrencyNullable(data.total_folha)}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Encargos</p>
-                <p className="text-xl font-semibold">{formatCurrency(data.encargos)}</p>
+                <p className="text-xl font-semibold">{formatCurrencyNullable(data.encargos)}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Pró-labore</p>
-                <p className="text-xl font-semibold">{formatCurrency(data.prolabore)}</p>
+                <p className="text-xl font-semibold">{formatCurrencyNullable(data.prolabore)}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Funcionários</p>
@@ -130,7 +126,7 @@ export function AccountingViewData({
           ) : (
             <div>
               <p className="text-sm text-muted-foreground">Total Folha</p>
-              <p className="text-2xl font-semibold">{formatCurrency(data.total_folha)}</p>
+              <p className="text-2xl font-semibold">{formatCurrencyNullable(data.total_folha)}</p>
               <p className="text-xs text-muted-foreground mt-1">Valor consolidado</p>
             </div>
           )}
@@ -154,11 +150,11 @@ export function AccountingViewData({
                   {data.das_vencimento && (
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
-                      {formatDate(data.das_vencimento)}
+                      {formatDateLocal(data.das_vencimento)}
                     </span>
                   )}
                 </div>
-                <p className="text-lg font-semibold">{formatCurrency(data.das_valor)}</p>
+                <p className="text-lg font-semibold">{formatCurrencyNullable(data.das_valor)}</p>
               </div>
 
               <div className="p-3 bg-muted/50 rounded-lg">
@@ -167,11 +163,11 @@ export function AccountingViewData({
                   {data.darf_vencimento && (
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
-                      {formatDate(data.darf_vencimento)}
+                      {formatDateLocal(data.darf_vencimento)}
                     </span>
                   )}
                 </div>
-                <p className="text-lg font-semibold">{formatCurrency(data.darf_valor)}</p>
+                <p className="text-lg font-semibold">{formatCurrencyNullable(data.darf_valor)}</p>
               </div>
 
               <div className="p-3 bg-muted/50 rounded-lg">
@@ -180,11 +176,11 @@ export function AccountingViewData({
                   {data.gps_vencimento && (
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
-                      {formatDate(data.gps_vencimento)}
+                      {formatDateLocal(data.gps_vencimento)}
                     </span>
                   )}
                 </div>
-                <p className="text-lg font-semibold">{formatCurrency(data.gps_valor)}</p>
+                <p className="text-lg font-semibold">{formatCurrencyNullable(data.gps_valor)}</p>
               </div>
 
               <div className="p-3 bg-muted/50 rounded-lg">
@@ -193,11 +189,11 @@ export function AccountingViewData({
                   {data.inss_vencimento && (
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
-                      {formatDate(data.inss_vencimento)}
+                      {formatDateLocal(data.inss_vencimento)}
                     </span>
                   )}
                 </div>
-                <p className="text-lg font-semibold">{formatCurrency(data.inss_valor)}</p>
+                <p className="text-lg font-semibold">{formatCurrencyNullable(data.inss_valor)}</p>
               </div>
 
               <div className="p-3 bg-muted/50 rounded-lg">
@@ -206,11 +202,11 @@ export function AccountingViewData({
                   {data.fgts_vencimento && (
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
-                      {formatDate(data.fgts_vencimento)}
+                      {formatDateLocal(data.fgts_vencimento)}
                     </span>
                   )}
                 </div>
-                <p className="text-lg font-semibold">{formatCurrency(data.fgts_valor)}</p>
+                <p className="text-lg font-semibold">{formatCurrencyNullable(data.fgts_valor)}</p>
               </div>
 
               <div className="p-3 bg-muted/50 rounded-lg">
@@ -219,18 +215,18 @@ export function AccountingViewData({
                   {data.iss_vencimento && (
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
-                      {formatDate(data.iss_vencimento)}
+                      {formatDateLocal(data.iss_vencimento)}
                     </span>
                   )}
                 </div>
-                <p className="text-lg font-semibold">{formatCurrency(data.iss_valor)}</p>
+                <p className="text-lg font-semibold">{formatCurrencyNullable(data.iss_valor)}</p>
               </div>
             </div>
           ) : (
             <div>
               <p className="text-sm text-muted-foreground">Total Impostos</p>
               <p className="text-2xl font-semibold">
-                {formatCurrency(
+                {formatCurrencyNullable(
                   (data.das_valor || 0) + 
                   (data.darf_valor || 0) + 
                   (data.gps_valor || 0) + 
@@ -257,11 +253,11 @@ export function AccountingViewData({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-sm text-muted-foreground">Receita de Serviços</p>
-              <p className="text-xl font-semibold">{formatCurrency(data.receita_servicos)}</p>
+              <p className="text-xl font-semibold">{formatCurrencyNullable(data.receita_servicos)}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Outras Receitas</p>
-              <p className="text-xl font-semibold">{formatCurrency(data.receita_outras)}</p>
+              <p className="text-xl font-semibold">{formatCurrencyNullable(data.receita_outras)}</p>
             </div>
           </div>
           {data.receita_observacoes && showDetails && (

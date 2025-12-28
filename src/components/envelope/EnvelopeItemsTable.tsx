@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { LisItemForEnvelope } from '@/services/envelopeClosingService';
 import { Banknote, CreditCard, QrCode, CircleDollarSign } from 'lucide-react';
+import { formatCurrencyNullable } from '@/lib/utils';
 
 interface EnvelopeItemsTableProps {
   items: LisItemForEnvelope[];
@@ -46,14 +47,6 @@ export function EnvelopeItemsTable({
   const selectableCount = items.filter(isItemSelectable).length;
   const allSelectableSelected = selectableCount > 0 && 
     items.filter(isItemSelectable).every(item => selectedIds.has(item.id));
-
-  const formatCurrency = (value: number | null) => {
-    if (value === null || value === undefined) return '-';
-    return value.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    });
-  };
 
   const formatDate = (dateStr: string) => {
     try {
@@ -206,7 +199,7 @@ export function EnvelopeItemsTable({
                   {getConvenioBadge(item.convenio)}
                 </TableCell>
                 <TableCell className="text-right font-medium">
-                  {formatCurrency(item.cash_component)}
+                  {formatCurrencyNullable(item.cash_component)}
                 </TableCell>
                 <TableCell className="text-center">
                   {getPaymentMethodIcon(item.payment_method)}

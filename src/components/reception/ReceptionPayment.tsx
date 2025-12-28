@@ -23,6 +23,7 @@ import {
 } from '@/features/payables/api/ocr.api';
 import { Payable } from '@/types/payables';
 import { format } from 'date-fns';
+import { formatCurrencyNullable } from '@/lib/utils';
 
 type PaymentStep = 'type' | 'upload' | 'review' | 'success';
 type PaymentType = 'boleto' | 'pix';
@@ -377,11 +378,6 @@ export function ReceptionPayment({ onBack, unitId }: ReceptionPaymentProps) {
     setPreviewUrl(null);
   };
 
-  const formatCurrency = (value: number | null) => {
-    if (value === null) return '-';
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
-  };
-
   // Step: Choose payment type
   if (step === 'type') {
     return (
@@ -599,7 +595,7 @@ export function ReceptionPayment({ onBack, unitId }: ReceptionPaymentProps) {
                 </div>
                 <div>
                   <span className="text-muted-foreground">Valor:</span>
-                  <p className="font-medium">{formatCurrency(ocrData.valor)}</p>
+                  <p className="font-medium">{formatCurrencyNullable(ocrData.valor)}</p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Data:</span>
@@ -639,7 +635,7 @@ export function ReceptionPayment({ onBack, unitId }: ReceptionPaymentProps) {
                 </div>
                 <div>
                   <span className="text-muted-foreground">Valor:</span>
-                  <p className="font-medium">{formatCurrency(matchedPayable.payable.valor)}</p>
+                  <p className="font-medium">{formatCurrencyNullable(matchedPayable.payable.valor)}</p>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Vencimento:</span>

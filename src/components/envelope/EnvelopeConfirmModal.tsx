@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Package, Banknote, AlertTriangle } from 'lucide-react';
+import { formatCurrency } from '@/lib/utils';
 
 interface EnvelopeConfirmModalProps {
   open: boolean;
@@ -34,9 +35,6 @@ export function EnvelopeConfirmModal({
 }: EnvelopeConfirmModalProps) {
   const difference = Math.abs(countedCash - expectedCash);
   const hasDifference = difference > 0.01;
-
-  const formatCurrency = (value: number) =>
-    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>

@@ -6,6 +6,7 @@ import { Progress } from '@/components/ui/progress';
 import { AlertTriangle, TrendingUp, ArrowRight, CheckCircle, DollarSign } from 'lucide-react';
 import { FatorRStatus } from '@/services/taxSimulator';
 import { Link } from 'react-router-dom';
+import { formatCurrency } from '@/lib/utils';
 
 interface FatorRAlertProps {
   fatorRAtual: number;
@@ -32,9 +33,6 @@ export function FatorRAlert({
   showLink = true,
   compact = false,
 }: FatorRAlertProps) {
-  const formatCurrency = (value: number) =>
-    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
   const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`;
 
   const fatorRPercent = fatorRAtual * 100;

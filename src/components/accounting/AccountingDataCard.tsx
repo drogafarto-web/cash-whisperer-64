@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
+import { formatCurrency } from '@/lib/utils';
 
 interface AccountingDataCardProps {
   type: 'impostos' | 'receita' | 'folha' | 'fator-r';
@@ -48,9 +49,6 @@ interface AccountingDataCardProps {
   };
   competence: Date;
 }
-
-const formatCurrency = (value: number) => 
-  value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export function AccountingDataCard({ type, data, competence }: AccountingDataCardProps) {
   const navigate = useNavigate();

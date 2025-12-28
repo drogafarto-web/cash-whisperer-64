@@ -13,6 +13,7 @@ import { ptBR } from 'date-fns/locale';
 import { LisItemForEnvelope } from '@/services/envelopeClosingService';
 import { CreditCard, QrCode } from 'lucide-react';
 import { PaymentMethodType } from '@/services/paymentResolutionService';
+import { formatCurrencyNullable } from '@/lib/utils';
 
 interface PaymentItemsTableProps {
   items: LisItemForEnvelope[];
@@ -39,14 +40,6 @@ export function PaymentItemsTable({
     } else {
       onClearSelection();
     }
-  };
-
-  const formatCurrency = (value: number | null) => {
-    if (value === null || value === undefined) return '-';
-    return value.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    });
   };
 
   const formatDate = (dateStr: string) => {
@@ -138,18 +131,18 @@ export function PaymentItemsTable({
                 {showCardColumns ? (
                   <>
                     <TableCell className="text-right">
-                      {formatCurrency(item.gross_amount || item.amount)}
+                      {formatCurrencyNullable(item.gross_amount || item.amount)}
                     </TableCell>
                     <TableCell className="text-right text-orange-600 dark:text-orange-400">
-                      -{formatCurrency(item.card_fee_value)}
+                      -{formatCurrencyNullable(item.card_fee_value)}
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      {formatCurrency(item.net_amount || item.amount)}
+                      {formatCurrencyNullable(item.net_amount || item.amount)}
                     </TableCell>
                   </>
                 ) : (
                   <TableCell className="text-right font-medium">
-                    {formatCurrency(item.amount)}
+                    {formatCurrencyNullable(item.amount)}
                   </TableCell>
                 )}
                 <TableCell className="text-center">
