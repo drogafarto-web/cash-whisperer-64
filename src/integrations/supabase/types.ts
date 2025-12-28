@@ -620,33 +620,57 @@ export type Database = {
       }
       accounts: {
         Row: {
+          account_number: string | null
+          account_type: string | null
           active: boolean
+          agency: string | null
           created_at: string
           description: string | null
+          holder_document: string | null
+          holder_name: string | null
           id: string
           initial_balance: number
+          institution: string | null
+          institution_code: string | null
+          is_default: boolean | null
           name: string
           type: string | null
           unit_id: string | null
           updated_at: string
         }
         Insert: {
+          account_number?: string | null
+          account_type?: string | null
           active?: boolean
+          agency?: string | null
           created_at?: string
           description?: string | null
+          holder_document?: string | null
+          holder_name?: string | null
           id?: string
           initial_balance?: number
+          institution?: string | null
+          institution_code?: string | null
+          is_default?: boolean | null
           name: string
           type?: string | null
           unit_id?: string | null
           updated_at?: string
         }
         Update: {
+          account_number?: string | null
+          account_type?: string | null
           active?: boolean
+          agency?: string | null
           created_at?: string
           description?: string | null
+          holder_document?: string | null
+          holder_name?: string | null
           id?: string
           initial_balance?: number
+          institution?: string | null
+          institution_code?: string | null
+          is_default?: boolean | null
           name?: string
           type?: string | null
           unit_id?: string | null
@@ -1981,6 +2005,7 @@ export type Database = {
           parcela_total: number | null
           parte_relacionada_nome: string | null
           parte_relacionada_tipo: string | null
+          payment_bank_account_id: string | null
           pix_key: string | null
           status: string
           supplier_invoice_id: string | null
@@ -2016,6 +2041,7 @@ export type Database = {
           parcela_total?: number | null
           parte_relacionada_nome?: string | null
           parte_relacionada_tipo?: string | null
+          payment_bank_account_id?: string | null
           pix_key?: string | null
           status?: string
           supplier_invoice_id?: string | null
@@ -2051,6 +2077,7 @@ export type Database = {
           parcela_total?: number | null
           parte_relacionada_nome?: string | null
           parte_relacionada_tipo?: string | null
+          payment_bank_account_id?: string | null
           pix_key?: string | null
           status?: string
           supplier_invoice_id?: string | null
@@ -2073,6 +2100,13 @@ export type Database = {
             columns: ["matched_transaction_id"]
             isOneToOne: false
             referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payables_payment_bank_account_id_fkey"
+            columns: ["payment_bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
             referencedColumns: ["id"]
           },
           {
@@ -2736,6 +2770,7 @@ export type Database = {
           amount: number
           approved_at: string | null
           approved_by: string | null
+          bank_account_id: string | null
           card_fee_percent: number | null
           card_fee_value: number | null
           category_id: string
@@ -2770,6 +2805,7 @@ export type Database = {
           amount: number
           approved_at?: string | null
           approved_by?: string | null
+          bank_account_id?: string | null
           card_fee_percent?: number | null
           card_fee_value?: number | null
           category_id: string
@@ -2804,6 +2840,7 @@ export type Database = {
           amount?: number
           approved_at?: string | null
           approved_by?: string | null
+          bank_account_id?: string | null
           card_fee_percent?: number | null
           card_fee_value?: number | null
           category_id?: string
@@ -2837,6 +2874,13 @@ export type Database = {
           {
             foreignKeyName: "transactions_account_id_fkey"
             columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_bank_account_id_fkey"
+            columns: ["bank_account_id"]
             isOneToOne: false
             referencedRelation: "accounts"
             referencedColumns: ["id"]
