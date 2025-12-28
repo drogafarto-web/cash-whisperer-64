@@ -250,7 +250,8 @@ export function AccountingKioskHome({
           <StatusBadge status={competenceData?.status || 'pendente'} />
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Grid com 2 colunas - apenas Folha e Impostos (dados da contabilidade) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card className={`transition-colors ${isAccountingRole ? 'hover:border-primary/50 cursor-pointer' : ''}`} onClick={isAccountingRole ? () => onViewData('folha') : undefined}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -295,24 +296,6 @@ export function AccountingKioskHome({
               <p className="text-xs text-muted-foreground">DAS + DARF + GPS + ISS</p>
             </CardContent>
           </Card>
-
-          <Card className={`transition-colors ${isAccountingRole ? 'hover:border-primary/50 cursor-pointer' : ''}`} onClick={isAccountingRole ? () => onViewData('receitas') : undefined}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-green-500" />
-                Receitas
-                {attachmentCounts.receitas > 0 && (
-                  <Badge variant="outline" className="gap-1 ml-auto text-xs">
-                    <Paperclip className="h-3 w-3" />{attachmentCounts.receitas}
-                  </Badge>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold">{formatCurrency(competenceData?.receita_servicos)}</p>
-              <p className="text-xs text-muted-foreground">Serviços + {formatCurrency(competenceData?.receita_outras)} outras</p>
-            </CardContent>
-          </Card>
         </div>
       </div>
 
@@ -325,7 +308,25 @@ export function AccountingKioskHome({
           {submission && <StatusBadge status={submission.status} />}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Grid com 5 colunas - dados que o laboratório envia para a contabilidade */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          {/* Faturamento / NFs Clientes - NFs emitidas pelo laboratório */}
+          <Card 
+            className="hover:border-primary/50 transition-colors cursor-pointer"
+            onClick={() => navigate(`/billing/summary?month=${monthParam}`)}
+          >
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-green-500" />
+                Faturamento / NFs Clientes
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold">{formatCurrency((competenceData?.receita_servicos || 0) + (competenceData?.receita_outras || 0))}</p>
+              <p className="text-xs text-muted-foreground">NFs emitidas para convênios/prefeituras</p>
+            </CardContent>
+          </Card>
+
           <Card className="hover:border-primary/50 transition-colors cursor-pointer" onClick={onSendDocuments}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -365,7 +366,7 @@ export function AccountingKioskHome({
             </CardContent>
           </Card>
 
-          {/* Movimento de Caixa - dados da central de fechamento */}
+          {/* Movimento de Caixa - dados da central de fechamento (lis_closures / lis_closure_items) */}
           <Card 
             className="hover:border-primary/50 transition-colors cursor-pointer border-emerald-200 bg-emerald-50/30 dark:border-emerald-800 dark:bg-emerald-950/20"
             onClick={() => navigate(`/reports/cashflow-projection?month=${monthParam}`)}
@@ -376,7 +377,7 @@ export function AccountingKioskHome({
                 Movimento de Caixa
                 {cashMovement && cashMovement.closuresCount > 0 && (
                   <Badge variant="outline" className="ml-auto text-xs bg-emerald-100 dark:bg-emerald-900">
-                    {cashMovement.closuresCount} fechamentos
+                    {cashMovement.closuresCount} fech.
                   </Badge>
                 )}
               </CardTitle>
