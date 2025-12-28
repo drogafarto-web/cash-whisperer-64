@@ -17,8 +17,14 @@ import {
   ArrowLeft,
   Paperclip,
   Sparkles,
+  Calculator,
+  FileSpreadsheet,
+  Building2,
+  PieChart,
+  BarChart3,
+  Rocket,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useCompetenceData, useLabSubmission, useLabDocuments, useCompetenceDocuments } from '@/hooks/useAccountingCompetence';
@@ -32,6 +38,14 @@ interface AccountingKioskHomeProps {
   onViewData: (section: AccountingSection) => void;
   onSendDocuments: () => void;
   isAccountingRole?: boolean;
+}
+
+interface QuickAccessCard {
+  title: string;
+  description: string;
+  icon: React.ElementType;
+  iconColor: string;
+  path: string;
 }
 
 function StatusBadge({ status }: { status: 'pendente' | 'informado' | 'confirmado' | 'rascunho' | 'enviado' | 'recebido' }) {
@@ -62,8 +76,10 @@ export function AccountingKioskHome({
   onSendDocuments,
   isAccountingRole = true,
 }: AccountingKioskHomeProps) {
+  const navigate = useNavigate();
   const ano = competence.getFullYear();
   const mes = competence.getMonth() + 1;
+  const monthParam = `${ano}-${String(mes).padStart(2, '0')}`;
   
   const { data: competenceData, isLoading: loadingData } = useCompetenceData(unitId, ano, mes);
   const { data: submission, isLoading: loadingSubmission } = useLabSubmission(unitId, ano, mes);
@@ -75,6 +91,52 @@ export function AccountingKioskHome({
   const nfCount = documents.filter(d => d.tipo === 'nf').length;
   const despesaCount = documents.filter(d => d.tipo === 'despesa').length;
   const extratoCount = documents.filter(d => d.tipo === 'extrato_bancario').length;
+
+  // Quick access navigation cards
+  const quickAccessCards: QuickAccessCard[] = [
+    {
+      title: 'Impostos do Mês',
+      description: 'Cenários tributários e simulações',
+      icon: Calculator,
+      iconColor: 'text-orange-500',
+      path: `/reports/tax-scenarios?month=${monthParam}`,
+    },
+    {
+      title: 'Folha de Pagamento',
+      description: 'Base fiscal e dados de folha',
+      icon: Users,
+      iconColor: 'text-blue-500',
+      path: `/settings/fiscal-base?tab=folha&month=${monthParam}`,
+    },
+    {
+      title: 'NFs Fornecedores',
+      description: 'Notas fiscais de compras',
+      icon: FileSpreadsheet,
+      iconColor: 'text-purple-500',
+      path: `/payables/supplier-invoices?month=${monthParam}`,
+    },
+    {
+      title: 'NFs Clientes / Faturamento',
+      description: 'Resumo de faturamento e notas',
+      icon: Building2,
+      iconColor: 'text-green-500',
+      path: `/billing/summary?month=${monthParam}`,
+    },
+    {
+      title: 'Fator R / Anexos',
+      description: 'Análise de Fator R e anexos do Simples',
+      icon: PieChart,
+      iconColor: 'text-red-500',
+      path: `/reports/tax-scenarios?month=${monthParam}#fator-r`,
+    },
+    {
+      title: 'Fluxo de Caixa',
+      description: 'Projeção e movimentação de caixa',
+      icon: BarChart3,
+      iconColor: 'text-teal-500',
+      path: `/reports/cashflow-projection?month=${monthParam}`,
+    },
+  ];
 
   // Count attachments by category and check OCR status
   const { attachmentCounts, ocrStats } = useMemo(() => {
@@ -144,7 +206,35 @@ export function AccountingKioskHome({
         </div>
       </div>
 
-      <div>
+      {/* Quick Access Section */}
+      <div className="border-t pt-6">
+        <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
+          <Rocket className="h-5 w-5 text-primary" />
+          🚀 Acesso Rápido
+        </h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {quickAccessCards.map((card) => (
+            <Card 
+              key={card.title}
+              className="hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group min-h-[120px]"
+              onClick={() => navigate(card.path)}
+            >
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <card.icon className={`h-5 w-5 ${card.iconColor} group-hover:scale-110 transition-transform`} />
+                  {card.title}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">{card.description}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      <div className="border-t pt-6">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-lg font-semibold flex items-center gap-2">
