@@ -266,6 +266,7 @@ export async function createPayableFromOcr(
       status: 'PENDENTE',
       file_path: filePath,
       file_name: fileName,
+      file_bucket: 'accounting-documents',
       ocr_confidence: typeof result.confidence === 'number' ? Number(result.confidence.toFixed(3)) : null,
     };
 
