@@ -7,9 +7,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Tipos de documentos tributários (sempre despesa)
+const TAX_DOCUMENT_TYPES = ['darf', 'gps', 'das', 'fgts', 'inss_guia'];
+
 interface AnalyzedDocResult {
   type: 'revenue' | 'expense' | 'unknown';
-  documentType: 'nfse' | 'nf_produto' | 'boleto' | 'recibo' | 'extrato' | 'outro';
+  documentType: 'nfse' | 'nf_produto' | 'boleto' | 'recibo' | 'extrato' | 'darf' | 'gps' | 'das' | 'fgts' | 'inss_guia' | 'outro';
   issuerCnpj: string | null;
   customerCnpj: string | null;
   issuerName: string | null;
@@ -32,6 +35,11 @@ interface AnalyzedDocResult {
   classificationReason: string;
   competenceYear: number | null;
   competenceMonth: number | null;
+  // Novos campos para guias tributárias
+  codigoBarras: string | null;
+  linhaDigitavel: string | null;
+  pixKey: string | null;
+  pixTipo: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria' | null;
 }
 
 // Normaliza CNPJ removendo pontuação
@@ -40,14 +48,25 @@ function normalizeCnpj(cnpj: string | null): string | null {
   return cnpj.replace(/[^\d]/g, '');
 }
 
-// Classifica documento baseado nos CNPJs
+// Classifica documento baseado nos CNPJs e tipo de documento
 function classifyDocument(
+  documentType: string,
   issuerCnpj: string | null,
   customerCnpj: string | null,
   issuerName: string | null,
   customerName: string | null,
   labClinCnpjs: string[]
 ): { type: 'revenue' | 'expense' | 'unknown'; reason: string } {
+  
+  // REGRA ESPECIAL: Documentos tributários são SEMPRE despesas
+  if (TAX_DOCUMENT_TYPES.includes(documentType)) {
+    const docLabel = documentType.toUpperCase().replace('_', ' ');
+    return {
+      type: 'expense',
+      reason: `Guia tributária ${docLabel} - despesa fiscal obrigatória`
+    };
+  }
+  
   const normalizedIssuer = normalizeCnpj(issuerCnpj);
   const normalizedCustomer = normalizeCnpj(customerCnpj);
   
@@ -132,27 +151,45 @@ Analise o documento fornecido e extraia os dados estruturados.
 TIPOS DE DOCUMENTO:
 - nfse: Nota Fiscal de Serviço Eletrônica
 - nf_produto: Nota Fiscal de Produto/Mercadoria
-- boleto: Boleto bancário
+- boleto: Boleto bancário comercial (de fornecedores)
 - recibo: Recibo/Comprovante
 - extrato: Extrato bancário
+- darf: DARF - Documento de Arrecadação de Receitas Federais (guia federal - IRPJ, IRRF, CSLL, PIS, COFINS, INSS sobre 13º, etc.)
+- gps: GPS - Guia da Previdência Social (contribuição previdenciária)
+- das: DAS - Documento de Arrecadação do Simples Nacional
+- fgts: FGTS - Guia de Recolhimento do Fundo de Garantia
+- inss_guia: Guia específica do INSS (não GPS)
 - outro: Outros documentos
+
+COMO IDENTIFICAR DOCUMENTOS TRIBUTÁRIOS:
+- DARF: Documento com brasão da República, "Receita Federal", "DARF", código de receita (ex: 0561, 1708, 5952)
+- GPS: Documento com brasão do INSS, "GPS - Guia da Previdência Social", NIT/PIS/PASEP
+- DAS: Documento com "Simples Nacional", "DAS - Documento de Arrecadação"
+- FGTS: Documento com "Caixa Econômica Federal", "FGTS", "GRF"
+- INSS_GUIA: Guia específica INSS (diferente de GPS)
+
+IMPORTANTE:
+- Guias tributárias (DARF, GPS, DAS, FGTS) são documentos do governo para pagamento de impostos
+- Boletos são de empresas comerciais (fornecedores, serviços)
+- Sempre identifique corretamente quem é o PRESTADOR e quem é o TOMADOR
+- Extraia código de barras e linha digitável quando disponíveis
 
 CAMPOS A EXTRAIR:
 - Tipo do documento
-- CNPJ e Nome do PRESTADOR/EMISSOR (quem emitiu o documento)
+- CNPJ e Nome do PRESTADOR/EMISSOR (quem emitiu)
 - CNPJ e Nome do TOMADOR/CONTRATANTE (para quem foi emitido)
-- Número do documento e série (se houver)
-- Data de emissão
-- Data de vencimento (se houver)
+- Número do documento e série
+- Data de emissão e vencimento
 - Valor total e valor líquido
 - Impostos (ISS, INSS, PIS, COFINS)
-- Código de verificação (se houver)
+- Código de verificação
 - Descrição dos serviços/produtos
 - Competência (mês/ano)
+- Código de barras (44-48 dígitos numéricos)
+- Linha digitável (com pontos e espaços)
+- Chave PIX (se encontrada)
 
-IMPORTANTE: Sempre identifique corretamente quem é o PRESTADOR (quem presta o serviço/vende) e quem é o TOMADOR (quem contrata/compra).
-
-Retorne os dados no formato JSON. Para valores monetários, use números (ex: 11987.46). Para datas, use YYYY-MM-DD.`;
+Retorne os dados no formato JSON. Para valores monetários, use números. Para datas, use YYYY-MM-DD.`;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -175,7 +212,7 @@ Retorne os dados no formato JSON. Para valores monetários, use números (ex: 11
               },
               {
                 type: 'text',
-                text: 'Extraia todos os dados fiscais deste documento e retorne no formato JSON especificado.'
+                text: 'Extraia todos os dados fiscais deste documento e retorne no formato JSON especificado. Identifique especialmente se é uma guia tributária (DARF, GPS, DAS, FGTS) ou um documento comercial.'
               }
             ]
           }
@@ -185,26 +222,26 @@ Retorne os dados no formato JSON. Para valores monetários, use números (ex: 11
             type: 'function',
             function: {
               name: 'extract_fiscal_data',
-              description: 'Extrai dados estruturados de documentos fiscais brasileiros',
+              description: 'Extrai dados estruturados de documentos fiscais brasileiros, incluindo guias tributárias',
               parameters: {
                 type: 'object',
                 properties: {
                   document_type: {
                     type: 'string',
-                    enum: ['nfse', 'nf_produto', 'boleto', 'recibo', 'extrato', 'outro'],
+                    enum: ['nfse', 'nf_produto', 'boleto', 'recibo', 'extrato', 'darf', 'gps', 'das', 'fgts', 'inss_guia', 'outro'],
                     description: 'Tipo do documento fiscal'
                   },
                   issuer_cnpj: {
                     type: 'string',
-                    description: 'CNPJ do PRESTADOR/EMISSOR (quem emitiu)'
+                    description: 'CNPJ do PRESTADOR/EMISSOR (quem emitiu). Para guias tributárias, é o CNPJ do contribuinte.'
                   },
                   issuer_name: {
                     type: 'string',
-                    description: 'Nome/Razão social do PRESTADOR/EMISSOR'
+                    description: 'Nome/Razão social do PRESTADOR/EMISSOR ou contribuinte'
                   },
                   customer_cnpj: {
                     type: 'string',
-                    description: 'CNPJ do TOMADOR/CONTRATANTE (para quem foi emitido)'
+                    description: 'CNPJ do TOMADOR/CONTRATANTE. Para guias tributárias, deixar vazio.'
                   },
                   customer_name: {
                     type: 'string',
@@ -212,7 +249,7 @@ Retorne os dados no formato JSON. Para valores monetários, use números (ex: 11
                   },
                   document_number: {
                     type: 'string',
-                    description: 'Número do documento (ex: 196/2025)'
+                    description: 'Número do documento ou código de referência'
                   },
                   series: {
                     type: 'string',
@@ -224,7 +261,7 @@ Retorne os dados no formato JSON. Para valores monetários, use números (ex: 11
                   },
                   due_date: {
                     type: 'string',
-                    description: 'Data de vencimento no formato YYYY-MM-DD (se houver)'
+                    description: 'Data de vencimento no formato YYYY-MM-DD'
                   },
                   total_value: {
                     type: 'number',
@@ -256,7 +293,7 @@ Retorne os dados no formato JSON. Para valores monetários, use números (ex: 11
                   },
                   description: {
                     type: 'string',
-                    description: 'Descrição dos serviços/produtos'
+                    description: 'Descrição dos serviços/produtos ou tipo de tributo'
                   },
                   competence_year: {
                     type: 'integer',
@@ -265,6 +302,23 @@ Retorne os dados no formato JSON. Para valores monetários, use números (ex: 11
                   competence_month: {
                     type: 'integer',
                     description: 'Mês de competência (1-12)'
+                  },
+                  codigo_barras: {
+                    type: 'string',
+                    description: 'Código de barras numérico (44-48 dígitos) sem espaços ou pontos'
+                  },
+                  linha_digitavel: {
+                    type: 'string',
+                    description: 'Linha digitável formatada com pontos e espaços'
+                  },
+                  pix_key: {
+                    type: 'string',
+                    description: 'Chave PIX encontrada no documento (copia e cola ou chave)'
+                  },
+                  pix_tipo: {
+                    type: 'string',
+                    enum: ['cpf', 'cnpj', 'email', 'telefone', 'aleatoria'],
+                    description: 'Tipo da chave PIX'
                   },
                   confidence: {
                     type: 'number',
@@ -316,7 +370,11 @@ Retorne os dados no formato JSON. Para valores monetários, use números (ex: 11
           type: 'unknown',
           documentType: 'outro',
           confidence: 0,
-          classificationReason: 'Não foi possível extrair dados do documento'
+          classificationReason: 'Não foi possível extrair dados do documento',
+          codigoBarras: null,
+          linhaDigitavel: null,
+          pixKey: null,
+          pixTipo: null,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -332,7 +390,11 @@ Retorne os dados no formato JSON. Para valores monetários, use números (ex: 11
           type: 'unknown',
           documentType: 'outro',
           confidence: 0,
-          classificationReason: 'Erro ao processar dados extraídos'
+          classificationReason: 'Erro ao processar dados extraídos',
+          codigoBarras: null,
+          linhaDigitavel: null,
+          pixKey: null,
+          pixTipo: null,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -340,8 +402,9 @@ Retorne os dados no formato JSON. Para valores monetários, use números (ex: 11
 
     console.log('Extracted data:', extractedData);
 
-    // Classificar como receita ou despesa
+    // Classificar como receita ou despesa (agora passando o tipo de documento)
     const classification = classifyDocument(
+      extractedData.document_type || 'outro',
       extractedData.issuer_cnpj,
       extractedData.customer_cnpj,
       extractedData.issuer_name,
@@ -374,6 +437,11 @@ Retorne os dados no formato JSON. Para valores monetários, use números (ex: 11
       classificationReason: classification.reason,
       competenceYear: extractedData.competence_year || null,
       competenceMonth: extractedData.competence_month || null,
+      // Novos campos
+      codigoBarras: extractedData.codigo_barras || null,
+      linhaDigitavel: extractedData.linha_digitavel || null,
+      pixKey: extractedData.pix_key || null,
+      pixTipo: extractedData.pix_tipo || null,
     };
 
     console.log('Final result with classification:', result);
@@ -391,7 +459,11 @@ Retorne os dados no formato JSON. Para valores monetários, use números (ex: 11
         documentType: 'outro',
         error: error instanceof Error ? error.message : 'Unknown error',
         confidence: 0,
-        classificationReason: 'Erro ao processar documento'
+        classificationReason: 'Erro ao processar documento',
+        codigoBarras: null,
+        linhaDigitavel: null,
+        pixKey: null,
+        pixTipo: null,
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
