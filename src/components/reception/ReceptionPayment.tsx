@@ -23,7 +23,7 @@ import {
 } from '@/features/payables/api/ocr.api';
 import { Payable } from '@/types/payables';
 import { format } from 'date-fns';
-import { formatCurrencyNullable } from '@/lib/utils';
+import { formatCurrency, formatCurrencyNullable } from '@/lib/utils';
 
 type PaymentStep = 'type' | 'upload' | 'review' | 'success';
 type PaymentType = 'boleto' | 'pix';
