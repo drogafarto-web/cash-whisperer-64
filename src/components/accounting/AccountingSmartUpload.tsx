@@ -9,6 +9,8 @@ import {
   Loader2,
   X,
   FolderUp,
+  AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,15 +23,19 @@ import { convertPdfToImage } from '@/utils/pdfToImage';
 
 type TaxType = 'das' | 'darf' | 'gps' | 'inss' | 'fgts' | 'iss';
 
+type ErrorCode = 'RATE_LIMIT' | 'NO_CREDITS' | 'GENERIC';
+
 interface UploadedDocument {
   id: string;
   file: File;
   fileName: string;
-  status: 'queued' | 'uploading' | 'analyzing' | 'ready' | 'applied' | 'error';
+  filePath?: string;
+  status: 'queued' | 'uploading' | 'analyzing' | 'ready' | 'applied' | 'error' | 'manual';
   type: 'tax' | 'payroll';
   taxResult?: TaxGuideOcrResult;
   payrollResult?: PayrollOcrResult;
   errorMessage?: string;
+  errorCode?: ErrorCode;
 }
 
 interface AccountingSmartUploadProps {
@@ -88,6 +94,8 @@ export function AccountingSmartUpload({
       
       if (uploadError) throw uploadError;
       
+      updateDocument(id, { filePath });
+      
       // 2. Analyze with AI
       updateDocument(id, { status: 'analyzing' });
       
@@ -113,7 +121,12 @@ export function AccountingSmartUpload({
           }
         });
         
-        if (error) throw error;
+        // Handle specific error codes
+        if (error) {
+          const errorCode = detectErrorCode(error, result);
+          handleAIError(id, errorCode, 'payroll');
+          return;
+        }
         
         if (result?.success) {
           updateDocument(id, { 
@@ -122,7 +135,8 @@ export function AccountingSmartUpload({
             payrollResult: result.data,
           });
         } else {
-          throw new Error(result?.error || 'Falha na análise');
+          const errorCode = result?.code as ErrorCode || 'GENERIC';
+          handleAIError(id, errorCode, 'payroll', result?.error);
         }
       } else {
         // Call tax document OCR
@@ -134,7 +148,12 @@ export function AccountingSmartUpload({
           }
         });
         
-        if (error) throw error;
+        // Handle specific error codes
+        if (error) {
+          const errorCode = detectErrorCode(error, result);
+          handleAIError(id, errorCode, 'tax');
+          return;
+        }
         
         if (result?.success) {
           updateDocument(id, { 
@@ -143,7 +162,8 @@ export function AccountingSmartUpload({
             taxResult: result.data,
           });
         } else {
-          throw new Error(result?.error || 'Falha no OCR');
+          const errorCode = result?.code as ErrorCode || 'GENERIC';
+          handleAIError(id, errorCode, 'tax', result?.error);
         }
       }
     } catch (error: any) {
@@ -151,9 +171,52 @@ export function AccountingSmartUpload({
       updateDocument(id, { 
         status: 'error', 
         errorMessage: error.message || 'Erro ao processar documento',
+        errorCode: 'GENERIC',
       });
-      toast.error(`Erro ao processar ${doc.fileName}: ${error.message}`);
+      toast.error(`Erro ao processar ${doc.fileName}`);
     }
+  };
+
+  const detectErrorCode = (error: any, result: any): ErrorCode => {
+    if (result?.code) return result.code;
+    
+    const message = error?.message?.toLowerCase() || '';
+    if (message.includes('429') || message.includes('rate limit')) return 'RATE_LIMIT';
+    if (message.includes('402') || message.includes('credits') || message.includes('payment')) return 'NO_CREDITS';
+    
+    return 'GENERIC';
+  };
+
+  const handleAIError = (id: string, errorCode: ErrorCode, docType: 'tax' | 'payroll', message?: string) => {
+    let errorMessage: string;
+    let status: UploadedDocument['status'] = 'error';
+    
+    switch (errorCode) {
+      case 'RATE_LIMIT':
+        errorMessage = 'Limite de requisições excedido. Tente novamente em alguns minutos ou preencha manualmente.';
+        toast.warning('Limite de IA atingido. Você pode tentar novamente em breve.');
+        break;
+      case 'NO_CREDITS':
+        errorMessage = 'IA indisponível. Arquivo anexado - preencha os dados manualmente.';
+        status = 'manual';
+        toast.info('IA indisponível. O arquivo foi anexado, preencha os campos manualmente.');
+        break;
+      default:
+        errorMessage = message || 'Erro ao analisar documento. Tente novamente ou preencha manualmente.';
+        toast.error('Erro na análise. O arquivo foi anexado.');
+    }
+    
+    updateDocument(id, { 
+      status, 
+      type: docType,
+      errorMessage,
+      errorCode,
+    });
+  };
+
+  const retryDocument = async (doc: UploadedDocument) => {
+    updateDocument(doc.id, { status: 'queued', errorMessage: undefined, errorCode: undefined });
+    await processDocument(doc);
   };
 
   const handleFiles = useCallback(async (files: FileList | File[]) => {
@@ -251,6 +314,7 @@ export function AccountingSmartUpload({
   ).length;
 
   const readyCount = documents.filter((d) => d.status === 'ready').length;
+  const manualCount = documents.filter((d) => d.status === 'manual').length;
 
   return (
     <div className="space-y-4">
@@ -305,7 +369,7 @@ export function AccountingSmartUpload({
 
       {/* Status Summary */}
       {documents.length > 0 && (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {pendingCount > 0 && (
             <Badge variant="secondary" className="gap-1">
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -317,6 +381,12 @@ export function AccountingSmartUpload({
               {readyCount} pronto(s) para aplicar
             </Badge>
           )}
+          {manualCount > 0 && (
+            <Badge variant="outline" className="gap-1 border-amber-500 text-amber-600">
+              <AlertTriangle className="h-3 w-3" />
+              {manualCount} anexado(s) - preencher manual
+            </Badge>
+          )}
         </div>
       )}
 
@@ -324,22 +394,47 @@ export function AccountingSmartUpload({
       <div className="space-y-3">
         {documents.map((doc) => (
           <div key={doc.id}>
-            {doc.status === 'error' ? (
-              <Card className="border-red-200 bg-red-50 dark:bg-red-900/20">
-                <CardContent className="p-4 flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-red-500" />
-                  <div className="flex-1">
-                    <p className="font-medium text-red-700 dark:text-red-300">{doc.fileName}</p>
-                    <p className="text-sm text-red-600 dark:text-red-400">{doc.errorMessage}</p>
+            {/* Error or Manual State */}
+            {(doc.status === 'error' || doc.status === 'manual') ? (
+              <Card className={`${doc.status === 'manual' ? 'border-amber-200 bg-amber-50 dark:bg-amber-900/20' : 'border-red-200 bg-red-50 dark:bg-red-900/20'}`}>
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <FileText className={`h-5 w-5 mt-0.5 ${doc.status === 'manual' ? 'text-amber-500' : 'text-red-500'}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className={`font-medium truncate ${doc.status === 'manual' ? 'text-amber-700 dark:text-amber-300' : 'text-red-700 dark:text-red-300'}`}>
+                        {doc.fileName}
+                      </p>
+                      <p className={`text-sm ${doc.status === 'manual' ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {doc.errorMessage}
+                      </p>
+                      {doc.filePath && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          ✓ Arquivo anexado
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {doc.errorCode === 'RATE_LIMIT' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => retryDocument(doc)}
+                          className="h-8 w-8 p-0"
+                          title="Tentar novamente"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemove(doc.id)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleRemove(doc.id)}
-                    className="h-8 w-8 p-0"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
                 </CardContent>
               </Card>
             ) : doc.type === 'payroll' && doc.payrollResult ? (
