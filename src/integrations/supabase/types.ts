@@ -1965,6 +1965,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           description: string | null
+          document_number: string | null
           file_bucket: string | null
           file_name: string | null
           file_path: string | null
@@ -1999,6 +2000,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          document_number?: string | null
           file_bucket?: string | null
           file_name?: string | null
           file_path?: string | null
@@ -2033,6 +2035,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          document_number?: string | null
           file_bucket?: string | null
           file_name?: string | null
           file_path?: string | null
