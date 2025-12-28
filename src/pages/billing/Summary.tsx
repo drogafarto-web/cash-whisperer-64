@@ -34,8 +34,7 @@ export default function BillingSummary() {
   const navigate = useNavigate();
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth);
-
-  const { data: summary, isLoading } = useBillingSummary(selectedYear, selectedMonth);
+  const [selectedUnit, setSelectedUnit] = useState<string>('all');
 
   // Fetch units for filter
   const { data: units = [] } = useQuery({
@@ -46,6 +45,12 @@ export default function BillingSummary() {
       return data;
     },
   });
+
+  const { data: summary, isLoading } = useBillingSummary(
+    selectedYear, 
+    selectedMonth, 
+    selectedUnit === 'all' ? undefined : selectedUnit
+  );
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
