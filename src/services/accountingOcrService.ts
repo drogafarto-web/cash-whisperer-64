@@ -266,7 +266,7 @@ export async function createPayableFromOcr(
       status: 'PENDENTE',
       file_path: filePath,
       file_name: fileName,
-      ocr_confidence: result.confidence,
+      ocr_confidence: typeof result.confidence === 'number' ? Number(result.confidence.toFixed(3)) : null,
     };
 
     const { data, error } = await supabase
