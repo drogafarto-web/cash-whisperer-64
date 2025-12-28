@@ -338,6 +338,7 @@ export async function updatePayablePaymentData(
     pix_key?: string;
     banco_codigo?: string;
     banco_nome?: string;
+    payment_bank_account_id?: string;
   }
 ): Promise<Payable> {
   const updateData: Record<string, unknown> = {
@@ -350,6 +351,7 @@ export async function updatePayablePaymentData(
   if (data.pix_key) updateData.pix_key = data.pix_key;
   if (data.banco_codigo) updateData.banco_codigo = data.banco_codigo;
   if (data.banco_nome) updateData.banco_nome = data.banco_nome;
+  if (data.payment_bank_account_id) updateData.payment_bank_account_id = data.payment_bank_account_id;
 
   const { data: result, error } = await supabase
     .from('payables')

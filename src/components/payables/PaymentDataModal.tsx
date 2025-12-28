@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,11 +6,19 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Upload, FileText, Sparkles, Check, AlertCircle } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Loader2, Upload, FileText, Sparkles, Check, AlertCircle, Landmark, Star } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { updatePayablePaymentData } from '@/features/payables/api/payables.api';
 import { convertPdfToImage, blobToBase64 } from '@/utils/pdfToImage';
+import { useBankAccounts, useDefaultBankAccount } from '@/hooks/useBankAccounts';
 
 interface PaymentDataModalProps {
   open: boolean;
@@ -18,6 +26,7 @@ interface PaymentDataModalProps {
   payableId: string;
   payableBeneficiario?: string;
   payableValor?: number;
+  unitId?: string;
 }
 
 interface BoletoOcrResult {
@@ -40,6 +49,7 @@ export function PaymentDataModal({
   payableId,
   payableBeneficiario,
   payableValor,
+  unitId,
 }: PaymentDataModalProps) {
   const [activeTab, setActiveTab] = useState<'upload' | 'manual'>('upload');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -53,6 +63,18 @@ export function PaymentDataModal({
   const [pixKey, setPixKey] = useState('');
   const [bancoCodigo, setBancoCodigo] = useState('');
   const [bancoNome, setBancoNome] = useState('');
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState('');
+  
+  // Contas bancárias
+  const { data: bankAccounts = [] } = useBankAccounts(unitId);
+  const { data: defaultBankAccount } = useDefaultBankAccount();
+  
+  // Selecionar conta padrão
+  useEffect(() => {
+    if (defaultBankAccount && !selectedBankAccountId) {
+      setSelectedBankAccountId(defaultBankAccount.id);
+    }
+  }, [defaultBankAccount, selectedBankAccountId]);
 
   const resetForm = useCallback(() => {
     setOcrResult(null);
@@ -63,6 +85,7 @@ export function PaymentDataModal({
     setBancoCodigo('');
     setBancoNome('');
     setActiveTab('upload');
+    // Não resetar selectedBankAccountId para manter default
   }, []);
 
   const handleClose = useCallback(() => {
@@ -161,6 +184,7 @@ export function PaymentDataModal({
         pix_key: pixKey || undefined,
         banco_codigo: bancoCodigo || undefined,
         banco_nome: bancoNome || undefined,
+        payment_bank_account_id: selectedBankAccountId || undefined,
       });
 
       toast.success('Dados de pagamento atualizados!');
@@ -171,7 +195,7 @@ export function PaymentDataModal({
     } finally {
       setIsSaving(false);
     }
-  }, [payableId, vencimento, linhaDigitavel, codigoBarras, pixKey, bancoCodigo, bancoNome, handleClose]);
+  }, [payableId, vencimento, linhaDigitavel, codigoBarras, pixKey, bancoCodigo, bancoNome, selectedBankAccountId, handleClose]);
 
   const formatCurrency = (value: number | null) => {
     if (value === null || value === undefined) return '—';
@@ -385,6 +409,32 @@ export function PaymentDataModal({
                     placeholder="Ex: Itaú"
                   />
                 </div>
+              </div>
+              
+              {/* Conta para pagamento */}
+              <div className="space-y-1.5 pt-2 border-t">
+                <Label className="flex items-center gap-2">
+                  <Landmark className="h-4 w-4" />
+                  Conta para Pagamento
+                </Label>
+                <Select value={selectedBankAccountId} onValueChange={setSelectedBankAccountId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a conta..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bankAccounts.map((acc) => (
+                      <SelectItem key={acc.id} value={acc.id}>
+                        <div className="flex items-center gap-2">
+                          {acc.is_default && <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />}
+                          {acc.name}
+                          {acc.institution_code && (
+                            <span className="text-muted-foreground text-xs">({acc.institution_code})</span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </TabsContent>
