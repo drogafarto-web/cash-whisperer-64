@@ -37,87 +37,60 @@ export function usePendingDetails() {
     queryKey: ['pending-details', isAdmin, unit?.id],
     queryFn: async (): Promise<PendingDetails> => {
       const today = format(new Date(), 'yyyy-MM-dd');
-      
+      const lastMonth = subMonths(new Date(), 1);
+      const startDate = format(startOfMonth(lastMonth), 'yyyy-MM-dd');
+      const endDate = format(endOfMonth(lastMonth), 'yyyy-MM-dd');
+      const mesReferencia = format(lastMonth, 'MM/yyyy');
+
+      // Executar todas as queries em paralelo para eliminar N+1
+      const [
+        unitsResult,
+        closingsResult,
+        categoriesResult,
+        taxConfigsResult,
+        transactionsResult,
+      ] = await Promise.all([
+        supabase.from('units').select('id, name, code'),
+        supabase.from('cash_closings').select('unit_id').eq('date', today),
+        supabase.from('categories').select('id, name, type').eq('active', true).is('tax_group', null),
+        supabase.from('tax_config').select('unit_id'),
+        supabase.from('transactions').select(`amount, type, category:categories!inner(entra_fator_r)`)
+          .gte('date', startDate).lte('date', endDate).eq('status', 'APROVADA').is('deleted_at', null),
+      ]);
+
+      const allUnits = unitsResult.data || [];
+      const todayClosings = closingsResult.data || [];
+      const categoriesWithoutTaxGroup = categoriesResult.data || [];
+      const taxConfigs = taxConfigsResult.data || [];
+      const transactions = transactionsResult.data || [];
+
       // 1. Unidades sem fechamento de caixa hoje
       let unidadesSemFechamento: UnitPending[] = [];
+      const closedUnitIds = new Set(todayClosings.map(c => c.unit_id));
       
       if (isAdmin) {
-        // Buscar todas as unidades
-        const { data: allUnits } = await supabase
-          .from('units')
-          .select('id, name, code');
-        
-        // Buscar fechamentos de hoje
-        const { data: todayClosings } = await supabase
-          .from('cash_closings')
-          .select('unit_id')
-          .eq('date', today);
-        
-        const closedUnitIds = new Set(todayClosings?.map(c => c.unit_id) || []);
-        
-        unidadesSemFechamento = (allUnits || []).filter(u => !closedUnitIds.has(u.id));
+        unidadesSemFechamento = allUnits.filter(u => !closedUnitIds.has(u.id));
       } else if (unit?.id) {
-        const { data: hasClosing } = await supabase
-          .from('cash_closings')
-          .select('id')
-          .eq('date', today)
-          .eq('unit_id', unit.id)
-          .limit(1);
-        
-        if (!hasClosing || hasClosing.length === 0) {
+        if (!closedUnitIds.has(unit.id)) {
           unidadesSemFechamento = [{ id: unit.id, name: unit.name, code: unit.code }];
         }
       }
 
       // 2. Categorias ativas sem tax_group
-      const { data: categoriesWithoutTaxGroup } = await supabase
-        .from('categories')
-        .select('id, name, type')
-        .eq('active', true)
-        .is('tax_group', null);
-      
-      const categoriasSemTaxGroup: CategoryPending[] = (categoriesWithoutTaxGroup || []).map(c => ({
+      const categoriasSemTaxGroup: CategoryPending[] = categoriesWithoutTaxGroup.map(c => ({
         id: c.id,
         name: c.name,
         type: c.type,
       }));
 
       // 3. Unidades sem config tributária
-      let unidadesSemTaxConfig: UnitPending[] = [];
-      
-      const { data: allUnits } = await supabase
-        .from('units')
-        .select('id, name, code');
-      
-      const { data: taxConfigs } = await supabase
-        .from('tax_config')
-        .select('unit_id');
-      
-      const configuredUnitIds = new Set(taxConfigs?.map(c => c.unit_id).filter(Boolean) || []);
-      
-      unidadesSemTaxConfig = (allUnits || []).filter(u => !configuredUnitIds.has(u.id));
+      const configuredUnitIds = new Set(taxConfigs.map(c => c.unit_id).filter(Boolean));
+      const unidadesSemTaxConfig: UnitPending[] = allUnits.filter(u => !configuredUnitIds.has(u.id));
 
       // 4. Status do Fator R do mês anterior
       let fatorRStatus: FatorRStatus | null = null;
-      
-      const lastMonth = subMonths(new Date(), 1);
-      const startDate = format(startOfMonth(lastMonth), 'yyyy-MM-dd');
-      const endDate = format(endOfMonth(lastMonth), 'yyyy-MM-dd');
-      const mesReferencia = format(lastMonth, 'MM/yyyy');
 
-      const { data: transactions } = await supabase
-        .from('transactions')
-        .select(`
-          amount,
-          type,
-          category:categories!inner(entra_fator_r)
-        `)
-        .gte('date', startDate)
-        .lte('date', endDate)
-        .eq('status', 'APROVADA')
-        .is('deleted_at', null);
-
-      if (transactions && transactions.length > 0) {
+      if (transactions.length > 0) {
         let totalReceitas = 0;
         let folhaPagamento = 0;
 

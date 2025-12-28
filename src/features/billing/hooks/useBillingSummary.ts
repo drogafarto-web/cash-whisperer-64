@@ -5,5 +5,6 @@ export function useBillingSummary(year: number, month: number, unitId?: string) 
   return useQuery({
     queryKey: ['billing-summary', year, month, unitId],
     queryFn: () => fetchBillingSummary(year, month, unitId),
+    staleTime: 1000 * 60 * 5, // 5 minutos
   });
 }

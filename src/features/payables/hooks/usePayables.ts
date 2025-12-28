@@ -27,6 +27,7 @@ export function usePayables(filters?: {
   return useQuery({
     queryKey: [QUERY_KEY, filters],
     queryFn: () => fetchPayables(filters),
+    staleTime: 1000 * 60 * 2, // 2 minutos
   });
 }
 
@@ -35,6 +36,7 @@ export function usePayable(id: string) {
     queryKey: [QUERY_KEY, id],
     queryFn: () => fetchPayableById(id),
     enabled: !!id,
+    staleTime: 1000 * 60 * 5, // 5 minutos
   });
 }
 
@@ -42,6 +44,7 @@ export function usePendingPayablesForReconciliation(unitId?: string) {
   return useQuery({
     queryKey: [QUERY_KEY, 'pending-reconciliation', unitId],
     queryFn: () => fetchPendingPayablesForReconciliation(unitId),
+    staleTime: 1000 * 60 * 2, // 2 minutos
   });
 }
 

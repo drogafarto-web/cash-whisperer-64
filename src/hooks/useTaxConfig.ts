@@ -95,6 +95,7 @@ export function useTaxConfig(unitId?: string) {
       return { unit, taxConfig, fiscalData };
     },
     enabled: !!unitId,
+    staleTime: 1000 * 60 * 5, // 5 minutos
   });
 }
 
@@ -174,5 +175,6 @@ export function useUnits() {
       if (error) throw error;
       return data;
     },
+    staleTime: 1000 * 60 * 10, // 10 minutos
   });
 }

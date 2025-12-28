@@ -5,7 +5,7 @@
  * foram efetivamente pagos neste fechamento.
  */
 
-import { useMemo } from 'react';
+import React, { useMemo, memo, useCallback } from 'react';
 import { format } from 'date-fns';
 import {
   Table,
@@ -55,7 +55,79 @@ interface CashClosingSelectionTableProps {
   disabled?: boolean;
 }
 
-export function CashClosingSelectionTable({
+interface CashClosingRowProps {
+  item: LisClosureItemForSelection;
+  isSelected: boolean;
+  canSelect: boolean;
+  isLocked: boolean;
+  onToggle: (itemId: string) => void;
+  disabled: boolean;
+}
+
+// Memoized row component
+const CashClosingRow = memo(function CashClosingRow({
+  item,
+  isSelected,
+  canSelect,
+  isLocked,
+  onToggle,
+  disabled,
+}: CashClosingRowProps) {
+  const handleToggle = useCallback(() => onToggle(item.id), [onToggle, item.id]);
+  const isReceivable = item.payment_status === 'A_RECEBER';
+
+  return (
+    <TableRow
+      className={`
+        ${isSelected ? 'bg-green-50' : ''}
+        ${isReceivable ? 'bg-blue-50/50' : ''}
+        ${isLocked ? 'bg-gray-100' : ''}
+      `}
+    >
+      <TableCell>
+        {isLocked ? (
+          <Lock className="h-4 w-4 text-gray-400" />
+        ) : (
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={handleToggle}
+            disabled={disabled || !canSelect}
+          />
+        )}
+      </TableCell>
+      <TableCell className="text-sm">
+        {format(new Date(item.date), 'dd/MM')}
+      </TableCell>
+      <TableCell className="font-mono text-sm">{item.lis_code}</TableCell>
+      <TableCell className="text-sm truncate max-w-[150px]">
+        {item.patient_name}
+      </TableCell>
+      <TableCell className="text-sm truncate max-w-[100px]">
+        {item.convenio || '-'}
+      </TableCell>
+      <TableCell>
+        {PAYMENT_METHOD_ICONS[item.payment_method] || item.payment_method}
+      </TableCell>
+      <TableCell className="text-right font-medium text-green-700">
+        {item.cash_component > 0
+          ? `R$ ${item.cash_component.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+          : '-'}
+      </TableCell>
+      <TableCell className="text-right text-blue-600">
+        {item.receivable_component > 0
+          ? `R$ ${item.receivable_component.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+          : '-'}
+      </TableCell>
+      <TableCell>
+        <Badge variant={PAYMENT_STATUS_BADGES[item.payment_status]?.variant || 'outline'}>
+          {PAYMENT_STATUS_BADGES[item.payment_status]?.label || item.payment_status}
+        </Badge>
+      </TableCell>
+    </TableRow>
+  );
+});
+
+export const CashClosingSelectionTable = memo(function CashClosingSelectionTable({
   items,
   selectedIds,
   onToggleSelection,
@@ -82,6 +154,14 @@ export function CashClosingSelectionTable({
         .reduce((sum, i) => sum + (i.cash_component || 0), 0),
     };
   }, [items, selectedIds]);
+
+  const handleSelectAllChange = useCallback((checked: boolean | 'indeterminate') => {
+    if (checked) {
+      onSelectAll();
+    } else {
+      onDeselectAll();
+    }
+  }, [onSelectAll, onDeselectAll]);
 
   return (
     <div className="space-y-4">
@@ -141,7 +221,7 @@ export function CashClosingSelectionTable({
               <TableHead className="w-[50px]">
                 <Checkbox
                   checked={selectedIds.size > 0 && selectedIds.size === summary.pendentes}
-                  onCheckedChange={(checked) => checked ? onSelectAll() : onDeselectAll()}
+                  onCheckedChange={handleSelectAllChange}
                   disabled={disabled}
                 />
               </TableHead>
@@ -156,66 +236,20 @@ export function CashClosingSelectionTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {items.map(item => {
-              const isSelected = selectedIds.has(item.id);
-              const canSelect = canSelectItem(item.id);
-              const isLocked = isItemLocked(item.id);
-              const isReceivable = item.payment_status === 'A_RECEBER';
-
-              return (
-                <TableRow
-                  key={item.id}
-                  className={`
-                    ${isSelected ? 'bg-green-50' : ''}
-                    ${isReceivable ? 'bg-blue-50/50' : ''}
-                    ${isLocked ? 'bg-gray-100' : ''}
-                  `}
-                >
-                  <TableCell>
-                    {isLocked ? (
-                      <Lock className="h-4 w-4 text-gray-400" />
-                    ) : (
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={() => onToggleSelection(item.id)}
-                        disabled={disabled || !canSelect}
-                      />
-                    )}
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {format(new Date(item.date), 'dd/MM')}
-                  </TableCell>
-                  <TableCell className="font-mono text-sm">{item.lis_code}</TableCell>
-                  <TableCell className="text-sm truncate max-w-[150px]">
-                    {item.patient_name}
-                  </TableCell>
-                  <TableCell className="text-sm truncate max-w-[100px]">
-                    {item.convenio || '-'}
-                  </TableCell>
-                  <TableCell>
-                    {PAYMENT_METHOD_ICONS[item.payment_method] || item.payment_method}
-                  </TableCell>
-                  <TableCell className="text-right font-medium text-green-700">
-                    {item.cash_component > 0
-                      ? `R$ ${item.cash_component.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-                      : '-'}
-                  </TableCell>
-                  <TableCell className="text-right text-blue-600">
-                    {item.receivable_component > 0
-                      ? `R$ ${item.receivable_component.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-                      : '-'}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={PAYMENT_STATUS_BADGES[item.payment_status]?.variant || 'outline'}>
-                      {PAYMENT_STATUS_BADGES[item.payment_status]?.label || item.payment_status}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
+            {items.map(item => (
+              <CashClosingRow
+                key={item.id}
+                item={item}
+                isSelected={selectedIds.has(item.id)}
+                canSelect={canSelectItem(item.id)}
+                isLocked={isItemLocked(item.id)}
+                onToggle={onToggleSelection}
+                disabled={disabled}
+              />
+            ))}
           </TableBody>
         </Table>
       </div>
     </div>
   );
-}
+});

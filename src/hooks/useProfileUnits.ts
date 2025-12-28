@@ -24,6 +24,7 @@ export function useProfileUnits(profileId?: string) {
       return data as ProfileUnit[];
     },
     enabled: !!profileId,
+    staleTime: 1000 * 60 * 5, // 5 minutos
   });
 }
 
@@ -38,6 +39,7 @@ export function useAllProfileUnits() {
       if (error) throw error;
       return data as ProfileUnit[];
     },
+    staleTime: 1000 * 60 * 5, // 5 minutos
   });
 }
 

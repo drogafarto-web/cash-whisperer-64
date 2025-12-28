@@ -34,6 +34,7 @@ export function useProfileFunctions(profileId?: string) {
       return data as ProfileFunction[];
     },
     enabled: !!profileId,
+    staleTime: 1000 * 60 * 5, // 5 minutos
   });
 }
 
@@ -48,6 +49,7 @@ export function useAllProfileFunctions() {
       if (error) throw error;
       return data as ProfileFunction[];
     },
+    staleTime: 1000 * 60 * 5, // 5 minutos
   });
 }
 

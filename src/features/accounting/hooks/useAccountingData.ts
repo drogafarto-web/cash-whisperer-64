@@ -52,6 +52,7 @@ export function useAccountingContacts() {
       if (error) throw error;
       return data as AccountingContact[];
     },
+    staleTime: 1000 * 60 * 10, // 10 minutos
   });
 }
 
@@ -119,6 +120,7 @@ export function useAccountingTokens() {
       if (error) throw error;
       return data as AccountingToken[];
     },
+    staleTime: 1000 * 60 * 5, // 5 minutos
   });
 }
 
@@ -136,6 +138,7 @@ export function useAccountingEmailLogs() {
       if (error) throw error;
       return data as AccountingEmailLog[];
     },
+    staleTime: 1000 * 60 * 2, // 2 minutos
   });
 }
 
