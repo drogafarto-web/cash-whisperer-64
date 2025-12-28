@@ -1980,6 +1980,7 @@ export type Database = {
           parcela_total: number | null
           parte_relacionada_nome: string | null
           parte_relacionada_tipo: string | null
+          pix_key: string | null
           status: string
           supplier_invoice_id: string | null
           tipo: string
@@ -2013,6 +2014,7 @@ export type Database = {
           parcela_total?: number | null
           parte_relacionada_nome?: string | null
           parte_relacionada_tipo?: string | null
+          pix_key?: string | null
           status?: string
           supplier_invoice_id?: string | null
           tipo?: string
@@ -2046,6 +2048,7 @@ export type Database = {
           parcela_total?: number | null
           parte_relacionada_nome?: string | null
           parte_relacionada_tipo?: string | null
+          pix_key?: string | null
           status?: string
           supplier_invoice_id?: string | null
           tipo?: string

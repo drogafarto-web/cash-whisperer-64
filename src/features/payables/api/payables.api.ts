@@ -327,3 +327,37 @@ export async function createPayableAndMarkAsPaid(
   if (error) throw error;
   return result as Payable;
 }
+
+// Update payment data for an existing payable (boleto/PIX info)
+export async function updatePayablePaymentData(
+  id: string,
+  data: {
+    vencimento?: string;
+    linha_digitavel?: string;
+    codigo_barras?: string;
+    pix_key?: string;
+    banco_codigo?: string;
+    banco_nome?: string;
+  }
+): Promise<Payable> {
+  const updateData: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (data.vencimento) updateData.vencimento = data.vencimento;
+  if (data.linha_digitavel) updateData.linha_digitavel = data.linha_digitavel;
+  if (data.codigo_barras) updateData.codigo_barras = data.codigo_barras;
+  if (data.pix_key) updateData.pix_key = data.pix_key;
+  if (data.banco_codigo) updateData.banco_codigo = data.banco_codigo;
+  if (data.banco_nome) updateData.banco_nome = data.banco_nome;
+
+  const { data: result, error } = await supabase
+    .from('payables')
+    .update(updateData)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return result as Payable;
+}
