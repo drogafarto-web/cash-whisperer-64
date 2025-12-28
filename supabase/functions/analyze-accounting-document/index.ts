@@ -100,11 +100,11 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      console.error('LOVABLE_API_KEY not configured');
+    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+    if (!OPENAI_API_KEY) {
+      console.error('OPENAI_API_KEY not configured');
       return new Response(
-        JSON.stringify({ error: 'Lovable API key not configured' }),
+        JSON.stringify({ error: 'OpenAI API key not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -124,7 +124,7 @@ serve(async (req) => {
       .filter((cnpj): cnpj is string => cnpj !== null && cnpj.length > 0);
 
     console.log('LabClin CNPJs cadastrados:', labClinCnpjs);
-    console.log('Processing accounting document with Lovable AI...');
+    console.log('Processing accounting document with OpenAI GPT-4o-mini...');
 
     const systemPrompt = `Você é um especialista em extrair dados de documentos fiscais brasileiros.
 Analise o documento fornecido e extraia os dados estruturados.
@@ -154,14 +154,14 @@ IMPORTANTE: Sempre identifique corretamente quem é o PRESTADOR (quem presta o s
 
 Retorne os dados no formato JSON. Para valores monetários, use números (ex: 11987.46). Para datas, use YYYY-MM-DD.`;
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
           {
@@ -282,7 +282,7 @@ Retorne os dados no formato JSON. Para valores monetários, use números (ex: 11
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Lovable AI API error:', response.status, errorText);
+      console.error('OpenAI API error:', response.status, errorText);
       
       if (response.status === 429) {
         return new Response(
@@ -291,21 +291,21 @@ Retorne os dados no formato JSON. Para valores monetários, use números (ex: 11
         );
       }
       
-      if (response.status === 402) {
+      if (response.status === 401) {
         return new Response(
-          JSON.stringify({ error: 'Payment required. Add credits to Lovable AI.' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: 'Invalid OpenAI API key.' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
       return new Response(
-        JSON.stringify({ error: 'Failed to process document with AI' }),
+        JSON.stringify({ error: 'Failed to process document with OpenAI' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const data = await response.json();
-    console.log('Lovable AI response:', JSON.stringify(data, null, 2));
+    console.log('OpenAI response:', JSON.stringify(data, null, 2));
 
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     
