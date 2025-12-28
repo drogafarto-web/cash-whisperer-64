@@ -2,22 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-
-// Sanitize filename to remove special characters that cause S3/Supabase errors
-function sanitizeFileName(fileName: string): string {
-  return fileName
-    // Normalize and remove accents
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    // Remove special characters (º, ª, ç, etc.) but keep alphanumeric, dots, hyphens, underscores
-    .replace(/[^\w\s.-]/g, '')
-    // Replace spaces with underscores
-    .replace(/\s+/g, '_')
-    // Remove duplicate underscores
-    .replace(/_+/g, '_')
-    // Remove leading/trailing underscores
-    .replace(/^_|_$/g, '');
-}
+import { sanitizeFileName } from '@/lib/sanitizeFileName';
 
 // ========================================
 // COMPETENCE DOCUMENTS (accounting uploads)

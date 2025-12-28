@@ -22,6 +22,7 @@ import {
   AnalyzedDocResult 
 } from '@/services/accountingOcrService';
 import { useNavigate } from 'react-router-dom';
+import { sanitizeFileName } from '@/lib/sanitizeFileName';
 
 interface ReceptionDocumentUploadProps {
   onBack: () => void;
@@ -79,8 +80,9 @@ export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUpl
     setIsUploading(true);
     
     try {
-      // Upload file to storage
-      const filePath = `reception/${unitId}/${competenceYear}/${competenceMonth}/${Date.now()}_${file.name}`;
+      // Sanitize filename to avoid S3 errors with special characters (º, ª, ç, etc.)
+      const safeFileName = sanitizeFileName(file.name);
+      const filePath = `reception/${unitId}/${competenceYear}/${competenceMonth}/${Date.now()}_${safeFileName}`;
       const { error: uploadError } = await supabase.storage
         .from('accounting-documents')
         .upload(filePath, file);

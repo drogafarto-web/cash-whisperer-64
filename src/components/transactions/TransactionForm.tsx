@@ -32,6 +32,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { User } from '@supabase/supabase-js';
+import { sanitizeFileName } from '@/lib/sanitizeFileName';
 
 export interface TransactionFormProps {
   isOpen: boolean;
@@ -166,7 +167,9 @@ export function TransactionForm({
       if (txError) throw txError;
 
       if (file && txData) {
-        const fileName = `${txData.id}/${Date.now()}_${file.name}`;
+        // Sanitize filename to avoid S3 errors with special characters
+        const safeFileName = sanitizeFileName(file.name);
+        const fileName = `${txData.id}/${Date.now()}_${safeFileName}`;
         const { error: uploadError } = await supabase.storage
           .from('documents')
           .upload(fileName, file);
