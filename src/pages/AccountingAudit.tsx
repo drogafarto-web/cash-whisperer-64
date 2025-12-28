@@ -47,15 +47,14 @@ export default function AccountingAudit() {
   const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth()); // Previous month
 
   // Fetch units
-  const { data: units } = useQuery({
+  type UnitOption = { id: string; name: string };
+  const { data: units } = useQuery<UnitOption[]>({
     queryKey: ['units-list'],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('units')
-        .select('id, name')
-        .eq('active', true)
-        .order('name');
-      return data || [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.from('units') as any).select('id, name').eq('active', true);
+      if (error) throw error;
+      return (data ?? []) as UnitOption[];
     },
   });
 
