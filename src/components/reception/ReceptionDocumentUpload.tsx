@@ -188,6 +188,10 @@ export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUpl
     }
   }, [addFilesToQueue]);
 
+  const handleUploadAreaClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
   // Drag and drop handlers
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -482,9 +486,10 @@ export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUpl
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        <CardContent className="p-8">
-          <label className="flex flex-col items-center justify-center cursor-pointer">
+        <CardContent className="p-8" onClick={handleUploadAreaClick}>
+          <div className="flex flex-col items-center justify-center cursor-pointer">
             <input 
+              key={`file-input-${documentQueue.length}`}
               ref={fileInputRef}
               type="file" 
               className="hidden" 
@@ -517,7 +522,7 @@ export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUpl
                 Selecione uma unidade primeiro
               </Badge>
             )}
-          </label>
+          </div>
         </CardContent>
       </Card>
 
