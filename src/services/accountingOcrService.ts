@@ -5,9 +5,12 @@ import { convertPdfToImage, blobToBase64 } from '@/utils/pdfToImage';
 // Tipos de documentos tributários (sempre despesa)
 const TAX_DOCUMENT_TYPES = ['darf', 'gps', 'das', 'fgts', 'inss_guia'];
 
+// Tipos de documentos de RH/Folha (sempre despesa)
+const PAYROLL_DOCUMENT_TYPES = ['holerite', 'folha_pagamento'];
+
 export interface AnalyzedDocResult {
   type: 'revenue' | 'expense' | 'unknown';
-  documentType: 'nfse' | 'nf_produto' | 'boleto' | 'recibo' | 'extrato' | 'darf' | 'gps' | 'das' | 'fgts' | 'inss_guia' | 'outro';
+  documentType: 'nfse' | 'nf_produto' | 'boleto' | 'recibo' | 'extrato' | 'darf' | 'gps' | 'das' | 'fgts' | 'inss_guia' | 'holerite' | 'folha_pagamento' | 'outro';
   issuerCnpj: string | null;
   customerCnpj: string | null;
   issuerName: string | null;
@@ -50,8 +53,15 @@ export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   das: 'DAS',
   fgts: 'FGTS',
   inss_guia: 'INSS',
+  holerite: 'Holerite/Contracheque',
+  folha_pagamento: 'Folha de Pagamento',
   outro: 'Outro',
 };
+
+// Verifica se é documento de folha de pagamento
+export function isPayrollDocument(documentType: string): boolean {
+  return PAYROLL_DOCUMENT_TYPES.includes(documentType);
+}
 
 // Verifica se é documento tributário
 export function isTaxDocument(documentType: string): boolean {
@@ -306,7 +316,7 @@ export async function createPayableFromOcr(
       tipo = 'recibo';
     }
 
-    // Determinar beneficiário para guias tributárias
+    // Determinar beneficiário para guias tributárias e folha de pagamento
     let beneficiario = result.issuerName || 'FORNECEDOR NÃO IDENTIFICADO';
     if (isTaxDocument(result.documentType)) {
       const docLabel = DOCUMENT_TYPE_LABELS[result.documentType] || result.documentType.toUpperCase();
@@ -318,6 +328,10 @@ export async function createPayableFromOcr(
       } else if (result.documentType === 'das') {
         beneficiario = 'DAS - Simples Nacional';
       }
+    } else if (isPayrollDocument(result.documentType)) {
+      // Para holerites, o beneficiário é o funcionário (na descrição)
+      // O issuerName é a empresa, então mantemos como beneficiário do payable
+      beneficiario = result.description || result.issuerName || 'Folha de Pagamento';
     }
 
     const payableData: Record<string, any> = {

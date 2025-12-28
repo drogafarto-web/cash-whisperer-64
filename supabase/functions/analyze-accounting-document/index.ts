@@ -10,9 +10,12 @@ const corsHeaders = {
 // Tipos de documentos tributários (sempre despesa)
 const TAX_DOCUMENT_TYPES = ['darf', 'gps', 'das', 'fgts', 'inss_guia'];
 
+// Tipos de documentos de RH/Folha (sempre despesa)
+const PAYROLL_DOCUMENT_TYPES = ['holerite', 'folha_pagamento'];
+
 interface AnalyzedDocResult {
   type: 'revenue' | 'expense' | 'unknown';
-  documentType: 'nfse' | 'nf_produto' | 'boleto' | 'recibo' | 'extrato' | 'darf' | 'gps' | 'das' | 'fgts' | 'inss_guia' | 'outro';
+  documentType: 'nfse' | 'nf_produto' | 'boleto' | 'recibo' | 'extrato' | 'darf' | 'gps' | 'das' | 'fgts' | 'inss_guia' | 'holerite' | 'folha_pagamento' | 'outro';
   issuerCnpj: string | null;
   customerCnpj: string | null;
   issuerName: string | null;
@@ -64,6 +67,14 @@ function classifyDocument(
     return {
       type: 'expense',
       reason: `Guia tributária ${docLabel} - despesa fiscal obrigatória`
+    };
+  }
+  
+  // REGRA ESPECIAL: Documentos de folha/RH são SEMPRE despesas
+  if (PAYROLL_DOCUMENT_TYPES.includes(documentType)) {
+    return {
+      type: 'expense',
+      reason: 'Documento de folha de pagamento - despesa com pessoal'
     };
   }
   
@@ -152,23 +163,38 @@ TIPOS DE DOCUMENTO:
 - nfse: Nota Fiscal de Serviço Eletrônica
 - nf_produto: Nota Fiscal de Produto/Mercadoria
 - boleto: Boleto bancário comercial (de fornecedores)
-- recibo: Recibo/Comprovante
+- recibo: Recibo/Comprovante genérico
 - extrato: Extrato bancário
-- darf: DARF - Documento de Arrecadação de Receitas Federais (guia federal - IRPJ, IRRF, CSLL, PIS, COFINS, INSS sobre 13º, etc.)
-- gps: GPS - Guia da Previdência Social (contribuição previdenciária)
+- darf: DARF - Documento de Arrecadação de Receitas Federais
+- gps: GPS - Guia da Previdência Social
 - das: DAS - Documento de Arrecadação do Simples Nacional
 - fgts: FGTS - Guia de Recolhimento do Fundo de Garantia
 - inss_guia: Guia específica do INSS (não GPS)
+- holerite: Holerite/Contracheque/Recibo de Pagamento de funcionário
+- folha_pagamento: Resumo da Folha de Pagamento mensal
 - outro: Outros documentos
 
+COMO IDENTIFICAR DOCUMENTOS DE FOLHA DE PAGAMENTO (RH):
+- HOLERITE: Contém "Recibo de Pagamento", "Contracheque", "Holerite" ou "Demonstrativo de Pagamento"
+- Lista vencimentos (salário base, horas extras, adicionais, gratificações)
+- Lista descontos (INSS, IRRF, Vale-Transporte, Vale-Refeição, FGTS)
+- Mostra mês/ano de competência da folha
+- Nome, cargo e dados do funcionário
+- CNPJ e nome do empregador
+- Valor líquido a receber pelo funcionário
+- SEMPRE são DESPESAS da empresa (pagamento de salário ao funcionário)
+
 COMO IDENTIFICAR DOCUMENTOS TRIBUTÁRIOS:
-- DARF: Documento com brasão da República, "Receita Federal", "DARF", código de receita (ex: 0561, 1708, 5952)
+- DARF: Documento com brasão da República, "Receita Federal", "DARF", código de receita
 - GPS: Documento com brasão do INSS, "GPS - Guia da Previdência Social", NIT/PIS/PASEP
 - DAS: Documento com "Simples Nacional", "DAS - Documento de Arrecadação"
 - FGTS: Documento com "Caixa Econômica Federal", "FGTS", "GRF"
 - INSS_GUIA: Guia específica INSS (diferente de GPS)
 
 IMPORTANTE:
+- Holerites/Contracheques são documentos de RH, não confundir com recibos comerciais
+- Em um holerite, o PRESTADOR/EMISSOR é a EMPRESA que paga o salário
+- Em um holerite, o nome do FUNCIONÁRIO deve ir na DESCRIÇÃO, não como tomador
 - Guias tributárias (DARF, GPS, DAS, FGTS) são documentos do governo para pagamento de impostos
 - Boletos são de empresas comerciais (fornecedores, serviços)
 - Sempre identifique corretamente quem é o PRESTADOR e quem é o TOMADOR
@@ -176,17 +202,16 @@ IMPORTANTE:
 
 CAMPOS A EXTRAIR:
 - Tipo do documento
-- CNPJ e Nome do PRESTADOR/EMISSOR (quem emitiu)
+- CNPJ e Nome do PRESTADOR/EMISSOR (quem emitiu - para holerite é o empregador)
 - CNPJ e Nome do TOMADOR/CONTRATANTE (para quem foi emitido)
 - Número do documento e série
 - Data de emissão e vencimento
 - Valor total e valor líquido
 - Impostos (ISS, INSS, PIS, COFINS)
 - Código de verificação
-- Descrição dos serviços/produtos
+- Descrição dos serviços/produtos (para holerite: nome e cargo do funcionário)
 - Competência (mês/ano)
-- Código de barras (44-48 dígitos numéricos)
-- Linha digitável (com pontos e espaços)
+- Código de barras e Linha digitável
 - Chave PIX (se encontrada)
 
 Retorne os dados no formato JSON. Para valores monetários, use números. Para datas, use YYYY-MM-DD.`;
@@ -228,8 +253,8 @@ Retorne os dados no formato JSON. Para valores monetários, use números. Para d
                 properties: {
                   document_type: {
                     type: 'string',
-                    enum: ['nfse', 'nf_produto', 'boleto', 'recibo', 'extrato', 'darf', 'gps', 'das', 'fgts', 'inss_guia', 'outro'],
-                    description: 'Tipo do documento fiscal'
+                    enum: ['nfse', 'nf_produto', 'boleto', 'recibo', 'extrato', 'darf', 'gps', 'das', 'fgts', 'inss_guia', 'holerite', 'folha_pagamento', 'outro'],
+                    description: 'Tipo do documento fiscal ou de RH'
                   },
                   issuer_cnpj: {
                     type: 'string',
