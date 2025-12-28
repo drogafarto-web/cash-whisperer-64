@@ -260,21 +260,21 @@ export function PayableDetailModal({
 
   if (!payable) return null;
 
-  const isOverdue = payable.status === 'pendente' && new Date(payable.vencimento) < new Date();
+  const isOverdue = payable.status === 'PENDENTE' && new Date(payable.vencimento) < new Date();
 
   const getStatusBadge = () => {
     if (isOverdue) {
       return <Badge variant="destructive">Vencido</Badge>;
     }
     const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-      pendente: 'secondary',
-      pago: 'outline',
-      cancelado: 'destructive',
+      PENDENTE: 'secondary',
+      PAGO: 'outline',
+      CANCELADO: 'destructive',
     };
     const labels: Record<string, string> = {
-      pendente: 'Pendente',
-      pago: 'Pago',
-      cancelado: 'Cancelado',
+      PENDENTE: 'Pendente',
+      PAGO: 'Pago',
+      CANCELADO: 'Cancelado',
     };
     return <Badge variant={variants[payable.status] || 'secondary'}>{labels[payable.status] || payable.status}</Badge>;
   };
@@ -295,7 +295,7 @@ export function PayableDetailModal({
             <span>{isEditing ? 'Editar Boleto' : 'Detalhes do Boleto'}</span>
             <div className="flex items-center gap-2">
               {getStatusBadge()}
-              {!isEditing && payable.status === 'pendente' && (
+              {!isEditing && payable.status === 'PENDENTE' && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -606,7 +606,7 @@ export function PayableDetailModal({
             </>
           ) : (
             <>
-              {payable.status === 'pendente' && onMarkAsPaid && (
+              {payable.status === 'PENDENTE' && onMarkAsPaid && (
                 <Button onClick={() => onMarkAsPaid(payable)} className="gap-2">
                   <Check className="h-4 w-4" />
                   Marcar como Pago

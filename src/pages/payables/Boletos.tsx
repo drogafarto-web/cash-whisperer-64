@@ -91,9 +91,9 @@ export default function BoletosPage() {
   }, [allPayables, beneficiarioFilter]);
 
   // Filter by status
-  const pendentes = filteredPayables.filter((p) => p.status === 'pendente' && new Date(p.vencimento) >= new Date());
-  const vencidos = filteredPayables.filter((p) => p.status === 'vencido' || (p.status === 'pendente' && new Date(p.vencimento) < new Date()));
-  const pagos = filteredPayables.filter((p) => p.status === 'pago');
+  const pendentes = filteredPayables.filter((p) => p.status === 'PENDENTE' && new Date(p.vencimento) >= new Date());
+  const vencidos = filteredPayables.filter((p) => p.status === 'VENCIDO' || (p.status === 'PENDENTE' && new Date(p.vencimento) < new Date()));
+  const pagos = filteredPayables.filter((p) => p.status === 'PAGO');
 
   const getFilteredPayables = () => {
     switch (activeTab) {
@@ -104,19 +104,19 @@ export default function BoletosPage() {
   };
 
   const getStatusBadge = (status: string, vencimento: string) => {
-    const isOverdue = status === 'pendente' && new Date(vencimento) < new Date();
+    const isOverdue = status === 'PENDENTE' && new Date(vencimento) < new Date();
     if (isOverdue) {
       return <Badge variant="destructive">Vencido</Badge>;
     }
     const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-      pendente: 'secondary',
-      pago: 'outline',
-      cancelado: 'destructive',
+      PENDENTE: 'secondary',
+      PAGO: 'outline',
+      CANCELADO: 'destructive',
     };
     const labels: Record<string, string> = {
-      pendente: 'Pendente',
-      pago: 'Pago',
-      cancelado: 'Cancelado',
+      PENDENTE: 'Pendente',
+      PAGO: 'Pago',
+      CANCELADO: 'Cancelado',
     };
     return <Badge variant={variants[status] || 'secondary'}>{labels[status] || status}</Badge>;
   };
@@ -326,7 +326,7 @@ export default function BoletosPage() {
                           </TableCell>
                           <TableCell>{getStatusBadge(payable.status, payable.vencimento)}</TableCell>
                           <TableCell className="text-right">
-                            {payable.status === 'pendente' && (
+                            {payable.status === 'PENDENTE' && (
                               <Button variant="ghost" size="icon" title="Marcar como pago" onClick={() => handleMarkAsPaid(payable)}>
                                 <Check className="h-4 w-4 text-green-600" />
                               </Button>
