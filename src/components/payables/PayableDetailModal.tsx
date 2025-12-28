@@ -109,8 +109,10 @@ export function PayableDetailModal({
   const loadPdfUrl = async (filePath: string) => {
     setLoadingPdf(true);
     try {
+      // Use the correct bucket based on file_bucket field (defaults to 'payables')
+      const bucket = (payable as any)?.file_bucket || 'payables';
       const { data, error } = await supabase.storage
-        .from('payables')
+        .from(bucket)
         .createSignedUrl(filePath, 3600);
       
       if (error) throw error;
