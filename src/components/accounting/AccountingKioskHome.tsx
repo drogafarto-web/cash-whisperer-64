@@ -23,11 +23,13 @@ import {
   PieChart,
   BarChart3,
   Rocket,
+  Banknote,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useCompetenceData, useLabSubmission, useLabDocuments, useCompetenceDocuments } from '@/hooks/useAccountingCompetence';
+import { useAccountingCashMovement } from '@/hooks/useAccountingCashMovement';
 
 export type AccountingSection = 'folha' | 'impostos' | 'receitas';
 
@@ -85,6 +87,9 @@ export function AccountingKioskHome({
   const { data: submission, isLoading: loadingSubmission } = useLabSubmission(unitId, ano, mes);
   const { data: documents = [] } = useLabDocuments(submission?.id || null);
   const { data: competenceDocuments = [] } = useCompetenceDocuments(unitId, ano, mes);
+  
+  // Movimento de caixa - dados agregados da central de fechamento
+  const { data: cashMovement, isLoading: loadingCashMovement } = useAccountingCashMovement(unitId, ano, mes);
   
   const competenceLabel = format(competence, "MMMM 'de' yyyy", { locale: ptBR });
   
@@ -320,7 +325,7 @@ export function AccountingKioskHome({
           {submission && <StatusBadge status={submission.status} />}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="hover:border-primary/50 transition-colors cursor-pointer" onClick={onSendDocuments}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -357,6 +362,38 @@ export function AccountingKioskHome({
             <CardContent>
               <p className="text-2xl font-bold">{extratoCount > 0 ? '✓' : '—'}</p>
               <p className="text-xs text-muted-foreground">{extratoCount > 0 ? 'Enviado' : 'Pendente'}</p>
+            </CardContent>
+          </Card>
+
+          {/* Movimento de Caixa - dados da central de fechamento */}
+          <Card 
+            className="hover:border-primary/50 transition-colors cursor-pointer border-emerald-200 bg-emerald-50/30 dark:border-emerald-800 dark:bg-emerald-950/20"
+            onClick={() => navigate(`/reports/cashflow-projection?month=${monthParam}`)}
+          >
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Banknote className="h-4 w-4 text-emerald-600" />
+                Movimento de Caixa
+                {cashMovement && cashMovement.closuresCount > 0 && (
+                  <Badge variant="outline" className="ml-auto text-xs bg-emerald-100 dark:bg-emerald-900">
+                    {cashMovement.closuresCount} fechamentos
+                  </Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingCashMovement ? (
+                <Skeleton className="h-8 w-24" />
+              ) : (
+                <>
+                  <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
+                    {formatCurrency(cashMovement?.total || 0)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Din {formatCurrency(cashMovement?.money || 0)} · PIX {formatCurrency(cashMovement?.pix || 0)} · Cart {formatCurrency(cashMovement?.card || 0)}
+                  </p>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
