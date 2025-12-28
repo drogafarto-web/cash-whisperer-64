@@ -29,6 +29,7 @@ import {
   FileArchive,
   UserCog,
   MonitorSmartphone,
+  Shield,
 } from 'lucide-react';
 import { AppRole } from '@/types/database';
 
@@ -75,6 +76,7 @@ export const navigationGroups: NavGroup[] = [
       { name: 'Painel Recepção', href: '/reception-panel', icon: MonitorSmartphone, roles: ['admin', 'secretaria', 'gestor_unidade'] },
       { name: 'Painel Contabilidade', href: '/accounting-panel', icon: Calculator, roles: ['admin', 'contabilidade', 'financeiro', 'contador'] },
       { name: 'Histórico Contábil', href: '/accounting-history', icon: History, roles: ['admin', 'contabilidade', 'financeiro', 'contador'] },
+      { name: 'Auditoria Contábil', href: '/accounting-audit', icon: Shield, roles: ['admin', 'contador', 'contabilidade'] },
       { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'secretaria', 'gestor_unidade', 'financeiro', 'contador'] },
       { name: 'Pendências', href: '/pendencias', icon: AlertCircle, roles: ['admin', 'contabilidade', 'gestor_unidade'] },
     ],
