@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useQueryClient } from '@tanstack/react-query';
+import { sanitizeFileName } from '@/lib/sanitizeFileName';
 
 export type DocumentCategory = 'folha' | 'das' | 'darf' | 'gps' | 'inss' | 'fgts' | 'iss' | 'receitas';
 
@@ -171,8 +172,9 @@ export function AccountingFileUpload({
     setIsUploading(true);
 
     try {
-      // Upload to storage
-      const filePath = `contabilidade/${unitId}/${ano}/${mes}/${categoria}/${Date.now()}_${file.name}`;
+      // Sanitize filename to avoid S3 errors with special characters (º, ª, ç, etc.)
+      const safeFileName = sanitizeFileName(file.name);
+      const filePath = `contabilidade/${unitId}/${ano}/${mes}/${categoria}/${Date.now()}_${safeFileName}`;
       const { error: uploadError } = await supabase.storage
         .from('accounting-documents')
         .upload(filePath, file);
