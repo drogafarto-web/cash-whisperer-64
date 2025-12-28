@@ -30,6 +30,7 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useCompetenceData, useSaveCompetenceData, useCompetenceDocuments, type DocumentCategory } from '@/hooks/useAccountingCompetence';
 import { AccountingFileUpload } from './AccountingFileUpload';
+import { AccountingSmartUpload } from './AccountingSmartUpload';
 
 export type FormSection = 'folha' | 'impostos' | 'receitas';
 
@@ -168,6 +169,28 @@ export function AccountingDataForm({ unitId, unitName, competence, section, onBa
     }
   }, [form]);
 
+  // Smart upload handlers for auto-fill
+  const handleSmartTaxApply = useCallback((taxType: TaxType, valor: number, vencimento: string | null) => {
+    form.setValue(`${taxType}_valor` as keyof FormData, valor);
+    if (vencimento) {
+      form.setValue(`${taxType}_vencimento` as keyof FormData, vencimento);
+    }
+    toast.success(`${taxType.toUpperCase()} preenchido automaticamente via IA`);
+  }, [form]);
+
+  const handleSmartPayrollApply = useCallback((data: { 
+    total_folha: number; 
+    encargos: number; 
+    prolabore: number; 
+    num_funcionarios: number 
+  }) => {
+    form.setValue('total_folha', data.total_folha);
+    form.setValue('encargos', data.encargos);
+    form.setValue('prolabore', data.prolabore);
+    form.setValue('num_funcionarios', data.num_funcionarios);
+    toast.success('Folha de pagamento preenchida automaticamente via IA');
+  }, [form]);
+
   const onSubmit = async (values: FormData) => {
     if (!unitId) {
       toast.error('Selecione uma unidade');
@@ -235,6 +258,17 @@ export function AccountingDataForm({ unitId, unitName, competence, section, onBa
           {section ? `Preencha os dados de ${sectionLabels[section].toLowerCase()}` : 'Preencha os dados de folha, impostos e receitas para esta competência'}
         </p>
       </div>
+
+      {/* Smart Upload Zone - AI analyzes and auto-fills */}
+      {unitId && !section && (
+        <AccountingSmartUpload
+          unitId={unitId}
+          ano={ano}
+          mes={mes}
+          onTaxApply={handleSmartTaxApply}
+          onPayrollApply={handleSmartPayrollApply}
+        />
+      )}
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">

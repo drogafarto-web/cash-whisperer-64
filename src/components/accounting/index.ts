@@ -9,3 +9,7 @@ export { AccountingSendDocuments } from './AccountingSendDocuments';
 export { AccountingDataForm } from './AccountingDataForm';
 export { AccountingFileUpload } from './AccountingFileUpload';
 export { DuplicateAlert } from './DuplicateAlert';
+export { AccountingSmartUpload } from './AccountingSmartUpload';
+export { TaxGuideResultCard } from './TaxGuideResultCard';
+export { PayrollAnalysisCard } from './PayrollAnalysisCard';
+export { ConsistencyValidation } from './ConsistencyValidation';
