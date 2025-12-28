@@ -278,7 +278,8 @@ export async function createPayableFromOcr(
   result: AnalyzedDocResult,
   unitId: string,
   filePath: string,
-  fileName: string
+  fileName: string,
+  extras?: { description?: string; paymentMethod?: string }
 ): Promise<{ success: boolean; id?: string; error?: string }> {
   try {
     // Verificar duplicidade com CNPJ + document_number + valor + vencimento
@@ -325,7 +326,7 @@ export async function createPayableFromOcr(
       beneficiario_cnpj: normalizeCnpj(result.issuerCnpj),
       valor: result.totalValue || 0,
       vencimento,
-      description: result.description || `Documento ${result.documentNumber || ''}`.trim(),
+      description: extras?.description || result.description || `Documento ${result.documentNumber || ''}`.trim(),
       document_number: result.documentNumber || null,
       tipo,
       status: 'PENDENTE',
@@ -333,6 +334,7 @@ export async function createPayableFromOcr(
       file_name: fileName,
       file_bucket: 'accounting-documents',
       ocr_confidence: typeof result.confidence === 'number' ? Number(result.confidence.toFixed(3)) : null,
+      intended_payment_method: extras?.paymentMethod || null,
     };
 
     // Adicionar campos extras para guias tributárias

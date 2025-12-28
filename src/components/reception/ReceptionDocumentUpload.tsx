@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { AccountingOcrResultCard } from '@/components/accounting/AccountingOcrResultCard';
 import { PaymentDataModal } from '@/components/payables/PaymentDataModal';
-import { DocumentConfirmationModal } from './DocumentConfirmationModal';
+import { DocumentConfirmationModal, PaymentMethodType } from './DocumentConfirmationModal';
 import { 
   analyzeAccountingDocument, 
   createInvoiceFromOcr,
@@ -122,7 +122,10 @@ export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUpl
     }
   }, [unitId, competenceYear, competenceMonth]);
 
-  const handleConfirmClassification = useCallback(async (confirmedType: 'revenue' | 'expense') => {
+  const handleConfirmClassification = useCallback(async (
+    confirmedType: 'revenue' | 'expense',
+    extras?: { description?: string; paymentMethod?: PaymentMethodType }
+  ) => {
     if (!pendingDocument || !unitId) return;
 
     setIsConfirming(true);
@@ -178,8 +181,8 @@ export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUpl
           duplicateId = dupCheck.existingId;
           recordType = 'payable';
         } else {
-          // Create payable
-          const createResult = await createPayableFromOcr(result, unitId, filePath, file.name);
+          // Create payable with extras
+          const createResult = await createPayableFromOcr(result, unitId, filePath, file.name, extras);
           
           if (createResult.error === 'duplicate') {
             isDuplicate = true;

@@ -1994,6 +1994,7 @@ export type Database = {
           file_name: string | null
           file_path: string | null
           id: string
+          intended_payment_method: string | null
           linha_digitavel: string | null
           matched_bank_item_id: string | null
           matched_transaction_id: string | null
@@ -2030,6 +2031,7 @@ export type Database = {
           file_name?: string | null
           file_path?: string | null
           id?: string
+          intended_payment_method?: string | null
           linha_digitavel?: string | null
           matched_bank_item_id?: string | null
           matched_transaction_id?: string | null
@@ -2066,6 +2068,7 @@ export type Database = {
           file_name?: string | null
           file_path?: string | null
           id?: string
+          intended_payment_method?: string | null
           linha_digitavel?: string | null
           matched_bank_item_id?: string | null
           matched_transaction_id?: string | null

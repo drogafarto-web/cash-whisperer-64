@@ -9,6 +9,15 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { 
   FileText, 
   Receipt, 
@@ -21,16 +30,21 @@ import {
   Loader2,
   Copy,
   Landmark,
+  Wallet,
+  QrCode,
+  ArrowUpDown,
 } from 'lucide-react';
 import { AnalyzedDocResult, DOCUMENT_TYPE_LABELS, isTaxDocument } from '@/services/accountingOcrService';
 import { toast } from 'sonner';
+
+export type PaymentMethodType = 'dinheiro_caixa' | 'pix' | 'transferencia' | '';
 
 interface DocumentConfirmationModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   result: AnalyzedDocResult;
   fileName: string;
-  onConfirm: (type: 'revenue' | 'expense') => void;
+  onConfirm: (type: 'revenue' | 'expense', extras?: { description?: string; paymentMethod?: PaymentMethodType }) => void;
   onCancel: () => void;
   isConfirming?: boolean;
 }
@@ -49,8 +63,13 @@ export function DocumentConfirmationModal({
   const [selectedType, setSelectedType] = useState<'revenue' | 'expense'>(
     result.type === 'unknown' ? 'expense' : result.type
   );
+  
+  // New fields for service description and payment method
+  const [serviceDescription, setServiceDescription] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>('');
 
   const isRevenue = selectedType === 'revenue';
+  const isExpense = selectedType === 'expense' || isTaxDoc;
   const confidencePercent = Math.round((result.confidence || 0) * 100);
   const isLowConfidence = confidencePercent < 70;
   const isUnknown = result.type === 'unknown';
@@ -79,7 +98,11 @@ export function DocumentConfirmationModal({
   };
 
   const handleConfirm = () => {
-    onConfirm(selectedType);
+    const extras = isExpense ? {
+      description: serviceDescription || undefined,
+      paymentMethod: paymentMethod || undefined,
+    } : undefined;
+    onConfirm(selectedType, extras);
   };
 
   const handleCopy = (text: string | null, label: string) => {
@@ -318,6 +341,56 @@ export function DocumentConfirmationModal({
               )}
             </div>
           </div>
+
+          {/* Service Description and Payment Method - only for expenses */}
+          {isExpense && (
+            <div className="space-y-4 border-t pt-4">
+              <h4 className="text-sm font-medium text-muted-foreground">Informações Adicionais</h4>
+              
+              {/* Service Description */}
+              <div className="space-y-2">
+                <Label htmlFor="service-description">Descrição do Serviço</Label>
+                <Textarea
+                  id="service-description"
+                  placeholder="Descreva a necessidade do serviço (ex: manutenção do ar-condicionado, compra de material de escritório...)"
+                  value={serviceDescription}
+                  onChange={(e) => setServiceDescription(e.target.value)}
+                  rows={2}
+                  className="resize-none"
+                />
+              </div>
+
+              {/* Payment Method */}
+              <div className="space-y-2">
+                <Label>Forma de Pagamento</Label>
+                <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethodType)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Como será pago?" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="dinheiro_caixa">
+                      <span className="flex items-center gap-2">
+                        <Wallet className="h-4 w-4 text-emerald-600" />
+                        Dinheiro do Caixa
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="pix">
+                      <span className="flex items-center gap-2">
+                        <QrCode className="h-4 w-4 text-primary" />
+                        PIX
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="transferencia">
+                      <span className="flex items-center gap-2">
+                        <ArrowUpDown className="h-4 w-4 text-blue-600" />
+                        Transferência de Conta
+                      </span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
