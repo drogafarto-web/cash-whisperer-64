@@ -1,12 +1,19 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { 
   ArrowLeft, 
   Upload, 
   Loader2,
   Sparkles,
+  FileText,
+  Check,
+  X,
+  AlertCircle,
+  Clock,
+  CheckCircle2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -23,6 +30,7 @@ import {
 } from '@/services/accountingOcrService';
 import { useNavigate } from 'react-router-dom';
 import { sanitizeFileName } from '@/lib/sanitizeFileName';
+import { cn } from '@/lib/utils';
 
 interface ReceptionDocumentUploadProps {
   onBack: () => void;
@@ -40,23 +48,31 @@ interface OcrResult {
   duplicateId?: string;
 }
 
-interface PendingDocument {
+type QueueStatus = 'queued' | 'uploading' | 'analyzing' | 'ready' | 'confirmed' | 'error';
+
+interface QueuedDocument {
+  id: string;
   file: File;
-  filePath: string;
-  result: AnalyzedDocResult;
+  filePath?: string;
+  status: QueueStatus;
+  result?: AnalyzedDocResult;
+  error?: string;
 }
+
+const MAX_CONCURRENT = 2;
 
 export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUploadProps) {
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [isUploading, setIsUploading] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isConfirming, setIsConfirming] = useState(false);
+  const [documentQueue, setDocumentQueue] = useState<QueuedDocument[]>([]);
   const [ocrResults, setOcrResults] = useState<OcrResult[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
   
-  // Pending document awaiting confirmation
-  const [pendingDocument, setPendingDocument] = useState<PendingDocument | null>(null);
+  // Modal state for individual confirmation
+  const [confirmingDoc, setConfirmingDoc] = useState<QueuedDocument | null>(null);
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
   
   // Payment data modal state
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -67,69 +83,147 @@ export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUpl
   const now = new Date();
   const competenceYear = now.getFullYear();
   const competenceMonth = now.getMonth() + 1;
-  
-  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.length || !unitId) {
-      if (!unitId) {
-        toast.error('Selecione uma unidade para continuar');
+
+  // Process queue - run when queue changes
+  useEffect(() => {
+    const processQueue = async () => {
+      const processing = documentQueue.filter(d => d.status === 'uploading' || d.status === 'analyzing');
+      const queued = documentQueue.filter(d => d.status === 'queued');
+      
+      // Start processing up to MAX_CONCURRENT
+      const slotsAvailable = MAX_CONCURRENT - processing.length;
+      const toProcess = queued.slice(0, slotsAvailable);
+      
+      for (const doc of toProcess) {
+        processDocument(doc);
       }
-      return;
-    }
+    };
     
-    const file = e.target.files[0];
-    setIsUploading(true);
+    processQueue();
+  }, [documentQueue, unitId]);
+
+  const processDocument = async (doc: QueuedDocument) => {
+    if (!unitId) return;
     
+    // Update to uploading
+    setDocumentQueue(prev => prev.map(d => 
+      d.id === doc.id ? { ...d, status: 'uploading' as QueueStatus } : d
+    ));
+
     try {
-      // Sanitize filename to avoid S3 errors with special characters (º, ª, ç, etc.)
-      const safeFileName = sanitizeFileName(file.name);
+      // Upload file
+      const safeFileName = sanitizeFileName(doc.file.name);
       const filePath = `reception/${unitId}/${competenceYear}/${competenceMonth}/${Date.now()}_${safeFileName}`;
+      
       const { error: uploadError } = await supabase.storage
         .from('accounting-documents')
-        .upload(filePath, file);
+        .upload(filePath, doc.file);
       
-      if (uploadError) {
-        throw uploadError;
-      }
+      if (uploadError) throw uploadError;
 
-      setIsUploading(false);
-      setIsAnalyzing(true);
-      
-      toast.info('Analisando documento com IA...', {
-        id: 'ocr-analyzing',
-        duration: 15000,
-      });
+      // Update to analyzing
+      setDocumentQueue(prev => prev.map(d => 
+        d.id === doc.id ? { ...d, status: 'analyzing' as QueueStatus, filePath } : d
+      ));
 
-      // ONLY analyze - don't save yet
-      const result = await analyzeAccountingDocument(file, unitId);
+      // Analyze with AI
+      const result = await analyzeAccountingDocument(doc.file, unitId);
 
-      toast.dismiss('ocr-analyzing');
-
-      // Store pending document and show confirmation modal
-      setPendingDocument({ file, filePath, result });
-      setConfirmModalOpen(true);
+      // Update to ready
+      setDocumentQueue(prev => prev.map(d => 
+        d.id === doc.id ? { ...d, status: 'ready' as QueueStatus, result } : d
+      ));
 
     } catch (error) {
-      toast.dismiss('ocr-analyzing');
-      console.error('Upload/OCR error:', error);
-      toast.error('Erro ao processar documento', {
-        description: error instanceof Error ? error.message : 'Tente novamente',
+      console.error('Error processing document:', error);
+      setDocumentQueue(prev => prev.map(d => 
+        d.id === doc.id ? { 
+          ...d, 
+          status: 'error' as QueueStatus, 
+          error: error instanceof Error ? error.message : 'Erro desconhecido' 
+        } : d
+      ));
+    }
+  };
+
+  const addFilesToQueue = useCallback((files: FileList | File[]) => {
+    if (!unitId) {
+      toast.error('Selecione uma unidade para continuar');
+      return;
+    }
+
+    const fileArray = Array.from(files);
+    const validFiles = fileArray.filter(f => {
+      const ext = f.name.toLowerCase().split('.').pop();
+      return ['pdf', 'xml', 'jpg', 'jpeg', 'png'].includes(ext || '');
+    });
+
+    if (validFiles.length === 0) {
+      toast.error('Nenhum arquivo válido', {
+        description: 'Use PDF, XML, JPG ou PNG',
       });
-    } finally {
-      setIsUploading(false);
-      setIsAnalyzing(false);
-      // Reset input
+      return;
+    }
+
+    if (validFiles.length !== fileArray.length) {
+      toast.warning(`${fileArray.length - validFiles.length} arquivo(s) ignorado(s)`, {
+        description: 'Apenas PDF, XML, JPG e PNG são aceitos',
+      });
+    }
+
+    const newDocs: QueuedDocument[] = validFiles.map(file => ({
+      id: crypto.randomUUID(),
+      file,
+      status: 'queued' as QueueStatus,
+    }));
+
+    setDocumentQueue(prev => [...prev, ...newDocs]);
+    toast.success(`${validFiles.length} arquivo(s) adicionado(s) à fila`);
+  }, [unitId]);
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.length) {
+      addFilesToQueue(e.target.files);
       e.target.value = '';
     }
-  }, [unitId, competenceYear, competenceMonth]);
+  }, [addFilesToQueue]);
+
+  // Drag and drop handlers
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    if (e.dataTransfer.files?.length) {
+      addFilesToQueue(e.dataTransfer.files);
+    }
+  }, [addFilesToQueue]);
+
+  const handleConfirmClick = (doc: QueuedDocument) => {
+    setConfirmingDoc(doc);
+    setConfirmModalOpen(true);
+  };
 
   const handleConfirmClassification = useCallback(async (
     confirmedType: 'revenue' | 'expense',
-    extras?: { description?: string; paymentMethod?: PaymentMethodType }
+    extras?: { description?: string; paymentMethod?: PaymentMethodType; needsReconciliation?: boolean }
   ) => {
-    if (!pendingDocument || !unitId) return;
+    if (!confirmingDoc || !unitId || !confirmingDoc.result || !confirmingDoc.filePath) return;
 
     setIsConfirming(true);
-    const { file, filePath, result } = pendingDocument;
+    const { file, filePath, result } = confirmingDoc;
 
     try {
       let recordCreated = false;
@@ -139,14 +233,12 @@ export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUpl
       let duplicateId: string | undefined;
 
       if (confirmedType === 'revenue') {
-        // Check duplicate for invoice
         const dupCheck = await checkDuplicateInvoice(result.issuerCnpj, result.documentNumber);
         if (dupCheck.isDuplicate) {
           isDuplicate = true;
           duplicateId = dupCheck.existingId;
           recordType = 'invoice';
         } else {
-          // Create invoice
           const createResult = await createInvoiceFromOcr(
             result, 
             unitId, 
@@ -167,7 +259,6 @@ export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUpl
           }
         }
       } else {
-        // Check duplicate for payable
         const vencimento = result.dueDate || result.issueDate || new Date().toISOString().split('T')[0];
         const dupCheck = await checkDuplicatePayable(
           result.issuerCnpj, 
@@ -181,7 +272,6 @@ export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUpl
           duplicateId = dupCheck.existingId;
           recordType = 'payable';
         } else {
-          // Create payable with extras
           const createResult = await createPayableFromOcr(result, unitId, filePath, file.name, extras);
           
           if (createResult.error === 'duplicate') {
@@ -198,7 +288,7 @@ export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUpl
 
       // Create OCR result entry
       const newOcrResult: OcrResult = {
-        docId: crypto.randomUUID(),
+        docId: confirmingDoc.id,
         fileName: file.name,
         result: { ...result, type: confirmedType },
         recordCreated,
@@ -210,39 +300,116 @@ export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUpl
 
       setOcrResults(prev => [newOcrResult, ...prev]);
 
-      // Show appropriate toast
+      // Remove from queue
+      setDocumentQueue(prev => prev.filter(d => d.id !== confirmingDoc.id));
+
+      // Show toast
       if (isDuplicate) {
-        toast.warning('Documento já cadastrado', {
-          description: 'Este documento já existe no sistema.',
-        });
+        toast.warning('Documento já cadastrado');
       } else if (recordCreated) {
-        const typeLabel = recordType === 'invoice' ? 'Faturamento' : 'Despesas';
-        toast.success(`Cadastrado em ${typeLabel}`, {
-          description: confirmedType === 'revenue' ? 'Receita cadastrada.' : 'Despesa cadastrada.',
-        });
+        toast.success(`Cadastrado como ${confirmedType === 'revenue' ? 'Receita' : 'Despesa'}`);
       } else {
-        toast.error('Erro ao salvar documento', {
-          description: 'Tente novamente.',
-        });
+        toast.error('Erro ao salvar documento');
       }
 
     } catch (error) {
       console.error('Error saving document:', error);
-      toast.error('Erro ao salvar documento', {
-        description: error instanceof Error ? error.message : 'Tente novamente',
-      });
+      toast.error('Erro ao salvar documento');
     } finally {
       setIsConfirming(false);
       setConfirmModalOpen(false);
-      setPendingDocument(null);
+      setConfirmingDoc(null);
     }
-  }, [pendingDocument, unitId, competenceYear, competenceMonth]);
+  }, [confirmingDoc, unitId, competenceYear, competenceMonth]);
 
   const handleCancelConfirmation = useCallback(() => {
     setConfirmModalOpen(false);
-    setPendingDocument(null);
-    toast.info('Documento descartado');
+    setConfirmingDoc(null);
   }, []);
+
+  const handleConfirmAllReady = useCallback(async () => {
+    const readyDocs = documentQueue.filter(d => d.status === 'ready' && d.result);
+    
+    for (const doc of readyDocs) {
+      if (!doc.result || !doc.filePath || !unitId) continue;
+      
+      const confirmedType = doc.result.type;
+      
+      try {
+        let recordCreated = false;
+        let recordType: 'invoice' | 'payable' | undefined;
+        let recordId: string | undefined;
+        let isDuplicate = false;
+        let duplicateId: string | undefined;
+
+        if (confirmedType === 'revenue') {
+          const dupCheck = await checkDuplicateInvoice(doc.result.issuerCnpj, doc.result.documentNumber);
+          if (dupCheck.isDuplicate) {
+            isDuplicate = true;
+            duplicateId = dupCheck.existingId;
+            recordType = 'invoice';
+          } else {
+            const createResult = await createInvoiceFromOcr(
+              doc.result, 
+              unitId, 
+              doc.filePath, 
+              doc.file.name,
+              competenceYear,
+              competenceMonth
+            );
+            if (createResult.success) {
+              recordCreated = true;
+              recordType = 'invoice';
+              recordId = createResult.id;
+            }
+          }
+        } else {
+          const vencimento = doc.result.dueDate || doc.result.issueDate || new Date().toISOString().split('T')[0];
+          const dupCheck = await checkDuplicatePayable(doc.result.issuerCnpj, doc.result.documentNumber, doc.result.totalValue, vencimento);
+          if (dupCheck.isDuplicate) {
+            isDuplicate = true;
+            duplicateId = dupCheck.existingId;
+            recordType = 'payable';
+          } else {
+            const createResult = await createPayableFromOcr(doc.result, unitId, doc.filePath, doc.file.name);
+            if (createResult.success) {
+              recordCreated = true;
+              recordType = 'payable';
+              recordId = createResult.id;
+            }
+          }
+        }
+
+        const newOcrResult: OcrResult = {
+          docId: doc.id,
+          fileName: doc.file.name,
+          result: doc.result,
+          recordCreated,
+          recordType,
+          recordId,
+          isDuplicate,
+          duplicateId,
+        };
+
+        setOcrResults(prev => [newOcrResult, ...prev]);
+      } catch (error) {
+        console.error('Error in batch confirm:', error);
+      }
+    }
+
+    // Remove all confirmed from queue
+    setDocumentQueue(prev => prev.filter(d => d.status !== 'ready'));
+    toast.success(`${readyDocs.length} documento(s) confirmado(s)`);
+  }, [documentQueue, unitId, competenceYear, competenceMonth]);
+
+  const handleDiscardAll = useCallback(() => {
+    setDocumentQueue([]);
+    toast.info('Fila limpa');
+  }, []);
+
+  const handleRemoveFromQueue = (id: string) => {
+    setDocumentQueue(prev => prev.filter(d => d.id !== id));
+  };
 
   const handleViewRecord = (type: 'invoice' | 'payable', id: string) => {
     if (type === 'invoice') {
@@ -254,7 +421,6 @@ export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUpl
 
   const handleAddPaymentData = (payableId: string) => {
     const ocrResult = ocrResults.find(r => r.recordId === payableId);
-    
     setSelectedPayableId(payableId);
     setSelectedPayableInfo({
       beneficiario: ocrResult?.result.issuerName || undefined,
@@ -263,7 +429,30 @@ export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUpl
     setPaymentModalOpen(true);
   };
 
-  const isProcessing = isUploading || isAnalyzing;
+  const getStatusIcon = (status: QueueStatus) => {
+    switch (status) {
+      case 'queued': return <Clock className="h-4 w-4 text-muted-foreground" />;
+      case 'uploading': return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
+      case 'analyzing': return <Loader2 className="h-4 w-4 animate-spin text-primary" />;
+      case 'ready': return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+      case 'confirmed': return <Check className="h-4 w-4 text-green-600" />;
+      case 'error': return <AlertCircle className="h-4 w-4 text-destructive" />;
+    }
+  };
+
+  const getStatusLabel = (status: QueueStatus) => {
+    switch (status) {
+      case 'queued': return 'Na fila';
+      case 'uploading': return 'Enviando...';
+      case 'analyzing': return 'Analisando...';
+      case 'ready': return 'Pronto';
+      case 'confirmed': return 'Confirmado';
+      case 'error': return 'Erro';
+    }
+  };
+
+  const readyCount = documentQueue.filter(d => d.status === 'ready').length;
+  const processingCount = documentQueue.filter(d => d.status === 'uploading' || d.status === 'analyzing').length;
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -272,45 +461,56 @@ export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUpl
         Voltar
       </Button>
 
-      {/* Header with OCR info */}
+      {/* Header */}
       <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
         <div className="flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-primary" />
-          <p className="text-lg font-semibold">Cadastrar Documentos</p>
+          <p className="text-lg font-semibold">Lançar Documentos e Pagamentos</p>
         </div>
         <p className="text-sm text-muted-foreground mt-1">
-          <span className="text-primary font-medium">IA Inteligente:</span> a IA identifica automaticamente se é Receita ou Despesa. Você confirma antes de salvar.
+          <span className="text-primary font-medium">IA Inteligente:</span> envie múltiplos arquivos de uma vez. A IA classifica cada um automaticamente.
         </p>
       </div>
 
-      {/* Single upload area - no tabs */}
-      <Card className="border-dashed border-2">
+      {/* Drag & Drop Upload Area */}
+      <Card 
+        className={cn(
+          "border-dashed border-2 transition-colors",
+          isDragging && "border-primary bg-primary/5"
+        )}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         <CardContent className="p-8">
           <label className="flex flex-col items-center justify-center cursor-pointer">
             <input 
+              ref={fileInputRef}
               type="file" 
               className="hidden" 
-              onChange={handleFileUpload}
+              onChange={handleFileChange}
               accept=".pdf,.xml,.jpg,.jpeg,.png"
-              disabled={isProcessing || !unitId}
+              multiple
+              disabled={!unitId}
             />
-            <div className="p-4 rounded-full bg-muted mb-3">
-              {isProcessing ? (
+            <div className={cn(
+              "p-4 rounded-full mb-3 transition-colors",
+              isDragging ? "bg-primary/20" : "bg-muted"
+            )}>
+              {processingCount > 0 ? (
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
               ) : (
-                <Sparkles className="h-10 w-10 text-primary" />
+                <Upload className="h-10 w-10 text-primary" />
               )}
             </div>
             <p className="text-lg font-medium text-center">
-              {isUploading && 'Enviando arquivo...'}
-              {isAnalyzing && 'Analisando documento com IA...'}
-              {!isProcessing && 'Clique para enviar documento'}
+              {isDragging ? 'Solte os arquivos aqui' : 'Arraste arquivos ou clique para selecionar'}
             </p>
             <p className="text-sm text-muted-foreground mt-2 text-center">
               Nota Fiscal, Boleto, Recibo ou Comprovante
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              PDF, XML, JPG ou PNG
+              PDF, XML, JPG ou PNG • Múltiplos arquivos permitidos
             </p>
             {!unitId && (
               <Badge variant="destructive" className="mt-3">
@@ -321,7 +521,83 @@ export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUpl
         </CardContent>
       </Card>
 
-      {/* OCR Results */}
+      {/* Processing Queue */}
+      {documentQueue.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Fila de Processamento ({documentQueue.length})
+            </h3>
+            {processingCount > 0 && (
+              <Badge variant="secondary" className="animate-pulse">
+                Processando {processingCount}...
+              </Badge>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            {documentQueue.map((doc) => (
+              <div 
+                key={doc.id}
+                className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg border"
+              >
+                {getStatusIcon(doc.status)}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{doc.file.name}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs text-muted-foreground">
+                      {getStatusLabel(doc.status)}
+                    </span>
+                    {doc.status === 'ready' && doc.result && (
+                      <Badge variant={doc.result.type === 'revenue' ? 'default' : 'secondary'} className="text-xs">
+                        {doc.result.type === 'revenue' ? 'Receita' : 'Despesa'}
+                      </Badge>
+                    )}
+                    {doc.status === 'error' && doc.error && (
+                      <span className="text-xs text-destructive">{doc.error}</span>
+                    )}
+                  </div>
+                </div>
+                
+                {doc.status === 'ready' && (
+                  <Button 
+                    size="sm" 
+                    onClick={() => handleConfirmClick(doc)}
+                  >
+                    Confirmar
+                  </Button>
+                )}
+                
+                {(doc.status === 'queued' || doc.status === 'error') && (
+                  <Button 
+                    size="sm" 
+                    variant="ghost"
+                    onClick={() => handleRemoveFromQueue(doc.id)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Batch actions */}
+          {readyCount > 0 && (
+            <div className="flex gap-2 pt-2">
+              <Button onClick={handleConfirmAllReady} className="gap-2">
+                <Check className="h-4 w-4" />
+                Confirmar Todos ({readyCount})
+              </Button>
+              <Button variant="outline" onClick={handleDiscardAll}>
+                Descartar Todos
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Confirmed Results */}
       {ocrResults.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -346,19 +622,19 @@ export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUpl
       )}
 
       {/* Empty state */}
-      {ocrResults.length === 0 && !isProcessing && (
+      {ocrResults.length === 0 && documentQueue.length === 0 && (
         <div className="text-center py-8 text-muted-foreground">
-          <p>Envie um documento para análise automática</p>
+          <p>Envie documentos para análise automática</p>
         </div>
       )}
 
       {/* Confirmation Modal */}
-      {pendingDocument && (
+      {confirmingDoc && confirmingDoc.result && (
         <DocumentConfirmationModal
           open={confirmModalOpen}
           onOpenChange={setConfirmModalOpen}
-          result={pendingDocument.result}
-          fileName={pendingDocument.file.name}
+          result={confirmingDoc.result}
+          fileName={confirmingDoc.file.name}
           onConfirm={handleConfirmClassification}
           onCancel={handleCancelConfirmation}
           isConfirming={isConfirming}
