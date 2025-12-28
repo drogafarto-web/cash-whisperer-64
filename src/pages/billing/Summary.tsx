@@ -93,6 +93,21 @@ export default function BillingSummary() {
             </p>
           </div>
           <div className="flex gap-2">
+            <Select value={selectedUnit} onValueChange={setSelectedUnit}>
+              <SelectTrigger className="w-[180px]">
+                <Building2 className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Unidade" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as Unidades</SelectItem>
+                {units.map((u: any) => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             <Select value={selectedMonth.toString()} onValueChange={(v) => setSelectedMonth(Number(v))}>
               <SelectTrigger className="w-[150px]">
                 <SelectValue placeholder="Mês" />
