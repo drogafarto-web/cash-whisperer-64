@@ -55,7 +55,7 @@ export function ReceptionPayment({ onBack, unitId }: ReceptionPaymentProps) {
   const uploadAreaRef = useRef<HTMLDivElement>(null);
 
   const { data: pendingPayables = [], isLoading: isLoadingPayables } = usePayables({ 
-    status: 'pendente',
+    status: 'PENDENTE',
     unitId: unitId || undefined 
   });
   const markAsPaid = useMarkPayableAsPaid();

@@ -95,5 +95,5 @@ export interface PayableFormData {
 }
 
 // Status types
-export type PayableStatus = 'pendente' | 'pago' | 'vencido' | 'cancelado';
+export type PayableStatus = 'PENDENTE' | 'PAGO' | 'VENCIDO' | 'CANCELADO';
 export type SupplierInvoiceStatus = 'pendente' | 'parcial' | 'quitada' | 'cancelada';
