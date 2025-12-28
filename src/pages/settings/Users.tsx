@@ -49,13 +49,14 @@ import { Profile, AppRole, Unit } from '@/types/database';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { Plus, Loader2, UserCog, Building2, Search, UserX, UserCheck, Clock, Mail, MailPlus, Pencil, Star, Briefcase, Link2, AlertTriangle, Upload } from 'lucide-react';
+import { Plus, Loader2, UserCog, Building2, Search, UserX, UserCheck, Clock, Mail, MailPlus, Pencil, Star, Briefcase, Link2, AlertTriangle, Upload, FileSpreadsheet } from 'lucide-react';
 
 // Componentes RBAC
 import { RoleSummaryPanel } from '@/components/users/RoleSummaryPanel';
 import { RoleGuideModal } from '@/components/users/RoleGuideModal';
 import { UserFormAdaptive } from '@/components/users/UserFormAdaptive';
 import { UserEditDialog } from '@/components/users/UserEditDialog';
+import { ExcelImportModal } from '@/components/users/ExcelImportModal';
 import { ROLE_CONFIG } from '@/lib/access-policy';
 
 // Hooks
@@ -119,6 +120,9 @@ export default function UsersSettings() {
   
   // LIS Import modal state
   const [isLisImportOpen, setIsLisImportOpen] = useState(false);
+  
+  // Excel Import modal state
+  const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
 
   // Fetch profile units and functions
   const { data: allProfileUnits = [] } = useAllProfileUnits();
@@ -449,6 +453,14 @@ export default function UsersSettings() {
             
             <div className="flex gap-2">
               <RoleGuideModal />
+              
+              <Button 
+                variant="outline" 
+                onClick={() => setIsExcelImportOpen(true)}
+              >
+                <FileSpreadsheet className="w-4 h-4 mr-2" />
+                Importar Excel
+              </Button>
               
               {unlinkedLisUsers.length > 0 && (
                 <Button 
@@ -863,6 +875,13 @@ export default function UsersSettings() {
           unlinkedLisUsers={unlinkedLisUsers}
           existingUsers={users.map(u => ({ id: u.id, name: u.name, email: u.email, lis_login: u.lis_login }))}
           units={units}
+          onSuccess={fetchUsers}
+        />
+
+        {/* Excel Import Modal */}
+        <ExcelImportModal
+          open={isExcelImportOpen}
+          onOpenChange={setIsExcelImportOpen}
           onSuccess={fetchUsers}
         />
       </TooltipProvider>

@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Table, 
   TableBody, 
@@ -22,7 +24,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { Loader2, Star, Building2, Briefcase, Link2, Check, Shield } from 'lucide-react';
+import { Loader2, Star, Building2, Briefcase, Link2, Check, Shield, AlertTriangle, User, Phone, Calendar, CreditCard } from 'lucide-react';
 import { Unit, AppRole } from '@/types/database';
 import { OPERATIONAL_FUNCTIONS } from '@/hooks/useProfileFunctions';
 import { LisUser } from '@/hooks/useLisUsers';
@@ -36,6 +38,10 @@ interface UserForEdit {
   lis_login?: string | null;
   lis_id?: number | null;
   is_active?: boolean;
+  cpf?: string | null;
+  telefone?: string | null;
+  data_nascimento?: string | null;
+  must_change_password?: boolean;
 }
 
 interface UserEditDialogProps {
@@ -161,6 +167,18 @@ export function UserEditDialog({
       .toUpperCase();
   };
 
+  // Format CPF for display
+  const formatCpfDisplay = (cpf: string) => {
+    const cleaned = cpf.replace(/\D/g, '');
+    if (cleaned.length === 11) {
+      return cleaned.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    }
+    if (cleaned.length === 14) {
+      return cleaned.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+    }
+    return cpf;
+  };
+
   const isActive = user?.is_active !== false;
 
   if (!user) return null;
@@ -179,6 +197,28 @@ export function UserEditDialog({
         
         <ScrollArea className="max-h-[calc(90vh-80px)]">
           <div className="p-6 pt-4 space-y-6">
+            {/* Alerts */}
+            {(!user.cpf || user.must_change_password) && (
+              <div className="space-y-2">
+                {!user.cpf && (
+                  <Alert className="border-amber-500/50 bg-amber-500/10">
+                    <AlertTriangle className="h-4 w-4 text-amber-500" />
+                    <AlertDescription className="text-amber-700 dark:text-amber-300">
+                      Usuário sem CPF cadastrado. Atualize os dados pessoais.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {user.must_change_password && (
+                  <Alert className="border-red-500/50 bg-red-500/10">
+                    <AlertTriangle className="h-4 w-4 text-red-500" />
+                    <AlertDescription className="text-red-700 dark:text-red-300">
+                      Usuário ainda usando senha inicial. Precisa trocar no próximo login.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            )}
+
             {/* User Header Card */}
             <div className="flex flex-col items-center py-4 border rounded-lg bg-muted/30">
               <div className="relative">
@@ -194,6 +234,14 @@ export function UserEditDialog({
               </div>
               <h3 className="text-xl font-semibold">{user.name}</h3>
               <p className="text-muted-foreground text-sm">{user.email}</p>
+              
+              {/* CPF display */}
+              {user.cpf && (
+                <Badge variant="outline" className="mt-2 font-mono">
+                  <CreditCard className="w-3 h-3 mr-1" />
+                  {formatCpfDisplay(user.cpf)}
+                </Badge>
+              )}
               
               {/* Status Toggle */}
               {onStatusToggle && (
@@ -216,6 +264,28 @@ export function UserEditDialog({
                   </Button>
                 </div>
               )}
+            </div>
+
+            {/* Personal Data Section (read-only display) */}
+            <div className="grid grid-cols-2 gap-4 p-4 border rounded-lg bg-muted/20">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Phone className="w-3 h-3" />
+                  Telefone
+                </Label>
+                <p className="text-sm font-medium">{user.telefone || '-'}</p>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Calendar className="w-3 h-3" />
+                  Data de Nascimento
+                </Label>
+                <p className="text-sm font-medium">
+                  {user.data_nascimento 
+                    ? new Date(user.data_nascimento).toLocaleDateString('pt-BR') 
+                    : '-'}
+                </p>
+              </div>
             </div>
 
             {/* LIS Login Section */}

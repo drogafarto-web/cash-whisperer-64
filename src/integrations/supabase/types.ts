@@ -2249,38 +2249,50 @@ export type Database = {
       }
       profiles: {
         Row: {
+          cpf: string | null
           created_at: string
+          data_nascimento: string | null
           email: string
           id: string
           is_active: boolean | null
           last_access: string | null
           lis_id: number | null
           lis_login: string | null
+          must_change_password: boolean | null
           name: string
+          telefone: string | null
           unit_id: string | null
           updated_at: string
         }
         Insert: {
+          cpf?: string | null
           created_at?: string
+          data_nascimento?: string | null
           email: string
           id: string
           is_active?: boolean | null
           last_access?: string | null
           lis_id?: number | null
           lis_login?: string | null
+          must_change_password?: boolean | null
           name: string
+          telefone?: string | null
           unit_id?: string | null
           updated_at?: string
         }
         Update: {
+          cpf?: string | null
           created_at?: string
+          data_nascimento?: string | null
           email?: string
           id?: string
           is_active?: boolean | null
           last_access?: string | null
           lis_id?: number | null
           lis_login?: string | null
+          must_change_password?: boolean | null
           name?: string
+          telefone?: string | null
           unit_id?: string | null
           updated_at?: string
         }
