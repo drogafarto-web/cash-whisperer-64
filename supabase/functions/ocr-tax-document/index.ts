@@ -12,23 +12,24 @@ interface OCRResult {
   vencimento: string | null;
   codigo_barras: string | null;
   linha_digitavel: string | null;
-  cnpj: string | null;
+  cnpj_contribuinte: string | null;
   competencia: { ano: number; mes: number } | null;
   beneficiario: string | null;
   pix_key: string | null;
   pix_tipo: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria' | null;
+  sugestao: string | null;
+  alertas: string[];
   confidence: number;
   raw_text: string;
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { image_base64, file_name } = await req.json();
+    const { image_base64, file_name, competencia } = await req.json();
 
     if (!image_base64) {
       return new Response(
@@ -39,8 +40,7 @@ serve(async (req) => {
 
     console.log(`Processing OCR for tax document: ${file_name || 'unknown'}`);
 
-    // Use Lovable AI for OCR
-    const response = await fetch('https://api.lovable.ai/v1/chat/completions', {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -57,18 +57,22 @@ serve(async (req) => {
                 text: `Analise esta imagem de documento fiscal/tributário brasileiro e extraia as seguintes informações em JSON:
 
 {
-  "tipo_documento": "das" | "darf" | "gps" | "inss" | "fgts" | "folha" | "nf_servico" | "outro",
-  "valor": número em centavos (ex: 1523.45 = 152345),
+  "tipo_documento": "das" | "darf" | "gps" | "inss" | "fgts" | "iss" | "nf_servico" | "outro",
+  "valor": número em reais (ex: 1523.45),
   "vencimento": "YYYY-MM-DD" ou null,
   "codigo_barras": string com código de barras completo ou null,
   "linha_digitavel": string com linha digitável formatada ou null,
-  "cnpj": string apenas números ou null,
+  "cnpj_contribuinte": string apenas números ou null,
   "beneficiario": string nome do beneficiário/destinatário ou null,
   "competencia": { "ano": 2024, "mes": 11 } ou null,
   "pix_key": string chave PIX se encontrada ou null,
   "pix_tipo": "cpf" | "cnpj" | "email" | "telefone" | "aleatoria" ou null,
-  "confidence": 0.0 a 1.0 (sua confiança na extração)
+  "sugestao": "Sugestão contextual para o contador baseada nos dados extraídos",
+  "alertas": ["Lista de alertas se houver problemas detectados"],
+  "confidence": 0.0 a 1.0
 }
+
+Competência esperada: ${competencia?.mes || '?'}/${competencia?.ano || '?'}
 
 Regras importantes:
 - DAS: Documento de Arrecadação do Simples Nacional
@@ -76,10 +80,16 @@ Regras importantes:
 - GPS: Guia da Previdência Social
 - INSS: guia específica do INSS
 - FGTS: Guia de Recolhimento do FGTS
-- folha: resumo/holerite de folha de pagamento
+- ISS: Imposto Sobre Serviços (municipal)
 - nf_servico: nota fiscal de serviços
 - outro: qualquer outro tipo de documento
-- PIX: procure por chave PIX, QR code PIX, copia e cola PIX
+
+Alertas a verificar:
+- Se vencimento já passou, alertar "Vencimento já passou em DD/MM/YYYY"
+- Se competência diferente da esperada, alertar
+- Se valor parece anormalmente alto ou baixo
+
+Sugestão: seja útil para o contador, ex: "DAS de Jan/2026 no valor de R$ 3.500. Valor dentro do esperado para faturamento do Simples."
 
 Se não conseguir identificar algum campo, retorne null para ele.
 Retorne APENAS o JSON, sem explicações.`
@@ -93,14 +103,14 @@ Retorne APENAS o JSON, sem explicações.`
             ]
           }
         ],
-        max_tokens: 1000,
+        max_tokens: 1500,
         temperature: 0.1,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Lovable AI error:', errorText);
+      console.error('AI error:', errorText);
       throw new Error(`AI API error: ${response.status}`);
     }
 
@@ -109,25 +119,25 @@ Retorne APENAS o JSON, sem explicações.`
     
     console.log('AI Response:', content);
 
-    // Parse JSON from response
     let ocrData: OCRResult;
     try {
-      // Extract JSON from markdown code block if present
       const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, content];
       const jsonStr = jsonMatch[1]?.trim() || content.trim();
       const parsed = JSON.parse(jsonStr);
       
       ocrData = {
         tipo_documento: parsed.tipo_documento || 'outro',
-        valor: parsed.valor ? Number(parsed.valor) / 100 : null, // Convert from centavos
+        valor: parsed.valor ?? null,
         vencimento: parsed.vencimento || null,
         codigo_barras: parsed.codigo_barras || null,
         linha_digitavel: parsed.linha_digitavel || null,
-        cnpj: parsed.cnpj || null,
+        cnpj_contribuinte: parsed.cnpj_contribuinte || null,
         beneficiario: parsed.beneficiario || null,
         competencia: parsed.competencia || null,
         pix_key: parsed.pix_key || null,
         pix_tipo: parsed.pix_tipo || null,
+        sugestao: parsed.sugestao || null,
+        alertas: parsed.alertas || [],
         confidence: parsed.confidence || 0.5,
         raw_text: content,
       };
@@ -139,11 +149,13 @@ Retorne APENAS o JSON, sem explicações.`
         vencimento: null,
         codigo_barras: null,
         linha_digitavel: null,
-        cnpj: null,
+        cnpj_contribuinte: null,
         beneficiario: null,
         competencia: null,
         pix_key: null,
         pix_tipo: null,
+        sugestao: null,
+        alertas: ['Não foi possível processar o documento automaticamente'],
         confidence: 0,
         raw_text: content,
       };
