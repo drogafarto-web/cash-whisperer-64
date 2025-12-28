@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      accounting_audit_logs: {
+        Row: {
+          ano: number
+          categoria: string
+          comentario: string | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          mes: number
+          status: string
+          unit_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ano: number
+          categoria: string
+          comentario?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          mes: number
+          status?: string
+          unit_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ano?: number
+          categoria?: string
+          comentario?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          mes?: number
+          status?: string
+          unit_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounting_audit_logs_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       accounting_competence_data: {
         Row: {
           ano: number

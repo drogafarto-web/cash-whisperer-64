@@ -25,7 +25,8 @@ export type SystemArea =
   | 'fator_r_audit'
   | 'patrimony'
   | 'cashflow'
-  | 'accounting_panel';
+  | 'accounting_panel'
+  | 'accounting_audit';
 
 // Permissões possíveis
 export type PermissionLevel = 'none' | 'view' | 'edit' | 'full';
@@ -54,6 +55,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Record<SystemArea, PermissionLeve
     patrimony: 'full',
     cashflow: 'full',
     accounting_panel: 'full',
+    accounting_audit: 'full',
   },
   contador: {
     dashboard: 'view',
@@ -77,6 +79,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Record<SystemArea, PermissionLeve
     patrimony: 'none',
     cashflow: 'none',
     accounting_panel: 'full',
+    accounting_audit: 'full',
   },
   contabilidade: {
     dashboard: 'view',
@@ -100,6 +103,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Record<SystemArea, PermissionLeve
     patrimony: 'full',
     cashflow: 'full',
     accounting_panel: 'full',
+    accounting_audit: 'view',
   },
   financeiro: {
     dashboard: 'view',
@@ -123,6 +127,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Record<SystemArea, PermissionLeve
     patrimony: 'none',
     cashflow: 'view',
     accounting_panel: 'edit',
+    accounting_audit: 'none',
   },
   gestor_unidade: {
     dashboard: 'view',
@@ -146,6 +151,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Record<SystemArea, PermissionLeve
     patrimony: 'none',
     cashflow: 'none',
     accounting_panel: 'edit',
+    accounting_audit: 'none',
   },
   secretaria: {
     dashboard: 'view',
@@ -169,6 +175,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Record<SystemArea, PermissionLeve
     patrimony: 'none',
     cashflow: 'none',
     accounting_panel: 'edit',
+    accounting_audit: 'none',
   },
 };
 
@@ -247,6 +254,7 @@ export const AREA_LABELS: Record<SystemArea, string> = {
   patrimony: 'Patrimônio',
   cashflow: 'Fluxo de Caixa',
   accounting_panel: 'Painel Contabilidade',
+  accounting_audit: 'Auditoria Contábil',
 };
 
 // Áreas agrupadas para exibição no guia de papéis
@@ -334,6 +342,7 @@ export function getAllowedRoutes(role: AppRole | null): string[] {
     patrimony: ['/reports/patrimony'],
     cashflow: ['/reports/cashflow-projection'],
     accounting_panel: ['/accounting-panel', '/accounting-history'],
+    accounting_audit: ['/accounting-audit'],
   };
   
   for (const [area, level] of Object.entries(permissions)) {
