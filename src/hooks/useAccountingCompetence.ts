@@ -3,6 +3,22 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
+// Sanitize filename to remove special characters that cause S3/Supabase errors
+function sanitizeFileName(fileName: string): string {
+  return fileName
+    // Normalize and remove accents
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    // Remove special characters (º, ª, ç, etc.) but keep alphanumeric, dots, hyphens, underscores
+    .replace(/[^\w\s.-]/g, '')
+    // Replace spaces with underscores
+    .replace(/\s+/g, '_')
+    // Remove duplicate underscores
+    .replace(/_+/g, '_')
+    // Remove leading/trailing underscores
+    .replace(/^_|_$/g, '');
+}
+
 // ========================================
 // COMPETENCE DOCUMENTS (accounting uploads)
 // ========================================
@@ -318,8 +334,9 @@ export function useUploadLabDocument() {
       valor?: number;
       descricao?: string;
     }) => {
-      // Upload file
-      const filePath = `${unit_id}/${ano}/${mes}/${Date.now()}_${file.name}`;
+      // Sanitize filename to avoid S3/Supabase errors with special characters
+      const safeFileName = sanitizeFileName(file.name);
+      const filePath = `${unit_id}/${ano}/${mes}/${Date.now()}_${safeFileName}`;
       const { error: uploadError } = await supabase.storage
         .from('accounting-documents')
         .upload(filePath, file);
