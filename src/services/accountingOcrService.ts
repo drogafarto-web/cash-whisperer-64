@@ -253,8 +253,14 @@ export async function createPayableFromOcr(
   fileName: string
 ): Promise<{ success: boolean; id?: string; error?: string }> {
   try {
-    // Verificar duplicidade
-    const duplicate = await checkDuplicatePayable(result.issuerCnpj, result.documentNumber);
+    // Verificar duplicidade com CNPJ + document_number + valor + vencimento
+    const vencimento = result.dueDate || result.issueDate || new Date().toISOString().split('T')[0];
+    const duplicate = await checkDuplicatePayable(
+      result.issuerCnpj, 
+      result.documentNumber,
+      result.totalValue,
+      vencimento
+    );
     if (duplicate.isDuplicate) {
       return { 
         success: false, 
@@ -276,8 +282,9 @@ export async function createPayableFromOcr(
       beneficiario: result.issuerName || 'FORNECEDOR NÃO IDENTIFICADO',
       beneficiario_cnpj: normalizeCnpj(result.issuerCnpj),
       valor: result.totalValue || 0,
-      vencimento: result.dueDate || result.issueDate || new Date().toISOString().split('T')[0],
+      vencimento,
       description: result.description || `Documento ${result.documentNumber || ''}`.trim(),
+      document_number: result.documentNumber || null,
       tipo,
       status: 'PENDENTE',
       file_path: filePath,
