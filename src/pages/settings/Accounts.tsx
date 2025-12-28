@@ -36,12 +36,22 @@ import { UnitSelector } from '@/components/UnitSelector';
 import { supabase } from '@/integrations/supabase/client';
 import { Account, AccountType, BankAccountType } from '@/types/database';
 import { toast } from 'sonner';
-import { Plus, Loader2, Pencil, Building2, AlertTriangle, Star, Landmark } from 'lucide-react';
+import { Plus, Loader2, Pencil, Building2, AlertTriangle, Star, Landmark, Trash2 } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const BANK_ACCOUNT_TYPE_LABELS: Record<string, string> = {
   operacional_principal: 'Operacional Principal',
@@ -61,6 +71,8 @@ export default function AccountsSettings() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+  const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // Form state
   const [name, setName] = useState('');
@@ -98,7 +110,13 @@ export default function AccountsSettings() {
     try {
       const { data } = await supabase
         .from('accounts')
-        .select('*, unit:units(*)')
+        .select(`
+          *, 
+          unit:units(*),
+          transactions_count:transactions!transactions_account_id_fkey(count),
+          bank_transactions_count:transactions!transactions_bank_account_id_fkey(count),
+          payables_count:payables!payables_payment_bank_account_id_fkey(count)
+        `)
         .order('is_default', { ascending: false })
         .order('name');
 
@@ -107,6 +125,35 @@ export default function AccountsSettings() {
       console.error('Error fetching accounts:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const canDeleteAccount = (account: any) => {
+    const transactionCount = account.transactions_count?.[0]?.count || 0;
+    const bankTransactionCount = account.bank_transactions_count?.[0]?.count || 0;
+    const payableCount = account.payables_count?.[0]?.count || 0;
+    return transactionCount === 0 && bankTransactionCount === 0 && payableCount === 0;
+  };
+
+  const handleDelete = async () => {
+    if (!accountToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('accounts')
+        .delete()
+        .eq('id', accountToDelete.id);
+
+      if (error) throw error;
+      toast.success('Conta excluída!');
+      fetchAccounts();
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      toast.error('Erro ao excluir conta');
+    } finally {
+      setIsDeleting(false);
+      setAccountToDelete(null);
     }
   };
 
@@ -539,9 +586,33 @@ export default function AccountsSettings() {
                         />
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => handleEdit(account)}>
-                          <Pencil className="w-4 h-4" />
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => handleEdit(account)}>
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          
+                          {canDeleteAccount(account) ? (
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => setAccountToDelete(account)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          ) : (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" disabled className="opacity-30">
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Não é possível excluir: conta possui transações vinculadas</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -550,6 +621,29 @@ export default function AccountsSettings() {
             </Table>
           </CardContent>
         </Card>
+
+        <AlertDialog open={!!accountToDelete} onOpenChange={() => setAccountToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir conta?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir a conta <strong>{accountToDelete?.name}</strong>?
+                Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                disabled={isDeleting}
+              >
+                {isDeleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppLayout>
   );
