@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -15,6 +14,7 @@ import {
   Send,
   Loader2,
   File,
+  Sparkles,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -27,6 +27,9 @@ import {
   useDeleteLabDocument,
   useSubmitToAccounting,
 } from '@/hooks/useAccountingCompetence';
+import { AccountingOcrResultCard } from './AccountingOcrResultCard';
+import { processAccountingDocument, AnalyzedDocResult } from '@/services/accountingOcrService';
+import { useNavigate } from 'react-router-dom';
 
 interface AccountingSendDocumentsProps {
   unitId: string | null;
@@ -37,12 +40,26 @@ interface AccountingSendDocumentsProps {
 
 type DocumentType = 'nf' | 'despesa' | 'extrato_bancario';
 
+interface OcrResult {
+  docId: string;
+  fileName: string;
+  result: AnalyzedDocResult;
+  recordCreated: boolean;
+  recordType?: 'invoice' | 'payable';
+  recordId?: string;
+  isDuplicate?: boolean;
+  duplicateId?: string;
+}
+
 export function AccountingSendDocuments({ unitId, unitName, competence, onBack }: AccountingSendDocumentsProps) {
+  const navigate = useNavigate();
   const ano = competence.getFullYear();
   const mes = competence.getMonth() + 1;
   
   const [activeTab, setActiveTab] = useState<DocumentType>('nf');
   const [observacoes, setObservacoes] = useState('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [ocrResults, setOcrResults] = useState<OcrResult[]>([]);
   
   const { data: submission, isLoading: loadingSubmission } = useLabSubmission(unitId, ano, mes);
   const { data: documents = [], isLoading: loadingDocs } = useLabDocuments(submission?.id || null);
@@ -55,6 +72,9 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
   const competenceLabel = format(competence, "MMMM 'de' yyyy", { locale: ptBR });
   
   const filteredDocs = documents.filter(d => d.tipo === activeTab);
+
+  // Verifica se a aba atual suporta OCR inteligente
+  const supportsOcr = activeTab === 'nf' || activeTab === 'despesa';
   
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length || !unitId) return;
@@ -79,7 +99,8 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
       }
     }
     
-    await uploadMutation.mutateAsync({
+    // Upload do arquivo
+    const uploadResult = await uploadMutation.mutateAsync({
       file,
       submission_id: submissionId,
       unit_id: unitId,
@@ -87,10 +108,71 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
       mes,
       tipo: activeTab,
     });
+
+    // Se suporta OCR e é NF ou Despesa, processar automaticamente
+    if (supportsOcr && uploadResult?.id) {
+      setIsAnalyzing(true);
+      
+      try {
+        toast.info('Analisando documento com IA...', {
+          id: 'ocr-analyzing',
+          duration: 10000,
+        });
+
+        const ocrResult = await processAccountingDocument(
+          file,
+          unitId,
+          uploadResult.file_path || '',
+          ano,
+          mes
+        );
+
+        toast.dismiss('ocr-analyzing');
+
+        // Adicionar resultado à lista
+        const newOcrResult: OcrResult = {
+          docId: uploadResult.id,
+          fileName: file.name,
+          result: ocrResult.result,
+          recordCreated: ocrResult.recordCreated,
+          recordType: ocrResult.recordType,
+          recordId: ocrResult.recordId,
+          isDuplicate: ocrResult.isDuplicate,
+          duplicateId: ocrResult.duplicateId,
+        };
+
+        setOcrResults(prev => [newOcrResult, ...prev]);
+
+        // Mostrar toast apropriado
+        if (ocrResult.isDuplicate) {
+          toast.warning('Documento já cadastrado', {
+            description: 'Este documento já existe no sistema.',
+          });
+        } else if (ocrResult.recordCreated) {
+          const typeLabel = ocrResult.recordType === 'invoice' ? 'Faturamento' : 'Despesas';
+          toast.success(`Cadastrado em ${typeLabel}`, {
+            description: `${ocrResult.result.type === 'revenue' ? 'Receita' : 'Despesa'} identificada automaticamente.`,
+          });
+        } else if (ocrResult.result.type === 'unknown') {
+          toast.info('Classificação manual necessária', {
+            description: 'Não foi possível identificar automaticamente se é receita ou despesa.',
+          });
+        }
+
+      } catch (error) {
+        toast.dismiss('ocr-analyzing');
+        console.error('OCR error:', error);
+        toast.error('Erro na análise', {
+          description: 'O arquivo foi salvo, mas não foi possível analisar automaticamente.',
+        });
+      } finally {
+        setIsAnalyzing(false);
+      }
+    }
     
     // Reset input
     e.target.value = '';
-  }, [unitId, ano, mes, activeTab, submission?.id, submissionMutation, uploadMutation]);
+  }, [unitId, ano, mes, activeTab, submission?.id, submissionMutation, uploadMutation, supportsOcr]);
 
   const handleDelete = async (doc: typeof documents[0]) => {
     if (!doc.id || !submission?.id) return;
@@ -100,6 +182,9 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
       file_path: doc.file_path,
       submission_id: submission.id,
     });
+
+    // Remover do OCR results se existir
+    setOcrResults(prev => prev.filter(r => r.docId !== doc.id));
   };
 
   const handleSubmit = async () => {
@@ -131,6 +216,14 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
     });
   };
 
+  const handleViewRecord = (type: 'invoice' | 'payable', id: string) => {
+    if (type === 'invoice') {
+      navigate('/billing/invoices');
+    } else {
+      navigate('/payables/boletos');
+    }
+  };
+
   const isReadOnly = submission?.status === 'enviado' || submission?.status === 'recebido';
 
   if (loadingSubmission) {
@@ -157,10 +250,13 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
       </div>
 
       <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
-        <p className="text-sm text-muted-foreground">Enviar para Contabilidade</p>
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-primary" />
+          <p className="text-sm text-muted-foreground">Enviar para Contabilidade</p>
+        </div>
         <p className="text-xl font-semibold capitalize">{competenceLabel} — {unitName}</p>
         <p className="text-xs text-muted-foreground mt-1">
-          Fluxo contínuo Jan/2026+ • Documentos para apuração fiscal
+          <span className="text-primary font-medium">OCR Inteligente:</span> documentos são analisados automaticamente e cadastrados como Receita ou Despesa
         </p>
       </div>
 
@@ -205,26 +301,59 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
                 className="hidden" 
                 onChange={handleFileUpload}
                 accept=".pdf,.xml,.jpg,.jpeg,.png"
-                disabled={uploadMutation.isPending}
+                disabled={uploadMutation.isPending || isAnalyzing}
               />
               <div className="p-4 rounded-full bg-muted mb-3">
-                {uploadMutation.isPending ? (
+                {uploadMutation.isPending || isAnalyzing ? (
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                ) : supportsOcr ? (
+                  <Sparkles className="h-8 w-8 text-primary" />
                 ) : (
                   <Upload className="h-8 w-8 text-muted-foreground" />
                 )}
               </div>
               <p className="text-sm font-medium">
-                {activeTab === 'nf' && 'Clique para adicionar Nota Fiscal'}
-                {activeTab === 'despesa' && 'Clique para adicionar Comprovante de Despesa'}
-                {activeTab === 'extrato_bancario' && 'Clique para adicionar Extrato Bancário'}
+                {isAnalyzing ? 'Analisando documento com IA...' : (
+                  <>
+                    {activeTab === 'nf' && 'Clique para adicionar Nota Fiscal'}
+                    {activeTab === 'despesa' && 'Clique para adicionar Comprovante de Despesa'}
+                    {activeTab === 'extrato_bancario' && 'Clique para adicionar Extrato Bancário'}
+                  </>
+                )}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                PDF, XML, JPG ou PNG
+                {supportsOcr ? (
+                  'PDF, XML, JPG ou PNG • Análise automática com IA'
+                ) : (
+                  'PDF, XML, JPG ou PNG'
+                )}
               </p>
             </label>
           </CardContent>
         </Card>
+      )}
+
+      {/* OCR Results */}
+      {ocrResults.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+            <Sparkles className="h-4 w-4" />
+            Documentos Analisados
+          </h3>
+          {ocrResults.map((ocr) => (
+            <AccountingOcrResultCard
+              key={ocr.docId}
+              result={ocr.result}
+              fileName={ocr.fileName}
+              recordCreated={ocr.recordCreated}
+              recordType={ocr.recordType}
+              recordId={ocr.recordId}
+              isDuplicate={ocr.isDuplicate}
+              duplicateId={ocr.duplicateId}
+              onViewRecord={handleViewRecord}
+            />
+          ))}
+        </div>
       )}
 
       {/* Documents list */}
@@ -235,6 +364,9 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
         </div>
       ) : filteredDocs.length > 0 ? (
         <div className="space-y-2">
+          <h3 className="text-sm font-medium text-muted-foreground">
+            Documentos Enviados
+          </h3>
           {filteredDocs.map((doc) => (
             <Card key={doc.id}>
               <CardContent className="p-4 flex items-center justify-between">
