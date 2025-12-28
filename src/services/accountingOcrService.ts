@@ -261,7 +261,7 @@ export async function createPayableFromOcr(
       vencimento: result.dueDate || result.issueDate || new Date().toISOString().split('T')[0],
       description: result.description || `Documento ${result.documentNumber || ''}`.trim(),
       tipo,
-      status: 'pendente',
+      status: 'PENDENTE',
       file_path: filePath,
       file_name: fileName,
       ocr_confidence: result.confidence,
