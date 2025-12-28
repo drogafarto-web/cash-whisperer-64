@@ -113,7 +113,7 @@ export const navigationGroups: NavGroup[] = [
     items: [
       { name: 'Base Fiscal', href: '/settings/fiscal-base', icon: Calculator, roles: ['admin', 'contador'] },
       { name: 'Povoação 2025', href: '/settings/data-2025', icon: Database, roles: ['admin', 'contador'] },
-      { name: 'Auditoria Fator R', href: '/settings/fator-r-audit', icon: Calculator, roles: ['admin', 'contador'] },
+      { name: 'Configurar Fator R', href: '/settings/fator-r-audit', icon: Settings, roles: ['admin', 'contador'] },
     ],
   },
   {
