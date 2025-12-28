@@ -23,38 +23,7 @@ interface OCRResult {
   raw_text: string;
 }
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  try {
-    const { image_base64, file_name, competencia } = await req.json();
-
-    if (!image_base64) {
-      return new Response(
-        JSON.stringify({ error: 'image_base64 is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log(`Processing OCR for tax document: ${file_name || 'unknown'}`);
-
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${Deno.env.get('LOVABLE_API_KEY')}`,
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: `Analise esta imagem de documento fiscal/tributário brasileiro e extraia as seguintes informações em JSON:
+const PROMPT_TEMPLATE = (competencia: { ano?: number; mes?: number } | null) => `Analise esta imagem de documento fiscal/tributário brasileiro e extraia as seguintes informações em JSON:
 
 {
   "tipo_documento": "das" | "darf" | "gps" | "inss" | "fgts" | "iss" | "nf_servico" | "outro",
@@ -92,90 +61,172 @@ Alertas a verificar:
 Sugestão: seja útil para o contador, ex: "DAS de Jan/2026 no valor de R$ 3.500. Valor dentro do esperado para faturamento do Simples."
 
 Se não conseguir identificar algum campo, retorne null para ele.
-Retorne APENAS o JSON, sem explicações.`
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:image/jpeg;base64,${image_base64}`
-                }
-              }
-            ]
-          }
-        ],
-        max_tokens: 1500,
-        temperature: 0.1,
-      }),
-    });
+Retorne APENAS o JSON, sem explicações.`;
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('AI error:', errorText);
-      
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Limite de requisições excedido. Tente novamente em alguns minutos.' }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Créditos de IA esgotados. Adicione créditos em Configurações → Workspace → Uso.' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      throw new Error(`AI API error: ${response.status}`);
+async function callLovableAI(image_base64: string, competencia: { ano?: number; mes?: number } | null): Promise<{ ok: boolean; status: number; data?: any; error?: string }> {
+  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${Deno.env.get('LOVABLE_API_KEY')}`,
+    },
+    body: JSON.stringify({
+      model: 'google/gemini-2.5-flash',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: PROMPT_TEMPLATE(competencia) },
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${image_base64}` } }
+          ]
+        }
+      ],
+      max_tokens: 1500,
+      temperature: 0.1,
+    }),
+  });
+
+  if (!response.ok) {
+    return { ok: false, status: response.status, error: await response.text() };
+  }
+
+  const data = await response.json();
+  return { ok: true, status: 200, data };
+}
+
+async function callOpenAI(image_base64: string, competencia: { ano?: number; mes?: number } | null): Promise<{ ok: boolean; status: number; data?: any; error?: string }> {
+  const openAIKey = Deno.env.get('OPENAI_API_KEY');
+  if (!openAIKey) {
+    return { ok: false, status: 500, error: 'OpenAI API key not configured' };
+  }
+
+  console.log('Falling back to OpenAI API...');
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${openAIKey}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: PROMPT_TEMPLATE(competencia) },
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${image_base64}` } }
+          ]
+        }
+      ],
+      max_tokens: 1500,
+      temperature: 0.1,
+    }),
+  });
+
+  if (!response.ok) {
+    return { ok: false, status: response.status, error: await response.text() };
+  }
+
+  const data = await response.json();
+  return { ok: true, status: 200, data };
+}
+
+function parseAIResponse(content: string): OCRResult {
+  try {
+    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, content];
+    const jsonStr = jsonMatch[1]?.trim() || content.trim();
+    const parsed = JSON.parse(jsonStr);
+    
+    return {
+      tipo_documento: parsed.tipo_documento || 'outro',
+      valor: parsed.valor ?? null,
+      vencimento: parsed.vencimento || null,
+      codigo_barras: parsed.codigo_barras || null,
+      linha_digitavel: parsed.linha_digitavel || null,
+      cnpj_contribuinte: parsed.cnpj_contribuinte || null,
+      beneficiario: parsed.beneficiario || null,
+      competencia: parsed.competencia || null,
+      pix_key: parsed.pix_key || null,
+      pix_tipo: parsed.pix_tipo || null,
+      sugestao: parsed.sugestao || null,
+      alertas: parsed.alertas || [],
+      confidence: parsed.confidence || 0.5,
+      raw_text: content,
+    };
+  } catch (parseError) {
+    console.error('JSON parse error:', parseError);
+    return {
+      tipo_documento: 'outro',
+      valor: null,
+      vencimento: null,
+      codigo_barras: null,
+      linha_digitavel: null,
+      cnpj_contribuinte: null,
+      beneficiario: null,
+      competencia: null,
+      pix_key: null,
+      pix_tipo: null,
+      sugestao: null,
+      alertas: ['Não foi possível processar o documento automaticamente'],
+      confidence: 0,
+      raw_text: content,
+    };
+  }
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { image_base64, file_name, competencia } = await req.json();
+
+    if (!image_base64) {
+      return new Response(
+        JSON.stringify({ error: 'image_base64 is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    const aiResponse = await response.json();
-    const content = aiResponse.choices?.[0]?.message?.content || '';
+    console.log(`Processing OCR for tax document: ${file_name || 'unknown'}`);
+
+    // Try Lovable AI first
+    let aiResult = await callLovableAI(image_base64, competencia);
     
+    // If Lovable AI fails with 402 (no credits), try OpenAI fallback
+    if (!aiResult.ok && aiResult.status === 402) {
+      console.log('Lovable AI credits exhausted, trying OpenAI fallback...');
+      aiResult = await callOpenAI(image_base64, competencia);
+    }
+
+    // Handle rate limit
+    if (!aiResult.ok && aiResult.status === 429) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Limite de requisições excedido. Tente novamente em alguns minutos.', code: 'RATE_LIMIT' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Handle payment required (both APIs exhausted)
+    if (!aiResult.ok && aiResult.status === 402) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Créditos de IA esgotados. Preencha os dados manualmente.', code: 'NO_CREDITS' }),
+        { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Handle other errors
+    if (!aiResult.ok) {
+      console.error('AI error:', aiResult.error);
+      throw new Error(`AI API error: ${aiResult.status}`);
+    }
+
+    const content = aiResult.data?.choices?.[0]?.message?.content || '';
     console.log('AI Response:', content);
 
-    let ocrData: OCRResult;
-    try {
-      const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, content];
-      const jsonStr = jsonMatch[1]?.trim() || content.trim();
-      const parsed = JSON.parse(jsonStr);
-      
-      ocrData = {
-        tipo_documento: parsed.tipo_documento || 'outro',
-        valor: parsed.valor ?? null,
-        vencimento: parsed.vencimento || null,
-        codigo_barras: parsed.codigo_barras || null,
-        linha_digitavel: parsed.linha_digitavel || null,
-        cnpj_contribuinte: parsed.cnpj_contribuinte || null,
-        beneficiario: parsed.beneficiario || null,
-        competencia: parsed.competencia || null,
-        pix_key: parsed.pix_key || null,
-        pix_tipo: parsed.pix_tipo || null,
-        sugestao: parsed.sugestao || null,
-        alertas: parsed.alertas || [],
-        confidence: parsed.confidence || 0.5,
-        raw_text: content,
-      };
-    } catch (parseError) {
-      console.error('JSON parse error:', parseError);
-      ocrData = {
-        tipo_documento: 'outro',
-        valor: null,
-        vencimento: null,
-        codigo_barras: null,
-        linha_digitavel: null,
-        cnpj_contribuinte: null,
-        beneficiario: null,
-        competencia: null,
-        pix_key: null,
-        pix_tipo: null,
-        sugestao: null,
-        alertas: ['Não foi possível processar o documento automaticamente'],
-        confidence: 0,
-        raw_text: content,
-      };
-    }
-
+    const ocrData = parseAIResponse(content);
     console.log('Extracted OCR data:', ocrData);
 
     return new Response(
