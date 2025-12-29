@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
-import { Upload, Barcode, Loader2, Wand2, FileText, Plus, AlertCircle, Check, Clock } from 'lucide-react';
+import { Upload, Barcode, Loader2, Wand2, FileText, Plus, AlertCircle, Check, Clock, Receipt, FileWarning } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +34,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 
 import { useBoletoOcr } from '@/features/payables/hooks/usePayableOcr';
 import { useCreatePayable } from '@/features/payables/hooks/usePayables';
@@ -50,6 +52,7 @@ import {
 import { PayableFormData, SupplierInvoice, SupplierInvoiceFormData } from '@/types/payables';
 import { toast } from 'sonner';
 
+// Schema now makes supplier_invoice_id optional
 const formSchema = z.object({
   beneficiario: z.string().min(1, 'Beneficiário é obrigatório'),
   beneficiario_cnpj: z.string().optional(),
@@ -62,7 +65,7 @@ const formSchema = z.object({
   description: z.string().optional(),
   parcela_numero: z.number().optional(),
   parcela_total: z.number().optional(),
-  supplier_invoice_id: z.string().min(1, 'Nota Fiscal é obrigatória para boletos'),
+  supplier_invoice_id: z.string().optional(),
   unit_id: z.string().optional(),
   category_id: z.string().optional(),
 });
@@ -85,6 +88,7 @@ const inlineNfSchema = z.object({
 });
 
 type InlineNfFormData = z.infer<typeof inlineNfSchema>;
+type BoletoTipo = 'compra' | 'imposto';
 
 export function BoletoUploadForm({
   units,
@@ -99,6 +103,7 @@ export function BoletoUploadForm({
   const [showCreateNfDialog, setShowCreateNfDialog] = useState(false);
   const [matchingSuggestions, setMatchingSuggestions] = useState<SupplierInvoiceMatch[]>([]);
   const [isSearchingMatches, setIsSearchingMatches] = useState(false);
+  const [boletoTipo, setBoletoTipo] = useState<BoletoTipo>('compra');
 
   const { processFile, isProcessing } = useBoletoOcr();
   const createPayable = useCreatePayable();
@@ -139,8 +144,13 @@ export function BoletoUploadForm({
   const watchedCnpj = form.watch('beneficiario_cnpj');
   const watchedValor = form.watch('valor');
 
-  // Auto-search for matching invoices when CNPJ or value changes
+  // Auto-search for matching invoices when CNPJ or value changes (only for 'compra' type)
   useEffect(() => {
+    if (boletoTipo !== 'compra') {
+      setMatchingSuggestions([]);
+      return;
+    }
+
     const searchMatches = async () => {
       if (!watchedCnpj && !watchedValor) {
         setMatchingSuggestions([]);
@@ -160,7 +170,7 @@ export function BoletoUploadForm({
 
     const debounce = setTimeout(searchMatches, 500);
     return () => clearTimeout(debounce);
-  }, [watchedCnpj, watchedValor]);
+  }, [watchedCnpj, watchedValor, boletoTipo]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -267,12 +277,24 @@ export function BoletoUploadForm({
         }
       }
 
+      // Determine nf_vinculacao_status based on type and invoice link
+      let nfVinculacaoStatus: 'nao_requer' | 'pendente' | 'vinculado' = 'nao_requer';
+      
+      if (boletoTipo === 'compra') {
+        if (data.supplier_invoice_id) {
+          nfVinculacaoStatus = 'vinculado';
+        } else {
+          nfVinculacaoStatus = 'pendente';
+        }
+      }
+
       await createPayable.mutateAsync({
         data: {
           ...data,
           tipo: 'boleto',
         },
         ocrConfidence: ocrConfidence ?? undefined,
+        nfVinculacaoStatus,
       });
 
       onSuccess?.();
@@ -283,9 +305,61 @@ export function BoletoUploadForm({
 
   const selectedInvoiceId = form.watch('supplier_invoice_id');
   const selectedInvoice = supplierInvoices.find(inv => inv.id === selectedInvoiceId);
+  const showNfSection = boletoTipo === 'compra';
+  const hasNoNfLinked = showNfSection && !selectedInvoiceId;
 
   return (
     <div className="space-y-6">
+      {/* Tipo de Boleto Selection */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Tipo de Pagamento
+          </CardTitle>
+          <CardDescription>
+            Selecione o tipo de documento para cadastro adequado.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <RadioGroup
+            value={boletoTipo}
+            onValueChange={(value: BoletoTipo) => {
+              setBoletoTipo(value);
+              if (value === 'imposto') {
+                form.setValue('supplier_invoice_id', '');
+              }
+            }}
+            className="grid grid-cols-2 gap-4"
+          >
+            <div className="flex items-start space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
+              <RadioGroupItem value="compra" id="compra" className="mt-1" />
+              <div className="flex-1">
+                <Label htmlFor="compra" className="cursor-pointer font-medium flex items-center gap-2">
+                  <Receipt className="h-4 w-4" />
+                  Boleto de Compra
+                </Label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Pagamento de fornecedor com NF vinculada
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
+              <RadioGroupItem value="imposto" id="imposto" className="mt-1" />
+              <div className="flex-1">
+                <Label htmlFor="imposto" className="cursor-pointer font-medium flex items-center gap-2">
+                  <FileWarning className="h-4 w-4" />
+                  Imposto / Taxa
+                </Label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  DAS, DARF, GPS, FGTS, etc. (não requer NF)
+                </p>
+              </div>
+            </div>
+          </RadioGroup>
+        </CardContent>
+      </Card>
+
       {/* Upload Section */}
       <Card>
         <CardHeader>
@@ -340,129 +414,132 @@ export function BoletoUploadForm({
         </CardContent>
       </Card>
 
-      {/* NF Linking Section - Critical */}
-      <Card className={!selectedInvoiceId ? 'border-destructive' : 'border-primary'}>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Nota Fiscal Vinculada *
-          </CardTitle>
-          <CardDescription>
-            Todo boleto deve estar vinculado a uma Nota Fiscal de fornecedor.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {!selectedInvoiceId && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Selecione uma NF existente ou crie uma nova para vincular este boleto.
-              </AlertDescription>
-            </Alert>
-          )}
+      {/* NF Linking Section - Only for 'compra' type */}
+      {showNfSection && (
+        <Card className={hasNoNfLinked ? 'border-amber-500' : 'border-primary'}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Nota Fiscal Vinculada
+            </CardTitle>
+            <CardDescription>
+              Vincule este boleto a uma Nota Fiscal de fornecedor.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {hasNoNfLinked && (
+              <Alert className="border-amber-500 bg-amber-500/10">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-amber-700">
+                  Este boleto será salvo como <strong>"Pendente Vinculação"</strong>.
+                  Você poderá vincular a NF posteriormente na listagem de boletos.
+                </AlertDescription>
+              </Alert>
+            )}
 
-          {/* Matching Suggestions */}
-          {matchingSuggestions.length > 0 && !selectedInvoiceId && (
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">
-                Sugestões encontradas ({matchingSuggestions.length}):
-              </p>
+            {/* Matching Suggestions */}
+            {matchingSuggestions.length > 0 && !selectedInvoiceId && (
               <div className="space-y-2">
-                {matchingSuggestions.slice(0, 3).map((match) => (
-                  <div
-                    key={match.invoice.id}
-                    className={`flex items-center justify-between p-3 border rounded-lg hover:bg-accent cursor-pointer ${
-                      match.invoice.status === 'aguardando_boleto' ? 'border-amber-500 bg-amber-500/5' : ''
-                    }`}
-                    onClick={() => handleSelectMatch(match)}
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">
-                          NF {match.invoice.document_number} - {match.invoice.supplier_name}
-                        </p>
-                        {match.invoice.status === 'aguardando_boleto' && (
-                          <Badge variant="outline" className="border-amber-500 text-amber-600 bg-amber-500/10">
-                            <Clock className="h-3 w-3 mr-1" />
-                            Aguardando Boleto
-                          </Badge>
-                        )}
+                <p className="text-sm font-medium text-muted-foreground">
+                  Sugestões encontradas ({matchingSuggestions.length}):
+                </p>
+                <div className="space-y-2">
+                  {matchingSuggestions.slice(0, 3).map((match) => (
+                    <div
+                      key={match.invoice.id}
+                      className={`flex items-center justify-between p-3 border rounded-lg hover:bg-accent cursor-pointer ${
+                        match.invoice.status === 'aguardando_boleto' ? 'border-amber-500 bg-amber-500/5' : ''
+                      }`}
+                      onClick={() => handleSelectMatch(match)}
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">
+                            NF {match.invoice.document_number} - {match.invoice.supplier_name}
+                          </p>
+                          {match.invoice.status === 'aguardando_boleto' && (
+                            <Badge variant="outline" className="border-amber-500 text-amber-600 bg-amber-500/10">
+                              <Clock className="h-3 w-3 mr-1" />
+                              Aguardando Boleto
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex gap-2 mt-1">
+                          {match.matchReasons.map((reason, i) => (
+                            <Badge key={i} variant="secondary" className="text-xs">
+                              {reason}
+                            </Badge>
+                          ))}
+                        </div>
                       </div>
-                      <div className="flex gap-2 mt-1">
-                        {match.matchReasons.map((reason, i) => (
-                          <Badge key={i} variant="secondary" className="text-xs">
-                            {reason}
-                          </Badge>
-                        ))}
-                      </div>
+                      <Button type="button" size="sm" variant="outline">
+                        <Check className="h-4 w-4 mr-1" />
+                        Vincular
+                      </Button>
                     </div>
-                    <Button type="button" size="sm" variant="outline">
-                      <Check className="h-4 w-4 mr-1" />
-                      Vincular
-                    </Button>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
+            )}
+
+            {isSearchingMatches && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Buscando NFs correspondentes...
+              </div>
+            )}
+
+            <Form {...form}>
+              <FormField
+                control={form.control}
+                name="supplier_invoice_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Selecionar NF Existente</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione uma NF..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {supplierInvoices.map((inv) => (
+                          <SelectItem key={inv.id} value={inv.id}>
+                            NF {inv.document_number} - {inv.supplier_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </Form>
+
+            {selectedInvoice && (
+              <div className="p-3 bg-primary/10 rounded-lg">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <Check className="h-4 w-4 text-primary" />
+                  NF {selectedInvoice.document_number} - {selectedInvoice.supplier_name}
+                </p>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">ou</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={openCreateNfWithPrefill}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Criar NF para este Boleto
+              </Button>
             </div>
-          )}
-
-          {isSearchingMatches && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Buscando NFs correspondentes...
-            </div>
-          )}
-
-          <Form {...form}>
-            <FormField
-              control={form.control}
-              name="supplier_invoice_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Selecionar NF Existente</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione uma NF..." />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {supplierInvoices.map((inv) => (
-                        <SelectItem key={inv.id} value={inv.id}>
-                          NF {inv.document_number} - {inv.supplier_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </Form>
-
-          {selectedInvoice && (
-            <div className="p-3 bg-primary/10 rounded-lg">
-              <p className="text-sm font-medium flex items-center gap-2">
-                <Check className="h-4 w-4 text-primary" />
-                NF {selectedInvoice.document_number} - {selectedInvoice.supplier_name}
-              </p>
-            </div>
-          )}
-
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">ou</span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={openCreateNfWithPrefill}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Criar NF para este Boleto
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Form Section */}
       <Form {...form}>
@@ -507,11 +584,12 @@ export function BoletoUploadForm({
                   <FormItem>
                     <FormLabel>Valor *</FormLabel>
                     <FormControl>
-                      <Input
-                        type="number"
+                      <Input 
+                        type="number" 
                         step="0.01"
                         {...field}
                         onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                        placeholder="0,00"
                       />
                     </FormControl>
                     <FormMessage />
@@ -535,26 +613,12 @@ export function BoletoUploadForm({
 
               <FormField
                 control={form.control}
-                name="banco_nome"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Banco</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="Nome do banco" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
                 name="linha_digitavel"
                 render={({ field }) => (
                   <FormItem className="md:col-span-2 lg:col-span-3">
                     <FormLabel>Linha Digitável</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="00000.00000 00000.000000 00000.000000 0 00000000000000" />
+                      <Input {...field} placeholder="Digite ou cole a linha digitável" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -568,50 +632,26 @@ export function BoletoUploadForm({
                   <FormItem className="md:col-span-2 lg:col-span-3">
                     <FormLabel>Código de Barras</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="00000000000000000000000000000000000000000000" />
+                      <Input {...field} placeholder="Digite ou cole o código de barras" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="parcela_numero"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Parcela Nº</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          {...field}
-                          onChange={(e) => field.onChange(parseInt(e.target.value) || undefined)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="parcela_total"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Total Parcelas</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          {...field}
-                          onChange={(e) => field.onChange(parseInt(e.target.value) || undefined)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              <FormField
+                control={form.control}
+                name="banco_nome"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Banco</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Nome do banco" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <FormField
                 control={form.control}
@@ -668,9 +708,9 @@ export function BoletoUploadForm({
                 name="description"
                 render={({ field }) => (
                   <FormItem className="md:col-span-2 lg:col-span-3">
-                    <FormLabel>Observações</FormLabel>
+                    <FormLabel>Descrição</FormLabel>
                     <FormControl>
-                      <Textarea {...field} placeholder="Observações sobre o boleto..." />
+                      <Textarea {...field} placeholder="Observações sobre o pagamento" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -679,14 +719,14 @@ export function BoletoUploadForm({
             </CardContent>
           </Card>
 
-          {/* Actions */}
+          {/* Action Buttons */}
           <div className="flex justify-end gap-4">
             {onCancel && (
               <Button type="button" variant="outline" onClick={onCancel}>
                 Cancelar
               </Button>
             )}
-            <Button type="submit" disabled={createPayable.isPending || !selectedInvoiceId}>
+            <Button type="submit" disabled={createPayable.isPending}>
               {createPayable.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Salvar Boleto
             </Button>
@@ -694,82 +734,112 @@ export function BoletoUploadForm({
         </form>
       </Form>
 
-      {/* Inline NF Creation Dialog */}
+      {/* Create NF Dialog */}
       <Dialog open={showCreateNfDialog} onOpenChange={setShowCreateNfDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Criar Nota Fiscal</DialogTitle>
+            <DialogTitle>Criar Nova Nota Fiscal</DialogTitle>
             <DialogDescription>
-              Crie uma NF mínima para vincular a este boleto.
+              Crie uma NF para vincular a este boleto. Você poderá complementar os dados depois.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={inlineNfForm.handleSubmit(handleCreateInlineNf)} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Número do Documento *</label>
-                <Input
-                  {...inlineNfForm.register('document_number')}
-                  placeholder="123456"
-                />
-                {inlineNfForm.formState.errors.document_number && (
-                  <p className="text-sm text-destructive">
-                    {inlineNfForm.formState.errors.document_number.message}
-                  </p>
+          
+          <Form {...inlineNfForm}>
+            <form onSubmit={inlineNfForm.handleSubmit(handleCreateInlineNf)} className="space-y-4">
+              <FormField
+                control={inlineNfForm.control}
+                name="document_number"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Número da NF *</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Número do documento" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )}
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Data de Emissão *</label>
-                <Input
-                  type="date"
-                  {...inlineNfForm.register('issue_date')}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Fornecedor *</label>
-              <Input
-                {...inlineNfForm.register('supplier_name')}
-                placeholder="Nome do fornecedor"
               />
-              {inlineNfForm.formState.errors.supplier_name && (
-                <p className="text-sm text-destructive">
-                  {inlineNfForm.formState.errors.supplier_name.message}
-                </p>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">CNPJ</label>
-                <Input
-                  {...inlineNfForm.register('supplier_cnpj')}
-                  placeholder="00.000.000/0000-00"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Valor Total *</label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  {...inlineNfForm.register('total_value', { valueAsNumber: true })}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowCreateNfDialog(false)}
-              >
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={createSupplierInvoice.isPending}>
-                {createSupplierInvoice.isPending && (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+
+              <FormField
+                control={inlineNfForm.control}
+                name="supplier_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Fornecedor *</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Nome do fornecedor" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )}
-                Criar NF
-              </Button>
-            </DialogFooter>
-          </form>
+              />
+
+              <FormField
+                control={inlineNfForm.control}
+                name="supplier_cnpj"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>CNPJ</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="00.000.000/0000-00" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={inlineNfForm.control}
+                  name="issue_date"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Data Emissão *</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={inlineNfForm.control}
+                  name="total_value"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Valor Total *</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="number" 
+                          step="0.01"
+                          {...field}
+                          onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <DialogFooter>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => setShowCreateNfDialog(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={createSupplierInvoice.isPending}>
+                  {createSupplierInvoice.isPending && (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  )}
+                  Criar e Vincular
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
         </DialogContent>
       </Dialog>
     </div>

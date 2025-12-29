@@ -689,6 +689,7 @@ export type Database = {
       alert_preferences: {
         Row: {
           created_at: string | null
+          dias_alerta_boleto_ausente: number | null
           email_fator_r_alerta: boolean | null
           email_fator_r_critico: boolean | null
           frequencia: string | null
@@ -699,6 +700,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          dias_alerta_boleto_ausente?: number | null
           email_fator_r_alerta?: boolean | null
           email_fator_r_critico?: boolean | null
           frequencia?: string | null
@@ -709,6 +711,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          dias_alerta_boleto_ausente?: number | null
           email_fator_r_alerta?: boolean | null
           email_fator_r_critico?: boolean | null
           frequencia?: string | null
@@ -2031,6 +2034,7 @@ export type Database = {
           linha_digitavel: string | null
           matched_bank_item_id: string | null
           matched_transaction_id: string | null
+          nf_vinculacao_status: string | null
           ocr_confidence: number | null
           paid_amount: number | null
           paid_at: string | null
@@ -2068,6 +2072,7 @@ export type Database = {
           linha_digitavel?: string | null
           matched_bank_item_id?: string | null
           matched_transaction_id?: string | null
+          nf_vinculacao_status?: string | null
           ocr_confidence?: number | null
           paid_amount?: number | null
           paid_at?: string | null
@@ -2105,6 +2110,7 @@ export type Database = {
           linha_digitavel?: string | null
           matched_bank_item_id?: string | null
           matched_transaction_id?: string | null
+          nf_vinculacao_status?: string | null
           ocr_confidence?: number | null
           paid_amount?: number | null
           paid_at?: string | null

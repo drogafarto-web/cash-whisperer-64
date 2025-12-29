@@ -27,3 +27,11 @@ export const DATE_FORMATS = {
 
 // Tipo para os formatos disponíveis
 export type DateFormatKey = keyof typeof DATE_FORMATS;
+
+// Formata valor para moeda brasileira
+export function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(value);
+}
