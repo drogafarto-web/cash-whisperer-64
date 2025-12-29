@@ -115,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           unit:units(*)
         `).eq('profile_id', userId),
         supabase.from('profile_functions').select('function').eq('profile_id', userId),
-        supabase.from('user_roles').select('role').eq('user_id', userId).single()
+        supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle()
       ]);
 
       const profileData = profileResult.data;
