@@ -89,7 +89,7 @@ function ReceptionPanelContent() {
 
   return (
     <AppLayout>
-      <div className="container py-6 max-w-lg mx-auto">
+      <div className="container py-6 max-w-lg mx-auto lg:max-w-5xl xl:max-w-6xl">
         {/* Breadcrumb */}
         {currentStep !== 'home' && (
           <div className="mb-4">
@@ -101,14 +101,16 @@ function ReceptionPanelContent() {
           </div>
         )}
 
-        {/* Header moderno */}
+        {/* Header moderno - responsivo */}
         {currentStep === 'home' && (
-          <div className="mb-6">
-            <div className="flex justify-between items-start mb-4">
+          <div className="mb-6 lg:mb-8 lg:flex lg:items-center lg:justify-between">
+            {/* Data e saudação */}
+            <div className="flex justify-between items-start mb-4 lg:mb-0 lg:block">
               <span className="text-sm text-muted-foreground capitalize">
                 {formattedDate}
               </span>
-              <div className="relative">
+              {/* Avatar mobile only */}
+              <div className="relative lg:hidden">
                 <Avatar className="h-10 w-10 border-2 border-background shadow-sm">
                   <AvatarFallback className="bg-primary text-primary-foreground font-medium">
                     {initials}
@@ -117,11 +119,22 @@ function ReceptionPanelContent() {
                 <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-background" />
               </div>
             </div>
-            <div>
+            
+            <div className="lg:flex-1 lg:ml-0">
               <p className="text-muted-foreground text-sm">Olá, {firstName}</p>
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-foreground">
                 Painel Recepção
               </h1>
+            </div>
+            
+            {/* Avatar desktop - lado direito */}
+            <div className="relative hidden lg:block">
+              <Avatar className="h-12 w-12 border-2 border-background shadow-sm">
+                <AvatarFallback className="bg-primary text-primary-foreground font-medium text-lg">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-background" />
             </div>
           </div>
         )}
