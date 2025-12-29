@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { runCashflowProjection, CashflowProjectionResult, CashflowWeek } from '@/services/cashflowProjection';
+import { formatCurrency } from '@/lib/utils';
 
 export default function CashflowProjection() {
   const navigate = useNavigate();
@@ -63,10 +64,6 @@ export default function CashflowProjection() {
       parseInt(weeksToProject)
     ),
   });
-
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  };
 
   const chartData = useMemo(() => {
     if (!projection) return [];

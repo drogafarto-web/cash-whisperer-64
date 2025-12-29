@@ -34,6 +34,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { UnitSelector } from '@/components/UnitSelector';
 import { useAuth } from '@/hooks/useAuth';
 import { usePayablesDashboard, usePayablesMonthlyHistory, usePayablesByCategory } from '@/features/payables/hooks/usePayablesDashboard';
+import { formatCurrency } from '@/lib/utils';
 
 export default function PayablesDashboard() {
   const { isAdmin, unit: userUnit } = useAuth();
@@ -44,9 +45,6 @@ export default function PayablesDashboard() {
   const { data: summary, isLoading } = usePayablesDashboard(effectiveUnitId);
   const { data: monthlyHistory, isLoading: loadingHistory } = usePayablesMonthlyHistory(effectiveUnitId, 6);
   const { data: categoryData, isLoading: loadingCategory } = usePayablesByCategory(effectiveUnitId);
-
-  const formatCurrency = (value: number) =>
-    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   return (
     <AppLayout>

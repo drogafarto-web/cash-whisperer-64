@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
+import { formatCurrency } from '@/lib/utils';
 import { 
   CheckCircle, 
   AlertTriangle, 
@@ -258,9 +259,6 @@ export default function AccountingForm() {
       setSubmitting(false);
     }
   };
-
-  const formatCurrency = (value: number) =>
-    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   // Loading state
   if (loading) {

@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
+import { formatCurrency } from '@/lib/utils';
 
 import { SupplierInvoiceUploadForm } from '@/components/payables/SupplierInvoiceUploadForm';
 import { useSupplierInvoices, useDeleteSupplierInvoice } from '@/features/payables';

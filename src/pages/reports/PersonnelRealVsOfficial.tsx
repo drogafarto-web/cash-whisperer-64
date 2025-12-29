@@ -5,6 +5,7 @@ import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useAuth } from '@/hooks/useAuth';
+import { formatCurrency, formatPercent } from '@/lib/utils';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -283,11 +284,7 @@ export default function PersonnelRealVsOfficial() {
     }
   }, [isAdmin, unit]);
 
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  };
-
-  const formatPercent = (value: number) => {
+  const formatPercentLocal = (value: number) => {
     return `${value.toFixed(1)}%`;
   };
 

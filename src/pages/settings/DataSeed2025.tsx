@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { Navigate } from 'react-router-dom';
+import { formatCurrency } from '@/lib/utils';
 import { 
   useSeedPayroll, 
   useSaveSeedPayroll,
@@ -369,9 +370,6 @@ export default function DataSeed2025() {
       .replace(/(\d{3})(\d)/, '$1/$2')
       .replace(/(\d{4})(\d)/, '$1-$2');
   };
-
-  const formatCurrency = (value: number) => 
-    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   const toggleSection = (section: keyof typeof openSections) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));

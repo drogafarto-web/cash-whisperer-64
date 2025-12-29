@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatCurrency } from '@/lib/utils';
 import { 
   FileDown,
   Loader2,
@@ -577,10 +578,6 @@ export default function Dashboard() {
     XLSX.utils.book_append_sheet(wb, ws, 'Transações');
     XLSX.writeFile(wb, `dashboard_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
     toast.success('Excel exportado com sucesso!');
-  };
-
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
   const margemPercent = resultado.receita > 0 ? resultado.margem / resultado.receita : 0;
