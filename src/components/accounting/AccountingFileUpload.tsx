@@ -92,7 +92,12 @@ export function AccountingFileUpload({
           console.error('Error generating signed URL:', error);
           setSignedUrl(null);
         } else {
-          setSignedUrl(data.signedUrl);
+          // Ensure absolute URL (SDK should return full URL, but verify)
+          const baseUrl = import.meta.env.VITE_SUPABASE_URL;
+          const url = data.signedUrl.startsWith('http') 
+            ? data.signedUrl 
+            : `${baseUrl}/storage/v1${data.signedUrl}`;
+          setSignedUrl(url);
         }
       } catch (err) {
         console.error('Error generating signed URL:', err);
@@ -139,7 +144,9 @@ export function AccountingFileUpload({
         toast.info('IA processou, mas não foi possível extrair valores. Preencha manualmente.');
       }
 
-      queryClient.invalidateQueries({ queryKey: ['competence-documents', unitId, ano, mes] });
+      // Invalidate and force parent refetch to update UI
+      await queryClient.invalidateQueries({ queryKey: ['competence-documents', unitId, ano, mes] });
+      onUploadComplete?.(); // Force parent to refetch documents
     } catch (error: any) {
       console.error('OCR processing error:', error);
       // Update document with error status
@@ -148,6 +155,7 @@ export function AccountingFileUpload({
         .update({ ocr_status: 'erro' })
         .eq('id', documentId);
       
+      await queryClient.invalidateQueries({ queryKey: ['competence-documents', unitId, ano, mes] });
       toast.warning('Não foi possível ler automaticamente, preencha manualmente.');
     } finally {
       setIsProcessingOcr(false);
@@ -293,12 +301,21 @@ export function AccountingFileUpload({
 
     if (mimeType === 'application/pdf') {
       return (
-        <div className="mt-2">
+        <div className="mt-2 space-y-2">
           <iframe 
             src={signedUrl}
             title={existingFile.file_name}
             className="h-48 w-full rounded border border-border"
           />
+          <a 
+            href={signedUrl} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 text-xs text-primary hover:underline"
+          >
+            <ExternalLink className="h-3 w-3" />
+            Abrir PDF em nova aba
+          </a>
         </div>
       );
     }
@@ -322,6 +339,16 @@ export function AccountingFileUpload({
   const renderOcrStatus = () => {
     if (!existingFile || !isTaxCategory) return null;
 
+    // Local processing state takes priority (fresh upload in progress)
+    if (isProcessingOcr) {
+      return (
+        <Badge variant="secondary" className="gap-1">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Lendo...
+        </Badge>
+      );
+    }
+
     const status = existingFile.ocr_status;
     
     if (status === 'processado') {
@@ -344,11 +371,11 @@ export function AccountingFileUpload({
       );
     }
 
-    if (status === 'pendente' || isProcessingOcr) {
+    if (status === 'pendente') {
       return (
         <Badge variant="secondary" className="gap-1">
           <Loader2 className="h-3 w-3 animate-spin" />
-          Lendo...
+          Processando...
         </Badge>
       );
     }
