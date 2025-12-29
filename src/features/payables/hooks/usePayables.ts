@@ -59,12 +59,14 @@ export function useCreatePayable() {
       filePath,
       fileName,
       ocrConfidence,
+      nfVinculacaoStatus,
     }: {
       data: PayableFormData;
       filePath?: string;
       fileName?: string;
       ocrConfidence?: number;
-    }) => createPayable(data, filePath, fileName, ocrConfidence),
+      nfVinculacaoStatus?: 'nao_requer' | 'pendente' | 'vinculado';
+    }) => createPayable(data, filePath, fileName, ocrConfidence, nfVinculacaoStatus),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
       toast.success('Boleto cadastrado', { description: 'O boleto foi salvo com sucesso.' });
