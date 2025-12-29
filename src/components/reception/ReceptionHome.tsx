@@ -1,6 +1,6 @@
-import { FileUp, Wallet, Sparkles, ArrowRight, BarChart3, ChevronRight, Clock } from 'lucide-react';
+import { FileUp, Wallet, Sparkles, ArrowRight, BarChart3, ChevronRight, Clock, AlertTriangle, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,6 +16,40 @@ interface ReceptionHomeProps {
 }
 
 export function ReceptionHome({ onNavigate, onCheckEnvelope, unitId }: ReceptionHomeProps) {
+  // Se não há unitId, mostrar mensagem de erro
+  if (!unitId) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] px-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="pt-8 pb-8 text-center space-y-6">
+            <div className="mx-auto w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+              <AlertTriangle className="w-8 h-8 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-xl font-semibold text-foreground">
+                Nenhuma Unidade Selecionada
+              </h2>
+              <p className="text-muted-foreground">
+                Você precisa estar vinculado a uma unidade para acessar o Painel de Recepção.
+              </p>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-4 text-left space-y-2">
+              <div className="flex items-start gap-2">
+                <MapPin className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-medium">O que fazer?</p>
+                  <p className="text-sm text-muted-foreground">
+                    Entre em contato com o administrador do sistema para vincular seu usuário a uma unidade.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const today = new Date().toISOString().split('T')[0];
 
   // Buscar última importação do dia
