@@ -12,6 +12,8 @@ import {
   fetchPendingPayablesForReconciliation,
   updatePayableFile,
   createPayableAndMarkAsPaid,
+  fetchPayablesWithPaymentData,
+  markPayableAsPaidWithAccount,
 } from '../api/payables.api';
 import { PayableFormData, PayableStatus, Parcela } from '@/types/payables';
 
@@ -255,6 +257,47 @@ export function useCreatePayableAndMarkAsPaid() {
         description = 'Esta despesa já foi cadastrada anteriormente.';
       }
       toast.error('Erro ao registrar despesa', { description });
+    },
+  });
+}
+
+// Hook for fetching payables with payment data
+export function usePayablesWithPaymentData(filters?: {
+  unitId?: string;
+  paymentAccountId?: string;
+  periodDays?: number;
+}) {
+  return useQuery({
+    queryKey: [QUERY_KEY, 'with-payment-data', filters],
+    queryFn: () => fetchPayablesWithPaymentData(filters),
+    staleTime: 1000 * 60 * 2, // 2 minutos
+  });
+}
+
+// Hook for marking payable as paid with account selection
+export function useMarkPayableAsPaidWithAccount() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      id,
+      paidAmount,
+      paidMethod,
+      paidAt,
+      paymentAccountId,
+    }: {
+      id: string;
+      paidAmount: number;
+      paidMethod: string;
+      paidAt: string;
+      paymentAccountId?: string;
+    }) => markPayableAsPaidWithAccount(id, paidAmount, paidMethod, paidAt, paymentAccountId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
+      toast.success('Pagamento registrado', { description: 'O boleto foi marcado como pago.' });
+    },
+    onError: (error) => {
+      toast.error('Erro ao registrar pagamento', { description: error.message });
     },
   });
 }
