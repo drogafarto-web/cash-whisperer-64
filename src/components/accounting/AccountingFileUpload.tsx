@@ -301,20 +301,20 @@ export function AccountingFileUpload({
 
     if (mimeType === 'application/pdf') {
       return (
-        <div className="mt-2 space-y-2">
-          <iframe 
-            src={signedUrl}
-            title={existingFile.file_name}
-            className="h-48 w-full rounded border border-border"
-          />
+        <div className="mt-2 p-4 border border-border rounded bg-muted/30 flex items-center gap-3">
+          <FileText className="h-8 w-8 text-muted-foreground" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate">{existingFile.file_name}</p>
+            <p className="text-xs text-muted-foreground">Documento PDF</p>
+          </div>
           <a 
             href={signedUrl} 
             target="_blank" 
             rel="noopener noreferrer"
-            className="flex items-center gap-2 text-xs text-primary hover:underline"
+            className="flex items-center gap-2 text-sm text-primary hover:underline"
           >
-            <ExternalLink className="h-3 w-3" />
-            Abrir PDF em nova aba
+            <ExternalLink className="h-4 w-4" />
+            Abrir
           </a>
         </div>
       );
