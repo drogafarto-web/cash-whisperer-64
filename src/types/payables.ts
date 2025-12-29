@@ -109,6 +109,7 @@ export interface PayableFormData {
 
 // Status types
 export type PayableStatus = 'PENDENTE' | 'PAGO' | 'VENCIDO' | 'CANCELADO';
+export type NfVinculacaoStatus = 'nao_requer' | 'pendente' | 'vinculado';
 export type SupplierInvoiceStatus = 'pendente' | 'parcial' | 'quitada' | 'cancelada' | 'aguardando_boleto';
 
 export const SUPPLIER_INVOICE_STATUS_LABELS: Record<SupplierInvoiceStatus, string> = {
