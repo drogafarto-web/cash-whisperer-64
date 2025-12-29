@@ -18,6 +18,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useQueryClient } from '@tanstack/react-query';
 import { sanitizeFileName } from '@/lib/sanitizeFileName';
+import { analyzeAccountingDocument, isTaxDocument as checkIsTaxDoc } from '@/services/accountingOcrService';
 
 export type DocumentCategory = 'folha' | 'das' | 'darf' | 'gps' | 'inss' | 'fgts' | 'iss' | 'receitas';
 
@@ -36,33 +37,6 @@ interface OcrResult {
   valor: number | null;
   vencimento: string | null;
 }
-
-interface AccountingFileUploadProps {
-  unitId: string;
-  ano: number;
-  mes: number;
-  categoria: DocumentCategory;
-  label: string;
-  existingFile?: ExistingFile | null;
-  onUploadComplete?: () => void;
-  onDeleteComplete?: () => void;
-  onOcrComplete?: (result: OcrResult) => void;
-}
-
-// Convert file to base64
-const fileToBase64 = (file: Blob): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-      const result = reader.result as string;
-      // Remove data URL prefix
-      const base64 = result.split(',')[1];
-      resolve(base64);
-    };
-    reader.onerror = reject;
-  });
-};
 
 export function AccountingFileUpload({ 
   unitId, 
@@ -96,22 +70,17 @@ export function AccountingFileUpload({
   const processOcr = async (filePath: string, documentId: string, file: File) => {
     setIsProcessingOcr(true);
     try {
-      // Get the file content and convert to base64
-      const base64 = await fileToBase64(file);
-      
-      // Call OCR edge function
-      const { data: ocrResult, error: ocrError } = await supabase.functions.invoke('ocr-tax-document', {
-        body: { 
-          image_base64: base64, 
-          file_name: file.name 
-        }
-      });
-
-      if (ocrError) throw ocrError;
+      // Use unified accounting OCR service (handles PDF→image conversion)
+      const result = await analyzeAccountingDocument(file, unitId);
 
       // Update document with OCR results
-      const ocrStatus = ocrResult?.success ? 'processado' : 'erro';
-      const ocrData = ocrResult?.data || null;
+      const ocrStatus = result.confidence > 0.5 ? 'processado' : 'erro';
+      const ocrData = {
+        valor: result.totalValue,
+        vencimento: result.dueDate,
+        tipo_documento: result.documentType,
+        confidence: result.confidence,
+      };
 
       await supabase
         .from('accounting_competence_documents')
@@ -122,18 +91,14 @@ export function AccountingFileUpload({
         .eq('id', documentId);
 
       // If OCR was successful and we have values, call the callback
-      if (ocrResult?.success && ocrData) {
-        const valor = ocrData.valor;
-        const vencimento = ocrData.vencimento;
-        
-        if (valor !== null || vencimento !== null) {
-          onOcrComplete?.({ valor, vencimento });
-          toast.success(`${categoria.toUpperCase()} lido automaticamente via OCR`);
-        } else {
-          toast.info('OCR processado, mas não foi possível extrair valores. Preencha manualmente.');
-        }
+      const valor = result.totalValue;
+      const vencimento = result.dueDate;
+      
+      if (valor !== null || vencimento !== null) {
+        onOcrComplete?.({ valor, vencimento });
+        toast.success(`${categoria.toUpperCase()} lido automaticamente via IA`);
       } else {
-        toast.warning('Não foi possível ler automaticamente, preencha manualmente.');
+        toast.info('IA processou, mas não foi possível extrair valores. Preencha manualmente.');
       }
 
       queryClient.invalidateQueries({ queryKey: ['competence-documents', unitId, ano, mes] });
