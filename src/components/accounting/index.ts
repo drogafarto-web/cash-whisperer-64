@@ -13,3 +13,6 @@ export { AccountingSmartUpload } from './AccountingSmartUpload';
 export { TaxGuideResultCard } from './TaxGuideResultCard';
 export { PayrollAnalysisCard } from './PayrollAnalysisCard';
 export { ConsistencyValidation } from './ConsistencyValidation';
+export { AccountingBatchUpload } from './AccountingBatchUpload';
+export { TaxSummaryCard } from './TaxSummaryCard';
+export { TaxDueDateAlert, DueDateBadge } from './TaxDueDateAlert';
