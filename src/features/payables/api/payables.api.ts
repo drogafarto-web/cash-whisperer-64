@@ -363,3 +363,67 @@ export async function updatePayablePaymentData(
   if (error) throw error;
   return result as Payable;
 }
+
+// Fetch payables with payment data (linha_digitavel, codigo_barras, or pix_key)
+export async function fetchPayablesWithPaymentData(filters?: {
+  unitId?: string;
+  paymentAccountId?: string;
+  periodDays?: number; // 7, 30, or undefined for all
+}) {
+  let query = supabase
+    .from('payables')
+    .select('*, accounts:payment_bank_account_id(id, name, institution)')
+    .or('linha_digitavel.neq.null,codigo_barras.neq.null,pix_key.neq.null')
+    .in('status', ['PENDENTE', 'pendente', 'VENCIDO', 'vencido'])
+    .order('vencimento', { ascending: true });
+
+  if (filters?.unitId && filters.unitId !== 'all') {
+    query = query.eq('unit_id', filters.unitId);
+  }
+
+  if (filters?.paymentAccountId && filters.paymentAccountId !== 'all') {
+    query = query.eq('payment_bank_account_id', filters.paymentAccountId);
+  }
+
+  if (filters?.periodDays) {
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + filters.periodDays);
+    query = query.lte('vencimento', endDate.toISOString().split('T')[0]);
+  }
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+  return data as (Payable & { accounts?: { id: string; name: string; institution?: string } | null })[];
+}
+
+// Mark payable as paid with additional options
+export async function markPayableAsPaidWithAccount(
+  id: string,
+  paidAmount: number,
+  paidMethod: string,
+  paidAt: string,
+  paymentAccountId?: string
+) {
+  const updateData: Record<string, unknown> = {
+    status: 'pago',
+    paid_at: paidAt,
+    paid_amount: paidAmount,
+    paid_method: paidMethod,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (paymentAccountId) {
+    updateData.payment_bank_account_id = paymentAccountId;
+  }
+
+  const { data, error } = await supabase
+    .from('payables')
+    .update(updateData)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as Payable;
+}
