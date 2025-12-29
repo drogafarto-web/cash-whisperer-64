@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
-import { Upload, FileText, Loader2, Plus, Trash2, Wand2, CreditCard, Banknote, Building2, Wallet } from 'lucide-react';
+import { Upload, FileText, Loader2, Plus, Trash2, Wand2, CreditCard, Banknote, Building2, Wallet, Clock, Check } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -83,6 +83,7 @@ export function SupplierInvoiceUploadForm({ units, categories, onSuccess, onCanc
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [parcelas, setParcelas] = useState<Parcela[]>([]);
   const [ocrConfidence, setOcrConfidence] = useState<number | null>(null);
+  const [boletoArrivalStatus, setBoletoArrivalStatus] = useState<'has_boleto' | 'waiting_boleto'>('has_boleto');
 
   const { processFile, isProcessing } = useSupplierInvoiceOcr();
   const createInvoice = useCreateSupplierInvoice();
@@ -191,17 +192,22 @@ export function SupplierInvoiceUploadForm({ units, categories, onSuccess, onCanc
         return;
       }
 
+      // Determine status based on payment method and boleto arrival
+      const isWaitingBoleto = paymentMethod === 'boleto' && boletoArrivalStatus === 'waiting_boleto';
+      const status = isWaitingBoleto ? 'aguardando_boleto' : 'pendente';
+
       // Criar nota fiscal
       const invoice = await createInvoice.mutateAsync({
         data: {
           ...data,
-          installments_count: parcelas.length || undefined,
+          installments_count: isWaitingBoleto ? undefined : (parcelas.length || undefined),
         },
         ocrConfidence: ocrConfidence ?? undefined,
+        status,
       });
 
-      // Criar parcelas/boletos se houver
-      if (parcelas.length > 0) {
+      // Criar parcelas/boletos se houver (and not waiting for boleto)
+      if (parcelas.length > 0 && !isWaitingBoleto) {
         await createParcelas.mutateAsync({
           parcelas,
           supplierInvoice: {
@@ -211,6 +217,12 @@ export function SupplierInvoiceUploadForm({ units, categories, onSuccess, onCanc
             unit_id: invoice.unit_id,
             category_id: invoice.category_id,
           },
+        });
+      }
+
+      if (isWaitingBoleto) {
+        toast.success('NF cadastrada - Aguardando boleto', {
+          description: 'Quando o boleto chegar, cadastre-o em "Boletos" e vincule a esta NF.',
         });
       }
 
@@ -596,8 +608,71 @@ export function SupplierInvoiceUploadForm({ units, categories, onSuccess, onCanc
             </CardContent>
           </Card>
 
-          {/* Parcelas Section - Only show for boleto */}
+          {/* Boleto Arrival Status - Only show for boleto */}
           {paymentMethod === 'boleto' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5" />
+                  Situação do Boleto
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <RadioGroup
+                  value={boletoArrivalStatus}
+                  onValueChange={(v) => setBoletoArrivalStatus(v as 'has_boleto' | 'waiting_boleto')}
+                  className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                >
+                  <div>
+                    <RadioGroupItem
+                      value="has_boleto"
+                      id="boleto-has"
+                      className="peer sr-only"
+                    />
+                    <Label
+                      htmlFor="boleto-has"
+                      className="flex items-center gap-3 rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                    >
+                      <Check className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium">Já tenho o boleto</p>
+                        <p className="text-sm text-muted-foreground">Posso cadastrar as parcelas agora</p>
+                      </div>
+                    </Label>
+                  </div>
+                  <div>
+                    <RadioGroupItem
+                      value="waiting_boleto"
+                      id="boleto-waiting"
+                      className="peer sr-only"
+                    />
+                    <Label
+                      htmlFor="boleto-waiting"
+                      className="flex items-center gap-3 rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                    >
+                      <Clock className="h-5 w-5 text-amber-500" />
+                      <div>
+                        <p className="font-medium">Boleto ainda não chegou</p>
+                        <p className="text-sm text-muted-foreground">Cadastrarei o boleto depois</p>
+                      </div>
+                    </Label>
+                  </div>
+                </RadioGroup>
+
+                {boletoArrivalStatus === 'waiting_boleto' && (
+                  <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                    <p className="text-sm text-amber-700 dark:text-amber-400">
+                      A NF será salva com status <strong>"Aguardando Boleto"</strong>. 
+                      Quando o boleto físico/digital chegar, cadastre-o em <strong>Contas a Pagar → Boletos</strong> e o sistema sugerirá automaticamente esta NF para vinculação.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Parcelas Section - Only show for boleto when user has the boleto */}
+          {paymentMethod === 'boleto' && boletoArrivalStatus === 'has_boleto' && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">

@@ -32,7 +32,8 @@ export async function createSupplierInvoice(
   data: SupplierInvoiceFormData,
   filePath?: string,
   fileName?: string,
-  ocrConfidence?: number
+  ocrConfidence?: number,
+  status?: string
 ) {
   const { data: result, error } = await supabase
     .from('supplier_invoices')
@@ -52,7 +53,7 @@ export async function createSupplierInvoice(
       file_path: filePath,
       file_name: fileName,
       ocr_confidence: ocrConfidence,
-      status: 'pendente',
+      status: status || 'pendente',
       payment_method: data.payment_method,
       payment_pix_key: data.payment_pix_key,
       payment_bank_account_id: data.payment_bank_account_id || null,
@@ -146,13 +147,15 @@ export async function findMatchingSupplierInvoices(
   tolerancePercent: number = 5
 ): Promise<SupplierInvoiceMatch[]> {
   // Fetch recent pending supplier invoices (last 90 days)
+  // Only fetch invoices with payment_method = 'boleto'
   const ninetyDaysAgo = new Date();
   ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
   const { data: invoices, error } = await supabase
     .from('supplier_invoices')
     .select('*')
-    .in('status', ['pendente', 'parcial'])
+    .eq('payment_method', 'boleto')
+    .in('status', ['pendente', 'parcial', 'aguardando_boleto'])
     .gte('issue_date', ninetyDaysAgo.toISOString().split('T')[0])
     .order('issue_date', { ascending: false })
     .limit(100);
@@ -164,6 +167,12 @@ export async function findMatchingSupplierInvoices(
   for (const invoice of invoices) {
     let matchScore = 0;
     const matchReasons: string[] = [];
+
+    // Bonus for status 'aguardando_boleto' - highest priority
+    if (invoice.status === 'aguardando_boleto') {
+      matchScore += 30;
+      matchReasons.push('Aguardando boleto');
+    }
 
     // CNPJ match (strongest)
     if (beneficiarioCnpj && invoice.supplier_cnpj) {
@@ -191,6 +200,24 @@ export async function findMatchingSupplierInvoices(
     }
   }
 
-  // Sort by score descending
+  // Sort by score descending (aguardando_boleto will naturally be prioritized)
   return matches.sort((a, b) => b.matchScore - a.matchScore);
+}
+
+// Update invoice status when a boleto is linked
+export async function updateInvoiceStatusOnBoletoLink(invoiceId: string) {
+  // Check current status
+  const { data: invoice } = await supabase
+    .from('supplier_invoices')
+    .select('status')
+    .eq('id', invoiceId)
+    .single();
+
+  // If status is 'aguardando_boleto', update to 'pendente'
+  if (invoice?.status === 'aguardando_boleto') {
+    await supabase
+      .from('supplier_invoices')
+      .update({ status: 'pendente', updated_at: new Date().toISOString() })
+      .eq('id', invoiceId);
+  }
 }

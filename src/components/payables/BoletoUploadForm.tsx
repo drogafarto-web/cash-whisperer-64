@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
-import { Upload, Barcode, Loader2, Wand2, FileText, Plus, AlertCircle, Check } from 'lucide-react';
+import { Upload, Barcode, Loader2, Wand2, FileText, Plus, AlertCircle, Check, Clock } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,7 +44,8 @@ import {
 } from '@/features/payables/api/payables.api';
 import { 
   findMatchingSupplierInvoices, 
-  SupplierInvoiceMatch 
+  SupplierInvoiceMatch,
+  updateInvoiceStatusOnBoletoLink,
 } from '@/features/payables/api/supplier-invoices.api';
 import { PayableFormData, SupplierInvoice, SupplierInvoiceFormData } from '@/types/payables';
 import { toast } from 'sonner';
@@ -190,8 +191,14 @@ export function BoletoUploadForm({
     }
   };
 
-  const handleSelectMatch = (match: SupplierInvoiceMatch) => {
+  const handleSelectMatch = async (match: SupplierInvoiceMatch) => {
     form.setValue('supplier_invoice_id', match.invoice.id);
+    
+    // Update invoice status if it was waiting for boleto
+    if (match.invoice.status === 'aguardando_boleto') {
+      await updateInvoiceStatusOnBoletoLink(match.invoice.id);
+    }
+    
     toast.success('NF vinculada', {
       description: `NF ${match.invoice.document_number} - ${match.invoice.supplier_name}`,
     });
@@ -364,13 +371,23 @@ export function BoletoUploadForm({
                 {matchingSuggestions.slice(0, 3).map((match) => (
                   <div
                     key={match.invoice.id}
-                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent cursor-pointer"
+                    className={`flex items-center justify-between p-3 border rounded-lg hover:bg-accent cursor-pointer ${
+                      match.invoice.status === 'aguardando_boleto' ? 'border-amber-500 bg-amber-500/5' : ''
+                    }`}
                     onClick={() => handleSelectMatch(match)}
                   >
                     <div>
-                      <p className="font-medium">
-                        NF {match.invoice.document_number} - {match.invoice.supplier_name}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">
+                          NF {match.invoice.document_number} - {match.invoice.supplier_name}
+                        </p>
+                        {match.invoice.status === 'aguardando_boleto' && (
+                          <Badge variant="outline" className="border-amber-500 text-amber-600 bg-amber-500/10">
+                            <Clock className="h-3 w-3 mr-1" />
+                            Aguardando Boleto
+                          </Badge>
+                        )}
+                      </div>
                       <div className="flex gap-2 mt-1">
                         {match.matchReasons.map((reason, i) => (
                           <Badge key={i} variant="secondary" className="text-xs">

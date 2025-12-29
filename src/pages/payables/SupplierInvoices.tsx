@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { FileText, Plus, Eye, Trash2, AlertCircle } from 'lucide-react';
+import { FileText, Plus, Eye, Trash2, AlertCircle, Clock } from 'lucide-react';
 
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -55,8 +55,18 @@ export default function SupplierInvoicesPage() {
   const totalInvoices = invoices.length;
   const totalValue = invoices.reduce((sum, inv) => sum + (inv.total_value || 0), 0);
   const pendingCount = invoices.filter((inv) => inv.status === 'pendente').length;
+  const waitingBoletoCount = invoices.filter((inv) => inv.status === 'aguardando_boleto').length;
 
   const getStatusBadge = (status: string) => {
+    if (status === 'aguardando_boleto') {
+      return (
+        <Badge variant="outline" className="border-amber-500 text-amber-600 bg-amber-500/10">
+          <Clock className="h-3 w-3 mr-1" />
+          Aguardando Boleto
+        </Badge>
+      );
+    }
+    
     const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
       pendente: 'secondary',
       parcial: 'default',
@@ -87,7 +97,7 @@ export default function SupplierInvoicesPage() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Total de NFs</CardTitle>
@@ -115,6 +125,17 @@ export default function SupplierInvoicesPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{pendingCount}</div>
+            </CardContent>
+          </Card>
+          <Card className={waitingBoletoCount > 0 ? 'border-amber-500' : ''}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <Clock className="h-4 w-4 text-amber-500" />
+                Aguardando Boleto
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-amber-600">{waitingBoletoCount}</div>
             </CardContent>
           </Card>
         </div>

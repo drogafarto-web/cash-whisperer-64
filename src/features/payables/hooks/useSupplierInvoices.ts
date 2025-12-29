@@ -36,12 +36,14 @@ export function useCreateSupplierInvoice() {
       filePath,
       fileName,
       ocrConfidence,
+      status,
     }: {
       data: SupplierInvoiceFormData;
       filePath?: string;
       fileName?: string;
       ocrConfidence?: number;
-    }) => createSupplierInvoice(data, filePath, fileName, ocrConfidence),
+      status?: string;
+    }) => createSupplierInvoice(data, filePath, fileName, ocrConfidence, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
       toast.success('Nota fiscal cadastrada', { description: 'A nota fiscal foi salva com sucesso.' });
