@@ -29,6 +29,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useCompetenceData, useLabSubmission, useLabDocuments, useCompetenceDocuments } from '@/hooks/useAccountingCompetence';
+import { useBillingSummary } from '@/features/billing';
 import { useAccountingCashMovement } from '@/hooks/useAccountingCashMovement';
 
 export type AccountingSection = 'folha' | 'impostos' | 'receitas';
@@ -90,6 +91,9 @@ export function AccountingKioskHome({
   
   // Movimento de caixa - dados agregados da central de fechamento
   const { data: cashMovement, isLoading: loadingCashMovement } = useAccountingCashMovement(unitId, ano, mes);
+  
+  // Faturamento - dados reais das invoices (não dados manuais de accounting_competence_data)
+  const { data: billingSummary } = useBillingSummary(ano, mes, unitId || undefined);
   
   const competenceLabel = format(competence, "MMMM 'de' yyyy", { locale: ptBR });
   
@@ -310,7 +314,7 @@ export function AccountingKioskHome({
 
         {/* Grid com 5 colunas - dados que o laboratório envia para a contabilidade */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          {/* Faturamento / NFs Clientes - NFs emitidas pelo laboratório */}
+          {/* Faturamento / NFs Clientes - NFs emitidas pelo laboratório (dados reais das invoices) */}
           <Card 
             className="hover:border-primary/50 transition-colors cursor-pointer"
             onClick={() => navigate(`/billing/summary?month=${monthParam}`)}
@@ -322,8 +326,10 @@ export function AccountingKioskHome({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold">{formatCurrency((competenceData?.receita_servicos || 0) + (competenceData?.receita_outras || 0))}</p>
-              <p className="text-xs text-muted-foreground">NFs emitidas para convênios/prefeituras</p>
+              <p className="text-2xl font-bold">{formatCurrency(billingSummary?.invoicesTotal || 0)}</p>
+              <p className="text-xs text-muted-foreground">
+                {billingSummary?.invoicesByPayer?.length || 0} convênios/prefeituras
+              </p>
             </CardContent>
           </Card>
 
