@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -70,13 +70,39 @@ export function AccountingFileUpload({
 
   const isTaxCategory = TAX_CATEGORIES.includes(categoria);
 
-  // Get public URL for preview
-  const publicUrl = useMemo(() => {
-    if (!existingFile?.file_path) return null;
-    const { data } = supabase.storage
-      .from('accounting-documents')
-      .getPublicUrl(existingFile.file_path);
-    return data.publicUrl;
+  // State for signed URL (private bucket)
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [loadingUrl, setLoadingUrl] = useState(false);
+
+  // Generate signed URL for preview (bucket is private)
+  useEffect(() => {
+    if (!existingFile?.file_path) {
+      setSignedUrl(null);
+      return;
+    }
+
+    const generateSignedUrl = async () => {
+      setLoadingUrl(true);
+      try {
+        const { data, error } = await supabase.storage
+          .from('accounting-documents')
+          .createSignedUrl(existingFile.file_path, 60 * 10); // 10 minutes
+
+        if (error) {
+          console.error('Error generating signed URL:', error);
+          setSignedUrl(null);
+        } else {
+          setSignedUrl(data.signedUrl);
+        }
+      } catch (err) {
+        console.error('Error generating signed URL:', err);
+        setSignedUrl(null);
+      } finally {
+        setLoadingUrl(false);
+      }
+    };
+
+    generateSignedUrl();
   }, [existingFile?.file_path]);
 
   const processOcr = async (filePath: string, documentId: string, file: File) => {
@@ -230,7 +256,26 @@ export function AccountingFileUpload({
 
   // Render preview based on mime type
   const renderPreview = () => {
-    if (!existingFile || !publicUrl) return null;
+    if (!existingFile) return null;
+
+    // Loading state
+    if (loadingUrl) {
+      return (
+        <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Carregando preview...
+        </div>
+      );
+    }
+
+    // No URL available
+    if (!signedUrl) {
+      return (
+        <div className="mt-2 text-xs text-muted-foreground">
+          Preview indisponível
+        </div>
+      );
+    }
 
     const mimeType = existingFile.mime_type || '';
 
@@ -238,7 +283,7 @@ export function AccountingFileUpload({
       return (
         <div className="mt-2">
           <img 
-            src={publicUrl} 
+            src={signedUrl} 
             alt={existingFile.file_name}
             className="max-h-32 rounded border border-border object-contain"
           />
@@ -250,7 +295,7 @@ export function AccountingFileUpload({
       return (
         <div className="mt-2">
           <iframe 
-            src={publicUrl}
+            src={signedUrl}
             title={existingFile.file_name}
             className="h-48 w-full rounded border border-border"
           />
@@ -261,7 +306,7 @@ export function AccountingFileUpload({
     // For other types (spreadsheets, etc.), show icon + link
     return (
       <a 
-        href={publicUrl} 
+        href={signedUrl} 
         target="_blank" 
         rel="noopener noreferrer"
         className="mt-2 flex items-center gap-2 text-sm text-primary hover:underline"
