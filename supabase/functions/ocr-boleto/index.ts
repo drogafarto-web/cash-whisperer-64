@@ -1,3 +1,4 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -13,13 +14,12 @@ interface BoletoOcrResult {
   beneficiario: string | null;
   beneficiario_cnpj: string | null;
   valor: number | null;
-  vencimento: string | null; // YYYY-MM-DD
+  vencimento: string | null;
   nosso_numero: string | null;
   documento: string | null;
   confianca: number;
 }
 
-// Mapa de códigos de banco
 const BANCOS: Record<string, string> = {
   "001": "Banco do Brasil",
   "033": "Santander",
@@ -50,12 +50,12 @@ serve(async (req) => {
       throw new Error("Imagem do boleto é obrigatória");
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY não está configurada");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!OPENAI_API_KEY) {
+      throw new Error("OPENAI_API_KEY não está configurada");
     }
 
-    console.log("Processando OCR de boleto...");
+    console.log("Processando OCR de boleto com OpenAI gpt-4o-mini...");
 
     const prompt = `Analise esta imagem de um BOLETO BANCÁRIO brasileiro e extraia as seguintes informações em JSON:
 
@@ -80,14 +80,14 @@ INSTRUÇÕES IMPORTANTES:
 5. Se algum campo não for encontrado, use null
 6. Retorne APENAS o JSON, sem explicações`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "user",
@@ -102,33 +102,40 @@ INSTRUÇÕES IMPORTANTES:
             ],
           },
         ],
+        max_tokens: 1500,
       }),
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error("OpenAI API error:", response.status, errorText);
+      
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns segundos." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (response.status === 402) {
+      if (response.status === 401) {
         return new Response(
-          JSON.stringify({ error: "Créditos insuficientes. Adicione créditos ao workspace." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ error: "Chave da API OpenAI inválida." }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      const errorText = await response.text();
-      console.error("AI Gateway error:", response.status, errorText);
+      if (response.status === 402 || response.status === 403) {
+        return new Response(
+          JSON.stringify({ error: "Problema de acesso/faturamento/cota na OpenAI." }),
+          { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
       throw new Error("Erro ao processar imagem com IA");
     }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || "";
     
-    console.log("OCR response content:", content);
+    console.log("OCR boleto response:", content);
 
-    // Extract JSON from the response
     let ocrData: Partial<BoletoOcrResult>;
     try {
       ocrData = JSON.parse(content);
@@ -151,7 +158,6 @@ INSTRUÇÕES IMPORTANTES:
       const bancoCode = ocrData.banco_codigo.padStart(3, "0");
       ocrData.banco_nome = BANCOS[bancoCode] || null;
     } else if (ocrData.linha_digitavel) {
-      // Try to extract bank code from linha digitavel
       const cleanLinha = ocrData.linha_digitavel.replace(/[\s.]/g, "");
       if (cleanLinha.length >= 3) {
         const bancoCode = cleanLinha.substring(0, 3);
