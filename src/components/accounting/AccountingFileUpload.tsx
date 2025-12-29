@@ -12,6 +12,9 @@ import {
   ExternalLink,
   Sparkles,
   AlertCircle,
+  Barcode,
+  Copy,
+  Calendar,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,6 +22,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useQueryClient } from '@tanstack/react-query';
 import { sanitizeFileName } from '@/lib/sanitizeFileName';
 import { analyzeAccountingDocument, isTaxDocument as checkIsTaxDoc } from '@/services/accountingOcrService';
+import { DueDateBadge } from './TaxDueDateAlert';
 
 export type DocumentCategory = 'folha' | 'das' | 'darf' | 'gps' | 'inss' | 'fgts' | 'iss' | 'receitas';
 
@@ -389,6 +393,81 @@ export function AccountingFileUpload({
     return null;
   };
 
+  // Render OCR extracted data (barcode, PIX, due date)
+  const renderOcrData = () => {
+    if (!existingFile || existingFile.ocr_status !== 'processado') return null;
+    
+    const ocrData = existingFile.ocr_data;
+    if (!ocrData) return null;
+
+    const vencimento = ocrData.vencimento as string | null;
+    const codigoBarras = ocrData.codigo_barras as string | null;
+    const linhaDigitavel = ocrData.linha_digitavel as string | null;
+    const pixKey = ocrData.pix_key as string | null;
+    const pixTipo = ocrData.pix_tipo as string | null;
+
+    const hasData = vencimento || codigoBarras || linhaDigitavel || pixKey;
+    if (!hasData) return null;
+
+    const copyToClipboard = (text: string, label: string) => {
+      navigator.clipboard.writeText(text);
+      toast.success(`${label} copiado!`);
+    };
+
+    return (
+      <div className="mt-2 p-2 bg-muted/50 rounded-md space-y-2 text-xs">
+        {/* Due date with alert */}
+        {vencimento && (
+          <div className="flex items-center gap-2">
+            <Calendar className="h-3 w-3 text-muted-foreground" />
+            <span>Vencimento: {new Date(vencimento).toLocaleDateString('pt-BR')}</span>
+            <DueDateBadge dueDate={vencimento} />
+          </div>
+        )}
+        
+        {/* Barcode */}
+        {(codigoBarras || linhaDigitavel) && (
+          <div className="flex items-center gap-2">
+            <Barcode className="h-3 w-3 text-muted-foreground" />
+            <span className="truncate flex-1">
+              {linhaDigitavel 
+                ? `Linha: ${linhaDigitavel.slice(0, 25)}...` 
+                : `Cód: ${codigoBarras?.slice(0, 20)}...`
+              }
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 px-2 text-xs"
+              onClick={() => copyToClipboard(linhaDigitavel || codigoBarras!, 'Código de barras')}
+            >
+              <Copy className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
+        
+        {/* PIX */}
+        {pixKey && (
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-primary">PIX</span>
+            <Badge variant="outline" className="text-xs h-4">
+              {pixTipo?.toUpperCase() || 'CHAVE'}
+            </Badge>
+            <span className="truncate flex-1">{pixKey.slice(0, 20)}...</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-5 px-2 text-xs"
+              onClick={() => copyToClipboard(pixKey, 'Chave PIX')}
+            >
+              <Copy className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="mt-3 pt-3 border-t border-border/50">
       <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
@@ -424,6 +503,8 @@ export function AccountingFileUpload({
               )}
             </Button>
           </div>
+          {/* OCR extracted data (barcode, PIX, due date) */}
+          {renderOcrData()}
           {/* Preview inline */}
           {renderPreview()}
         </div>
