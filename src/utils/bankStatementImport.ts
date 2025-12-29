@@ -1,4 +1,10 @@
 import { Partner, Category } from '@/types/database';
+import { supabase } from '@/integrations/supabase/client';
+import { convertPdfToImage, blobToBase64 } from '@/utils/pdfToImage';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Configure PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
 export interface BankStatementRecord {
   id: string;
@@ -28,6 +34,8 @@ export interface BankStatementParseResult {
   totalRecords: number;
   matchedRecords: number;
 }
+
+export type ParseProgressCallback = (message: string, current: number, total: number) => void;
 
 // Pattern matching for partner suggestion
 const PARTNER_PATTERNS: Record<string, string[]> = {
@@ -398,22 +406,123 @@ export function enrichRecordsWithSuggestions(
   return enriched;
 }
 
-export function detectFileType(file: File): 'ofx' | 'csv' | 'unknown' {
+export function detectFileType(file: File): 'ofx' | 'csv' | 'pdf' | 'unknown' {
   const extension = file.name.toLowerCase().split('.').pop();
   if (extension === 'ofx') return 'ofx';
   if (extension === 'csv') return 'csv';
+  if (extension === 'pdf') return 'pdf';
   return 'unknown';
 }
 
-export async function parseFile(file: File): Promise<BankStatementParseResult> {
-  const content = await file.text();
+export async function parsePDF(
+  file: File, 
+  onProgress?: ParseProgressCallback
+): Promise<BankStatementParseResult> {
+  const records: BankStatementRecord[] = [];
+  
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const numPages = pdf.numPages;
+    
+    onProgress?.('Preparando páginas...', 0, numPages);
+
+    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+      onProgress?.(`Processando página ${pageNum} de ${numPages}...`, pageNum, numPages);
+      
+      const page = await pdf.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 2 });
+      
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      
+      const context = canvas.getContext('2d');
+      if (!context) {
+        console.error(`Failed to get canvas context for page ${pageNum}`);
+        continue;
+      }
+      
+      await page.render({
+        canvasContext: context,
+        viewport,
+      }).promise;
+      
+      // Convert to base64
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob(
+          (b) => b ? resolve(b) : reject(new Error('Failed to convert to blob')),
+          'image/png',
+          0.95
+        );
+      });
+      
+      const base64 = await blobToBase64(blob);
+      
+      // Call OCR edge function
+      const { data, error } = await supabase.functions.invoke('ocr-bank-statement', {
+        body: { imageBase64: base64, pageNumber: pageNum },
+      });
+      
+      if (error) {
+        console.error(`Error processing page ${pageNum}:`, error);
+        continue;
+      }
+      
+      if (data?.transactions && Array.isArray(data.transactions)) {
+        for (const t of data.transactions) {
+          records.push({
+            id: generateRecordId(),
+            date: t.date,
+            description: t.description,
+            amount: t.amount,
+            type: t.type,
+            suggestedPartner: null,
+            suggestedCategory: null,
+            matchConfidence: 0,
+            isSelected: true,
+            isDuplicate: false,
+            valueDivergence: null,
+          });
+        }
+      }
+    }
+    
+    onProgress?.('Finalizando...', numPages, numPages);
+    
+    // Sort by date descending
+    records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    return {
+      records,
+      bankName: 'Extrato PDF',
+      periodStart: records.length > 0 ? records[records.length - 1].date : null,
+      periodEnd: records.length > 0 ? records[0].date : null,
+      totalRecords: records.length,
+      matchedRecords: 0,
+    };
+    
+  } catch (error) {
+    console.error('Error parsing PDF:', error);
+    throw new Error('Erro ao processar PDF. Verifique se o arquivo é um extrato bancário válido.');
+  }
+}
+
+export async function parseFile(
+  file: File, 
+  onProgress?: ParseProgressCallback
+): Promise<BankStatementParseResult> {
   const fileType = detectFileType(file);
   
   if (fileType === 'ofx') {
+    const content = await file.text();
     return parseOFX(content);
   } else if (fileType === 'csv') {
+    const content = await file.text();
     return parseCSV(content);
+  } else if (fileType === 'pdf') {
+    return parsePDF(file, onProgress);
   }
   
-  throw new Error('Formato de arquivo não suportado. Use OFX ou CSV.');
+  throw new Error('Formato de arquivo não suportado. Use OFX, CSV ou PDF.');
 }
