@@ -37,19 +37,20 @@ export interface BankStatementParseResult {
 
 export type ParseProgressCallback = (message: string, current: number, total: number) => void;
 
-// Pattern matching for partner suggestion
-const PARTNER_PATTERNS: Record<string, string[]> = {
-  'maria lucia': ['MARIA LUCIA', 'MARIALUCIA', 'M LUCIA', 'ALUGUEL MARIA'],
-  'lab shopping': ['LAB SHOPPING', 'LABSHOPPING', 'LAB SHOP'],
-  'db diagnosticos': ['DB DIAGN', 'DB MOLEC', 'DBMOLEC', 'DB DIAGNOS'],
-  'central de art': ['CENTRAL ART', 'CENTRAL DE ART', 'CENTRALART'],
-  'unimed': ['UNIMED', 'UNIÃO MÉDICA'],
-  'cassi': ['CASSI', 'CAIXA DE ASSIST'],
-  'prefeitura': ['PREFEITURA', 'MUNICIPIO', 'PMRP', 'PMMERC', 'PMRIB', 'PMUBE', 'SECRETARIA SAUDE'],
-  'vivo': ['VIVO', 'TELEFONICA'],
-  'copasa': ['COPASA', 'SANEAMENTO'],
-  'cemig': ['CEMIG', 'ENERGIA ELETRICA'],
-  'contador': ['CONTADOR', 'CONTABILIDADE'],
+// Pattern matching for partner suggestion - more restrictive patterns
+// Each pattern requires specific words to match, avoiding generic single-word matches
+const PARTNER_PATTERNS: Record<string, { patterns: string[], minWordLength: number, requireExact?: boolean }> = {
+  'maria lucia': { patterns: ['MARIA LUCIA', 'MARIALUCIA', 'M LUCIA', 'ALUGUEL MARIA'], minWordLength: 5, requireExact: true },
+  'lab shopping': { patterns: ['LAB SHOPPING', 'LABSHOPPING'], minWordLength: 5, requireExact: true },
+  'db diagnosticos': { patterns: ['DB DIAGN', 'DB MOLEC', 'DBMOLEC', 'DB DIAGNOS'], minWordLength: 5, requireExact: true },
+  'central de art': { patterns: ['CENTRAL ART', 'CENTRAL DE ART', 'CENTRALART'], minWordLength: 6, requireExact: true },
+  'unimed': { patterns: ['UNIMED'], minWordLength: 5, requireExact: true },
+  'cassi': { patterns: ['CASSI'], minWordLength: 5, requireExact: true },
+  // Removed 'prefeitura' patterns - too generic, causes false positives
+  'vivo': { patterns: ['VIVO TELEFONE', 'VIVO INTERNET', 'TELEFONICA'], minWordLength: 6 },
+  'copasa': { patterns: ['COPASA', 'SANEAMENTO MG'], minWordLength: 6, requireExact: true },
+  'cemig': { patterns: ['CEMIG', 'CEMIG DISTRIBUICAO'], minWordLength: 5, requireExact: true },
+  'contador': { patterns: ['CONTABILIDADE'], minWordLength: 8 },
 };
 
 export function generateRecordId(): string {
@@ -309,10 +310,15 @@ export function suggestPartnerAndCategory(
 ): { partner: Partner | null; category: Category | null; confidence: number } {
   const normalizedDesc = record.description.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   
-  // First, try to match against known patterns
-  for (const [partnerKey, patterns] of Object.entries(PARTNER_PATTERNS)) {
-    for (const pattern of patterns) {
-      if (normalizedDesc.includes(pattern)) {
+  // First, try to match against known patterns (more restrictive)
+  for (const [partnerKey, config] of Object.entries(PARTNER_PATTERNS)) {
+    for (const pattern of config.patterns) {
+      // For exact match patterns, require the full pattern to be found
+      const isMatch = config.requireExact 
+        ? normalizedDesc.includes(pattern)
+        : normalizedDesc.includes(pattern);
+      
+      if (isMatch && pattern.length >= config.minWordLength) {
         // Find the partner in our list
         const partner = partners.find(p => 
           p.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(partnerKey) ||
@@ -331,15 +337,29 @@ export function suggestPartnerAndCategory(
     }
   }
 
-  // Try direct partner name matching
+  // Try direct partner name matching - but be more restrictive
+  // Require at least 2 significant words (>4 chars) to match
   for (const partner of partners) {
     const partnerName = partner.name.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    if (normalizedDesc.includes(partnerName) || partnerName.split(' ').some(word => word.length > 3 && normalizedDesc.includes(word))) {
+    const partnerWords = partnerName.split(/\s+/).filter(word => word.length > 4);
+    
+    // If description contains full partner name, it's a strong match
+    if (normalizedDesc.includes(partnerName) && partnerName.length >= 6) {
       const category = partner.default_category_id 
         ? categories.find(c => c.id === partner.default_category_id) || null
         : null;
       
-      return { partner, category, confidence: 75 };
+      return { partner, category, confidence: 85 };
+    }
+    
+    // If at least 2 significant words match, it's a moderate match
+    const matchingWords = partnerWords.filter(word => normalizedDesc.includes(word));
+    if (matchingWords.length >= 2 || (matchingWords.length === 1 && matchingWords[0].length >= 8)) {
+      const category = partner.default_category_id 
+        ? categories.find(c => c.id === partner.default_category_id) || null
+        : null;
+      
+      return { partner, category, confidence: 70 };
     }
   }
 

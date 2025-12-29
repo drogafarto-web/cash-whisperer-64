@@ -224,8 +224,10 @@ export default function BankStatementImport() {
     const saidas = selected.filter(r => r.type === 'SAIDA').reduce((sum, r) => sum + r.amount, 0);
     const withSuggestion = selected.filter(r => r.suggestedPartner).length;
     const withDivergence = selected.filter(r => r.valueDivergence).length;
+    const withCategory = selected.filter(r => r.suggestedCategory).length;
+    const withoutCategory = selected.length - withCategory;
     
-    return { total: selected.length, entradas, saidas, withSuggestion, withDivergence };
+    return { total: selected.length, entradas, saidas, withSuggestion, withDivergence, withCategory, withoutCategory };
   }, [selectedRecords]);
 
   const handleImport = async () => {
@@ -235,10 +237,16 @@ export default function BankStatementImport() {
     }
 
     const toImport = selectedRecords.filter(r => r.suggestedCategory);
+    const withoutCategory = selectedRecords.filter(r => !r.suggestedCategory);
     
     if (toImport.length === 0) {
-      toast.error('Selecione ao menos uma transação com categoria definida');
+      toast.error('Nenhuma transação com categoria definida. Defina a categoria para ao menos uma transação selecionada.');
       return;
+    }
+
+    // Warn about transactions that will be skipped
+    if (withoutCategory.length > 0) {
+      toast.warning(`${withoutCategory.length} transações sem categoria serão ignoradas`);
     }
 
     setIsImporting(true);
@@ -518,8 +526,13 @@ export default function BankStatementImport() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {records.map(record => (
-                      <TableRow key={record.id} className={!record.isSelected ? 'opacity-50' : ''}>
+                    {records.map(record => {
+                      const needsCategory = record.isSelected && !record.suggestedCategory;
+                      return (
+                      <TableRow 
+                        key={record.id} 
+                        className={`${!record.isSelected ? 'opacity-50' : ''} ${needsCategory ? 'bg-warning/10 border-l-2 border-l-warning' : ''}`}
+                      >
                         <TableCell>
                           <Checkbox
                             checked={record.isSelected}
@@ -571,19 +584,26 @@ export default function BankStatementImport() {
                           </Select>
                         </TableCell>
                         <TableCell>
-                          <Select
-                            value={record.suggestedCategory?.id || ''}
-                            onValueChange={(value) => updateRecordCategory(record.id, value)}
-                          >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue placeholder="Selecione..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {getFilteredCategories(record.type).map(c => (
-                                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <div className="flex items-center gap-1">
+                            <Select
+                              value={record.suggestedCategory?.id || ''}
+                              onValueChange={(value) => updateRecordCategory(record.id, value)}
+                            >
+                              <SelectTrigger className={`h-8 text-xs ${needsCategory ? 'border-warning' : ''}`}>
+                                <SelectValue placeholder="Selecione..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {getFilteredCategories(record.type).map(c => (
+                                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {needsCategory && (
+                              <Badge variant="outline" className="text-[10px] border-warning text-warning shrink-0">
+                                Definir
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           {record.valueDivergence && (
@@ -604,21 +624,35 @@ export default function BankStatementImport() {
                           )}
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>
             </Card>
 
             {/* Import Button */}
-            <div className="flex justify-end">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="text-sm text-muted-foreground">
+                {summary.withoutCategory > 0 ? (
+                  <span className="text-warning flex items-center gap-1">
+                    <AlertTriangle className="w-4 h-4" />
+                    {summary.withoutCategory} transações selecionadas precisam de categoria
+                  </span>
+                ) : summary.total > 0 ? (
+                  <span className="text-success flex items-center gap-1">
+                    <CheckCircle2 className="w-4 h-4" />
+                    Todas as {summary.total} transações têm categoria definida
+                  </span>
+                ) : null}
+              </div>
               <Button
                 size="lg"
                 onClick={handleImport}
-                disabled={isImporting || selectedRecords.filter(r => r.suggestedCategory).length === 0}
+                disabled={isImporting || summary.withCategory === 0}
               >
                 {isImporting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Importar {selectedRecords.filter(r => r.suggestedCategory).length} transações
+                Importar {summary.withCategory} de {summary.total} transações
               </Button>
             </div>
           </>
