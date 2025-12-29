@@ -109,7 +109,15 @@ export interface PayableFormData {
 
 // Status types
 export type PayableStatus = 'PENDENTE' | 'PAGO' | 'VENCIDO' | 'CANCELADO';
-export type SupplierInvoiceStatus = 'pendente' | 'parcial' | 'quitada' | 'cancelada';
+export type SupplierInvoiceStatus = 'pendente' | 'parcial' | 'quitada' | 'cancelada' | 'aguardando_boleto';
+
+export const SUPPLIER_INVOICE_STATUS_LABELS: Record<SupplierInvoiceStatus, string> = {
+  pendente: 'Pendente',
+  parcial: 'Parcial',
+  quitada: 'Quitada',
+  cancelada: 'Cancelada',
+  aguardando_boleto: 'Aguardando Boleto',
+};
 
 // Tax Document OCR types
 export type TaxDocumentType = 'das' | 'darf' | 'gps' | 'inss' | 'fgts' | 'folha' | 'nf_servico' | 'outro';
