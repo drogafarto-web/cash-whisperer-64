@@ -6,8 +6,11 @@ import { KioskBreadcrumb } from '@/components/layout/KioskBreadcrumb';
 import { useAuth } from '@/hooks/useAuth';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { AlertTriangle, FileUp, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import {
   ReceptionHome,
   ReceptionImport,
@@ -74,9 +77,19 @@ function ReceptionPanelContent() {
     }
   };
 
+  // Data formatada
+  const formattedDate = format(new Date(), "d MMM, EEEE", { locale: ptBR });
+  const firstName = profile?.name?.split(' ')[0] || 'Usuário';
+  const initials = profile?.name
+    ?.split(' ')
+    .map((n) => n[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase() || 'U';
+
   return (
     <AppLayout>
-      <div className="container py-6">
+      <div className="container py-6 max-w-lg mx-auto">
         {/* Breadcrumb */}
         {currentStep !== 'home' && (
           <div className="mb-4">
@@ -88,19 +101,41 @@ function ReceptionPanelContent() {
           </div>
         )}
 
-        {/* Header simplificado */}
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold tracking-tight">Painel Recepção</h1>
-          {profile?.name && (
-            <p className="text-muted-foreground mt-1">
-              Olá, {profile.name.split(' ')[0]}
-            </p>
-          )}
-        </div>
+        {/* Header moderno */}
+        {currentStep === 'home' && (
+          <div className="mb-6">
+            <div className="flex justify-between items-start mb-4">
+              <span className="text-sm text-muted-foreground capitalize">
+                {formattedDate}
+              </span>
+              <div className="relative">
+                <Avatar className="h-10 w-10 border-2 border-background shadow-sm">
+                  <AvatarFallback className="bg-primary text-primary-foreground font-medium">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-background" />
+              </div>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-sm">Olá, {firstName}</p>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                Painel Recepção
+              </h1>
+            </div>
+          </div>
+        )}
+
+        {/* Header para subpáginas */}
+        {currentStep !== 'home' && (
+          <div className="mb-8 text-center">
+            <h1 className="text-2xl font-bold tracking-tight">{getStepLabel(currentStep)}</h1>
+          </div>
+        )}
 
         {/* Alerta de sem itens para envelope */}
         {noItemsAlert && currentStep === 'home' && (
-          <Alert variant="destructive" className="max-w-xl mx-auto mb-6">
+          <Alert variant="destructive" className="mb-6">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="flex items-center justify-between">
               <span>Não há movimento do dia importado para fechar envelope.</span>
@@ -132,6 +167,7 @@ function ReceptionPanelContent() {
               <ReceptionHome
                 onNavigate={setCurrentStep}
                 onCheckEnvelope={handleCheckEnvelope}
+                unitId={activeUnit}
               />
             )}
             
