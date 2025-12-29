@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { analyzeAccountingDocument } from '@/services/accountingOcrService';
 import { 
   Upload, 
   FileText, 
@@ -91,28 +92,23 @@ export function AccountingUploadZone({
       uploadedFile.status = 'processing';
       setFiles(prev => prev.map(f => f.id === fileId ? uploadedFile : f));
 
-      // 2. Convert to base64 for OCR
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          resolve(result.split(',')[1]); // Remove data:image/...;base64, prefix
+      // 2. Use unified AI service for OCR (handles PDF→image conversion)
+      let ocrData = null;
+      try {
+        const result = await analyzeAccountingDocument(file, 'upload-zone');
+        ocrData = {
+          tipo_documento: result.documentType,
+          valor: result.totalValue,
+          vencimento: result.dueDate,
+          competencia: result.competenceMonth && result.competenceYear 
+            ? { ano: result.competenceYear, mes: result.competenceMonth } 
+            : null,
+          confidence: result.confidence,
         };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-
-      // 3. Call OCR edge function
-      const { data: ocrResult, error: ocrError } = await supabase.functions.invoke('ocr-tax-document', {
-        body: { image_base64: base64, file_name: file.name }
-      });
-
-      if (ocrError) {
+      } catch (ocrError) {
         console.error('OCR error:', ocrError);
         // Continue without OCR data
       }
-
-      const ocrData = ocrResult?.data || null;
       uploadedFile.ocrData = ocrData;
 
       // 4. Save document record
