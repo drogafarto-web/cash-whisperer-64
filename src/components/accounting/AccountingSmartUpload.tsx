@@ -149,7 +149,24 @@ export function AccountingSmartUpload({
         .from('accounting-documents')
         .upload(filePath, file);
       
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Storage upload error:', uploadError);
+        
+        // Provide specific error messages for common storage issues
+        if (uploadError.message?.includes('not found') || uploadError.message?.includes('Bucket')) {
+          throw new Error('Erro de configuração de storage. Contate o administrador.');
+        }
+        if (uploadError.message?.includes('mime') || uploadError.message?.includes('type')) {
+          throw new Error('Tipo de arquivo não suportado. Use PDF, imagem ou XML.');
+        }
+        if (uploadError.message?.includes('size') || uploadError.message?.includes('large')) {
+          throw new Error('Arquivo muito grande. O limite é 10MB.');
+        }
+        if (uploadError.message?.includes('auth') || uploadError.message?.includes('JWT')) {
+          throw new Error('Sessão expirada. Faça login novamente.');
+        }
+        throw uploadError;
+      }
       
       updateDocument(id, { filePath });
       
