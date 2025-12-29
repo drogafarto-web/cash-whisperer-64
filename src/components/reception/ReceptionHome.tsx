@@ -52,21 +52,27 @@ export function ReceptionHome({ onNavigate, onCheckEnvelope, unitId }: Reception
 
   const today = new Date().toISOString().split('T')[0];
 
-  // Buscar última importação do dia
-  const { data: lastImport } = useQuery({
-    queryKey: ['reception-last-import', unitId, today],
+  // Buscar itens do dia (combinando última importação + contagens em uma query)
+  const { data: dayData } = useQuery({
+    queryKey: ['reception-day-data', unitId, today],
     queryFn: async () => {
-      if (!unitId) return null;
-      const { data } = await supabase
+      if (!unitId) return { lastImport: null, processed: 0, pending: 0 };
+      
+      const { data: items } = await supabase
         .from('lis_closure_items')
-        .select('created_at')
+        .select('id, envelope_id, created_at')
         .eq('unit_id', unitId)
         .gte('date', today)
-        .order('created_at', { ascending: false })
-        .limit(1);
-      return data?.[0] || null;
+        .order('created_at', { ascending: false });
+      
+      const lastImport = items?.[0] ? { created_at: items[0].created_at } : null;
+      const processed = items?.filter(i => i.envelope_id)?.length || 0;
+      const pending = items?.filter(i => !i.envelope_id)?.length || 0;
+      
+      return { lastImport, processed, pending };
     },
     enabled: !!unitId,
+    staleTime: 30000, // Cache por 30s
   });
 
   // Buscar envelope pendente
@@ -84,27 +90,11 @@ export function ReceptionHome({ onNavigate, onCheckEnvelope, unitId }: Reception
       return data?.[0] || null;
     },
     enabled: !!unitId,
+    staleTime: 30000, // Cache por 30s
   });
 
-  // Buscar contagem de itens do dia
-  const { data: dayCounts } = useQuery({
-    queryKey: ['reception-day-counts', unitId, today],
-    queryFn: async () => {
-      if (!unitId) return { processed: 0, pending: 0 };
-      
-      const { data: items } = await supabase
-        .from('lis_closure_items')
-        .select('id, envelope_id')
-        .eq('unit_id', unitId)
-        .gte('date', today);
-      
-      const processed = items?.filter(i => i.envelope_id)?.length || 0;
-      const pending = items?.filter(i => !i.envelope_id)?.length || 0;
-      
-      return { processed, pending };
-    },
-    enabled: !!unitId,
-  });
+  const lastImport = dayData?.lastImport;
+  const dayCounts = dayData ? { processed: dayData.processed, pending: dayData.pending } : null;
 
   const importCompleted = !!lastImport;
   const importTime = lastImport?.created_at 

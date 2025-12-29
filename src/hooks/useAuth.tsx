@@ -104,28 +104,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUserData = async (userId: string) => {
     try {
-      // Fetch profile
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-      
-      setProfile(profileData as Profile | null);
-
-      // Fetch profile_units with unit data
-      const { data: profileUnitsData } = await supabase
-        .from('profile_units')
-        .select(`
+      // Parallel fetch: profile, profile_units, profile_functions, user_roles
+      const [profileResult, profileUnitsResult, functionsResult, roleResult] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', userId).single(),
+        supabase.from('profile_units').select(`
           id,
           profile_id,
           unit_id,
           is_primary,
           unit:units(*)
-        `)
-        .eq('profile_id', userId);
+        `).eq('profile_id', userId),
+        supabase.from('profile_functions').select('function').eq('profile_id', userId),
+        supabase.from('user_roles').select('role').eq('user_id', userId).single()
+      ]);
 
-      const mappedUnits: ProfileUnit[] = (profileUnitsData || []).map(pu => ({
+      const profileData = profileResult.data;
+      setProfile(profileData as Profile | null);
+
+      const mappedUnits: ProfileUnit[] = (profileUnitsResult.data || []).map(pu => ({
         id: pu.id,
         profile_id: pu.profile_id,
         unit_id: pu.unit_id,
@@ -143,7 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else if (mappedUnits.length > 0 && mappedUnits[0].unit) {
         activeUnitData = mappedUnits[0].unit;
       } else if (profileData?.unit_id) {
-        // Fallback to legacy unit_id
+        // Fallback to legacy unit_id (only additional query if needed)
         const { data: unitData } = await supabase
           .from('units')
           .select('*')
@@ -155,23 +151,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUnit(activeUnitData);
       setActiveUnitState(activeUnitData);
 
-      // Fetch profile_functions
-      const { data: functionsData } = await supabase
-        .from('profile_functions')
-        .select('function')
-        .eq('profile_id', userId);
-
-      const functions = (functionsData || []).map(f => f.function as OperationalFunction);
+      const functions = (functionsResult.data || []).map(f => f.function as OperationalFunction);
       setUserFunctions(functions);
 
-      // Fetch role
-      const { data: roleData } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .single();
-      
-      setRole(roleData?.role as AppRole | null);
+      setRole(roleResult.data?.role as AppRole | null);
     } catch (error) {
       console.error('Error fetching user data:', error);
     } finally {
