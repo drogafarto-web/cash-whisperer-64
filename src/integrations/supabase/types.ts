@@ -2587,7 +2587,10 @@ export type Database = {
           installments_count: number | null
           issue_date: string
           ocr_confidence: number | null
+          payment_bank_account_id: string | null
           payment_conditions: string | null
+          payment_method: string
+          payment_pix_key: string | null
           status: string
           supplier_cnpj: string | null
           supplier_name: string
@@ -2609,7 +2612,10 @@ export type Database = {
           installments_count?: number | null
           issue_date: string
           ocr_confidence?: number | null
+          payment_bank_account_id?: string | null
           payment_conditions?: string | null
+          payment_method?: string
+          payment_pix_key?: string | null
           status?: string
           supplier_cnpj?: string | null
           supplier_name: string
@@ -2631,7 +2637,10 @@ export type Database = {
           installments_count?: number | null
           issue_date?: string
           ocr_confidence?: number | null
+          payment_bank_account_id?: string | null
           payment_conditions?: string | null
+          payment_method?: string
+          payment_pix_key?: string | null
           status?: string
           supplier_cnpj?: string | null
           supplier_name?: string
@@ -2645,6 +2654,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_invoices_payment_bank_account_id_fkey"
+            columns: ["payment_bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
             referencedColumns: ["id"]
           },
           {

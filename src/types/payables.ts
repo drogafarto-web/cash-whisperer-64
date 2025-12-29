@@ -4,6 +4,16 @@ import { Tables } from '@/integrations/supabase/types';
 export type SupplierInvoice = Tables<'supplier_invoices'>;
 export type Payable = Tables<'payables'>;
 
+// Payment method types
+export type PaymentMethod = 'boleto' | 'pix' | 'transferencia' | 'dinheiro';
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  boleto: 'Boleto Bancário',
+  pix: 'PIX',
+  transferencia: 'Transferência Bancária',
+  dinheiro: 'Dinheiro',
+};
+
 // OCR Result types
 export interface SupplierInvoiceOcrResult {
   document_number: string | null;
@@ -72,6 +82,9 @@ export interface SupplierInvoiceFormData {
   installments_count?: number;
   unit_id?: string;
   category_id?: string;
+  payment_method: PaymentMethod;
+  payment_pix_key?: string;
+  payment_bank_account_id?: string;
 }
 
 export interface PayableFormData {

@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
-import { Upload, FileText, Loader2, Plus, Trash2, Wand2 } from 'lucide-react';
+import { Upload, FileText, Loader2, Plus, Trash2, Wand2, CreditCard, Banknote, Building2, Wallet } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,12 +26,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 import { useSupplierInvoiceOcr } from '@/features/payables/hooks/usePayableOcr';
 import { useCreateSupplierInvoice } from '@/features/payables/hooks/useSupplierInvoices';
 import { useCreatePayablesFromParcelas } from '@/features/payables/hooks/usePayables';
 import { checkDuplicateSupplierInvoice } from '@/features/payables/api/supplier-invoices.api';
-import { SupplierInvoiceFormData, Parcela } from '@/types/payables';
+import { SupplierInvoiceFormData, Parcela, PaymentMethod, PAYMENT_METHOD_LABELS } from '@/types/payables';
+import { useBankAccounts } from '@/hooks/useBankAccounts';
 import { toast } from 'sonner';
 
 const formSchema = z.object({
@@ -46,6 +48,27 @@ const formSchema = z.object({
   payment_conditions: z.string().optional(),
   unit_id: z.string().optional(),
   category_id: z.string().optional(),
+  payment_method: z.enum(['boleto', 'pix', 'transferencia', 'dinheiro']),
+  payment_pix_key: z.string().optional(),
+  payment_bank_account_id: z.string().optional(),
+}).refine((data) => {
+  // PIX requires pix key
+  if (data.payment_method === 'pix' && !data.payment_pix_key) {
+    return false;
+  }
+  return true;
+}, {
+  message: 'Chave PIX é obrigatória para pagamento via PIX',
+  path: ['payment_pix_key'],
+}).refine((data) => {
+  // Transferencia requires bank account
+  if (data.payment_method === 'transferencia' && !data.payment_bank_account_id) {
+    return false;
+  }
+  return true;
+}, {
+  message: 'Conta bancária é obrigatória para transferência',
+  path: ['payment_bank_account_id'],
 });
 
 interface Props {
@@ -64,6 +87,7 @@ export function SupplierInvoiceUploadForm({ units, categories, onSuccess, onCanc
   const { processFile, isProcessing } = useSupplierInvoiceOcr();
   const createInvoice = useCreateSupplierInvoice();
   const createParcelas = useCreatePayablesFromParcelas();
+  const { data: bankAccounts = [] } = useBankAccounts();
 
   const form = useForm<SupplierInvoiceFormData>({
     resolver: zodResolver(formSchema),
@@ -79,8 +103,13 @@ export function SupplierInvoiceUploadForm({ units, categories, onSuccess, onCanc
       payment_conditions: '',
       unit_id: '',
       category_id: '',
+      payment_method: 'boleto',
+      payment_pix_key: '',
+      payment_bank_account_id: '',
     },
   });
+
+  const paymentMethod = form.watch('payment_method');
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -438,23 +467,153 @@ export function SupplierInvoiceUploadForm({ units, categories, onSuccess, onCanc
             </CardContent>
           </Card>
 
-          {/* Parcelas Section */}
+          {/* Payment Method Section */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span>Parcelas / Boletos ({parcelas.length})</span>
-                <Button type="button" variant="outline" size="sm" onClick={addParcela}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Adicionar Parcela
-                </Button>
+              <CardTitle className="flex items-center gap-2">
+                <Wallet className="h-5 w-5" />
+                Forma de Pagamento *
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              {parcelas.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Nenhuma parcela adicionada. Clique em "Adicionar Parcela" ou use o OCR para extrair automaticamente.
-                </p>
-              ) : (
+            <CardContent className="space-y-4">
+              <FormField
+                control={form.control}
+                name="payment_method"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <RadioGroup
+                        onValueChange={field.onChange}
+                        value={field.value}
+                        className="grid grid-cols-2 md:grid-cols-4 gap-4"
+                      >
+                        <div>
+                          <RadioGroupItem
+                            value="boleto"
+                            id="payment-boleto"
+                            className="peer sr-only"
+                          />
+                          <Label
+                            htmlFor="payment-boleto"
+                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                          >
+                            <CreditCard className="h-6 w-6 mb-2" />
+                            <span className="text-sm font-medium">Boleto</span>
+                          </Label>
+                        </div>
+                        <div>
+                          <RadioGroupItem
+                            value="pix"
+                            id="payment-pix"
+                            className="peer sr-only"
+                          />
+                          <Label
+                            htmlFor="payment-pix"
+                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                          >
+                            <Banknote className="h-6 w-6 mb-2" />
+                            <span className="text-sm font-medium">PIX</span>
+                          </Label>
+                        </div>
+                        <div>
+                          <RadioGroupItem
+                            value="transferencia"
+                            id="payment-transferencia"
+                            className="peer sr-only"
+                          />
+                          <Label
+                            htmlFor="payment-transferencia"
+                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                          >
+                            <Building2 className="h-6 w-6 mb-2" />
+                            <span className="text-sm font-medium">Transferência</span>
+                          </Label>
+                        </div>
+                        <div>
+                          <RadioGroupItem
+                            value="dinheiro"
+                            id="payment-dinheiro"
+                            className="peer sr-only"
+                          />
+                          <Label
+                            htmlFor="payment-dinheiro"
+                            className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary cursor-pointer"
+                          >
+                            <Wallet className="h-6 w-6 mb-2" />
+                            <span className="text-sm font-medium">Dinheiro</span>
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Conditional fields based on payment method */}
+              {paymentMethod === 'pix' && (
+                <FormField
+                  control={form.control}
+                  name="payment_pix_key"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Chave PIX do Fornecedor *</FormLabel>
+                      <FormControl>
+                        <Input {...field} placeholder="CPF, CNPJ, e-mail, telefone ou chave aleatória" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {paymentMethod === 'transferencia' && (
+                <FormField
+                  control={form.control}
+                  name="payment_bank_account_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Conta Bancária de Destino *</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione a conta..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {bankAccounts.map((acc) => (
+                            <SelectItem key={acc.id} value={acc.id}>
+                              {acc.name} {acc.institution ? `- ${acc.institution}` : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Parcelas Section - Only show for boleto */}
+          {paymentMethod === 'boleto' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Parcelas / Boletos ({parcelas.length})</span>
+                  <Button type="button" variant="outline" size="sm" onClick={addParcela}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Adicionar Parcela
+                  </Button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {parcelas.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    Nenhuma parcela adicionada. Clique em "Adicionar Parcela" ou use o OCR para extrair automaticamente.
+                  </p>
+                ) : (
                 <div className="space-y-4">
                   {parcelas.map((parcela, index) => (
                     <div
@@ -503,9 +662,9 @@ export function SupplierInvoiceUploadForm({ units, categories, onSuccess, onCanc
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
-
+              </CardContent>
+            </Card>
+          )}
           {/* Actions */}
           <div className="flex justify-end gap-4">
             {onCancel && (

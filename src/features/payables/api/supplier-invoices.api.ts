@@ -53,6 +53,9 @@ export async function createSupplierInvoice(
       file_name: fileName,
       ocr_confidence: ocrConfidence,
       status: 'pendente',
+      payment_method: data.payment_method,
+      payment_pix_key: data.payment_pix_key,
+      payment_bank_account_id: data.payment_bank_account_id || null,
     })
     .select()
     .single();
@@ -62,12 +65,19 @@ export async function createSupplierInvoice(
 }
 
 export async function updateSupplierInvoice(id: string, data: Partial<SupplierInvoiceFormData>) {
+  const updateData: Record<string, unknown> = {
+    ...data,
+    updated_at: new Date().toISOString(),
+  };
+  
+  // Handle empty bank account id
+  if (data.payment_bank_account_id === '') {
+    updateData.payment_bank_account_id = null;
+  }
+  
   const { data: result, error } = await supabase
     .from('supplier_invoices')
-    .update({
-      ...data,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updateData)
     .eq('id', id)
     .select()
     .single();
@@ -121,4 +131,66 @@ export async function checkDuplicateSupplierInvoice(
 
   const { data } = await query.limit(1);
   return (data?.length ?? 0) > 0;
+}
+
+// Auto-matching function for boleto linking
+export interface SupplierInvoiceMatch {
+  invoice: SupplierInvoice;
+  matchScore: number;
+  matchReasons: string[];
+}
+
+export async function findMatchingSupplierInvoices(
+  beneficiarioCnpj: string | undefined,
+  valor: number | undefined,
+  tolerancePercent: number = 5
+): Promise<SupplierInvoiceMatch[]> {
+  // Fetch recent pending supplier invoices (last 90 days)
+  const ninetyDaysAgo = new Date();
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+  const { data: invoices, error } = await supabase
+    .from('supplier_invoices')
+    .select('*')
+    .in('status', ['pendente', 'parcial'])
+    .gte('issue_date', ninetyDaysAgo.toISOString().split('T')[0])
+    .order('issue_date', { ascending: false })
+    .limit(100);
+
+  if (error || !invoices) return [];
+
+  const matches: SupplierInvoiceMatch[] = [];
+
+  for (const invoice of invoices) {
+    let matchScore = 0;
+    const matchReasons: string[] = [];
+
+    // CNPJ match (strongest)
+    if (beneficiarioCnpj && invoice.supplier_cnpj) {
+      const normalizedBoleto = beneficiarioCnpj.replace(/\D/g, '');
+      const normalizedInvoice = invoice.supplier_cnpj.replace(/\D/g, '');
+      if (normalizedBoleto === normalizedInvoice) {
+        matchScore += 50;
+        matchReasons.push('CNPJ coincide');
+      }
+    }
+
+    // Value match (with tolerance)
+    if (valor && invoice.total_value) {
+      const tolerance = invoice.total_value * (tolerancePercent / 100);
+      const diff = Math.abs(valor - invoice.total_value);
+      if (diff <= tolerance) {
+        matchScore += 40;
+        matchReasons.push(diff === 0 ? 'Valor exato' : `Valor aproximado (${((diff / invoice.total_value) * 100).toFixed(1)}% diferença)`);
+      }
+    }
+
+    // Only include if we have at least some match
+    if (matchScore >= 40) {
+      matches.push({ invoice, matchScore, matchReasons });
+    }
+  }
+
+  // Sort by score descending
+  return matches.sort((a, b) => b.matchScore - a.matchScore);
 }
