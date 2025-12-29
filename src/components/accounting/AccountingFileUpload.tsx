@@ -38,6 +38,18 @@ interface OcrResult {
   vencimento: string | null;
 }
 
+interface AccountingFileUploadProps {
+  unitId: string;
+  ano: number;
+  mes: number;
+  categoria: DocumentCategory;
+  label: string;
+  existingFile?: ExistingFile | null;
+  onUploadComplete?: () => void;
+  onDeleteComplete?: () => void;
+  onOcrComplete?: (result: OcrResult) => void;
+}
+
 export function AccountingFileUpload({ 
   unitId, 
   ano, 
