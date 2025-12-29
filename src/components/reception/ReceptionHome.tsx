@@ -16,7 +16,52 @@ interface ReceptionHomeProps {
 }
 
 export function ReceptionHome({ onNavigate, onCheckEnvelope, unitId }: ReceptionHomeProps) {
-  // Se não há unitId, mostrar mensagem de erro
+  const today = new Date().toISOString().split('T')[0];
+
+  // Hooks PRIMEIRO - antes de qualquer return condicional
+  const { data: dayData } = useQuery({
+    queryKey: ['reception-day-data', unitId, today],
+    queryFn: async () => {
+      if (!unitId) return { lastImport: null, processed: 0, pending: 0 };
+      
+      const { data: items } = await supabase
+        .from('lis_closure_items')
+        .select('id, envelope_id, created_at')
+        .eq('unit_id', unitId)
+        .gte('date', today)
+        .order('created_at', { ascending: false });
+      
+      const lastImport = items?.[0] ? { created_at: items[0].created_at } : null;
+      const processed = items?.filter(i => i.envelope_id)?.length || 0;
+      const pending = items?.filter(i => !i.envelope_id)?.length || 0;
+      
+      return { lastImport, processed, pending };
+    },
+    enabled: !!unitId,
+    staleTime: 30000,
+  });
+
+  const { data: pendingEnvelope } = useQuery({
+    queryKey: ['reception-pending-envelope', unitId],
+    queryFn: async () => {
+      if (!unitId) return null;
+      const { data } = await supabase
+        .from('cash_envelopes')
+        .select('id, lis_codes_count')
+        .eq('unit_id', unitId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      return data?.[0] || null;
+    },
+    enabled: !!unitId,
+    staleTime: 30000,
+  });
+
+  const lastImport = dayData?.lastImport;
+  const dayCounts = dayData ? { processed: dayData.processed, pending: dayData.pending } : null;
+
+  // AGORA podemos fazer o return condicional (após todos os hooks)
   if (!unitId) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] px-4">
@@ -49,52 +94,6 @@ export function ReceptionHome({ onNavigate, onCheckEnvelope, unitId }: Reception
       </div>
     );
   }
-
-  const today = new Date().toISOString().split('T')[0];
-
-  // Buscar itens do dia (combinando última importação + contagens em uma query)
-  const { data: dayData } = useQuery({
-    queryKey: ['reception-day-data', unitId, today],
-    queryFn: async () => {
-      if (!unitId) return { lastImport: null, processed: 0, pending: 0 };
-      
-      const { data: items } = await supabase
-        .from('lis_closure_items')
-        .select('id, envelope_id, created_at')
-        .eq('unit_id', unitId)
-        .gte('date', today)
-        .order('created_at', { ascending: false });
-      
-      const lastImport = items?.[0] ? { created_at: items[0].created_at } : null;
-      const processed = items?.filter(i => i.envelope_id)?.length || 0;
-      const pending = items?.filter(i => !i.envelope_id)?.length || 0;
-      
-      return { lastImport, processed, pending };
-    },
-    enabled: !!unitId,
-    staleTime: 30000, // Cache por 30s
-  });
-
-  // Buscar envelope pendente
-  const { data: pendingEnvelope } = useQuery({
-    queryKey: ['reception-pending-envelope', unitId],
-    queryFn: async () => {
-      if (!unitId) return null;
-      const { data } = await supabase
-        .from('cash_envelopes')
-        .select('id, lis_codes_count')
-        .eq('unit_id', unitId)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false })
-        .limit(1);
-      return data?.[0] || null;
-    },
-    enabled: !!unitId,
-    staleTime: 30000, // Cache por 30s
-  });
-
-  const lastImport = dayData?.lastImport;
-  const dayCounts = dayData ? { processed: dayData.processed, pending: dayData.pending } : null;
 
   const importCompleted = !!lastImport;
   const importTime = lastImport?.created_at 
