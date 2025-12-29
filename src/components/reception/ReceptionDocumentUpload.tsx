@@ -79,7 +79,32 @@ export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUpl
   const [selectedPayableId, setSelectedPayableId] = useState<string | null>(null);
   const [selectedPayableInfo, setSelectedPayableInfo] = useState<{ beneficiario?: string; valor?: number }>({});
 
-  // Se não há unitId, mostrar mensagem de erro
+  // Get current month/year for competence
+  const now = new Date();
+  const competenceYear = now.getFullYear();
+  const competenceMonth = now.getMonth() + 1;
+
+  // Process queue - run when queue changes (MUST be before conditional returns)
+  useEffect(() => {
+    if (!unitId) return; // Guard inside effect
+    
+    const processQueue = async () => {
+      const processing = documentQueue.filter(d => d.status === 'uploading' || d.status === 'analyzing');
+      const queued = documentQueue.filter(d => d.status === 'queued');
+      
+      // Start processing up to MAX_CONCURRENT
+      const slotsAvailable = MAX_CONCURRENT - processing.length;
+      const toProcess = queued.slice(0, slotsAvailable);
+      
+      for (const doc of toProcess) {
+        processDocument(doc);
+      }
+    };
+    
+    processQueue();
+  }, [documentQueue, unitId]);
+
+  // Se não há unitId, mostrar mensagem de erro (AFTER all hooks)
   if (!unitId) {
     return (
       <div className="max-w-2xl mx-auto space-y-6">
@@ -106,29 +131,6 @@ export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUpl
       </div>
     );
   }
-
-  // Get current month/year for competence
-  const now = new Date();
-  const competenceYear = now.getFullYear();
-  const competenceMonth = now.getMonth() + 1;
-
-  // Process queue - run when queue changes
-  useEffect(() => {
-    const processQueue = async () => {
-      const processing = documentQueue.filter(d => d.status === 'uploading' || d.status === 'analyzing');
-      const queued = documentQueue.filter(d => d.status === 'queued');
-      
-      // Start processing up to MAX_CONCURRENT
-      const slotsAvailable = MAX_CONCURRENT - processing.length;
-      const toProcess = queued.slice(0, slotsAvailable);
-      
-      for (const doc of toProcess) {
-        processDocument(doc);
-      }
-    };
-    
-    processQueue();
-  }, [documentQueue, unitId]);
 
   const processDocument = async (doc: QueuedDocument) => {
     if (!unitId) return;
