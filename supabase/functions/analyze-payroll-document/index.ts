@@ -42,75 +42,6 @@ Regras:
 
 Retorne APENAS o JSON, sem explicações.`;
 
-async function callLovableAI(image_base64: string, competencia: { ano?: number; mes?: number } | null): Promise<{ ok: boolean; status: number; data?: any; error?: string }> {
-  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${Deno.env.get('LOVABLE_API_KEY')}`,
-    },
-    body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: PROMPT_TEMPLATE(competencia) },
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${image_base64}` } }
-          ]
-        }
-      ],
-      max_tokens: 1500,
-      temperature: 0.1,
-    }),
-  });
-
-  if (!response.ok) {
-    return { ok: false, status: response.status, error: await response.text() };
-  }
-
-  const data = await response.json();
-  return { ok: true, status: 200, data };
-}
-
-async function callOpenAI(image_base64: string, competencia: { ano?: number; mes?: number } | null): Promise<{ ok: boolean; status: number; data?: any; error?: string }> {
-  const openAIKey = Deno.env.get('OPENAI_API_KEY');
-  if (!openAIKey) {
-    return { ok: false, status: 500, error: 'OpenAI API key not configured' };
-  }
-
-  console.log('Falling back to OpenAI API...');
-
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${openAIKey}`,
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: PROMPT_TEMPLATE(competencia) },
-            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${image_base64}` } }
-          ]
-        }
-      ],
-      max_tokens: 1500,
-      temperature: 0.1,
-    }),
-  });
-
-  if (!response.ok) {
-    return { ok: false, status: response.status, error: await response.text() };
-  }
-
-  const data = await response.json();
-  return { ok: true, status: 200, data };
-}
-
 function parseAIResponse(content: string): PayrollResult {
   try {
     const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, content];
@@ -157,40 +88,67 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Analyzing payroll document: ${file_name || 'unknown'}`);
-
-    // Try Lovable AI first
-    let aiResult = await callLovableAI(image_base64, competencia);
-    
-    // If Lovable AI fails with 402 (no credits), try OpenAI fallback
-    if (!aiResult.ok && aiResult.status === 402) {
-      console.log('Lovable AI credits exhausted, trying OpenAI fallback...');
-      aiResult = await callOpenAI(image_base64, competencia);
-    }
-
-    // Handle rate limit
-    if (!aiResult.ok && aiResult.status === 429) {
+    const openAIKey = Deno.env.get('OPENAI_API_KEY');
+    if (!openAIKey) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Limite de requisições excedido. Tente novamente em alguns minutos.', code: 'RATE_LIMIT' }),
-        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'OPENAI_API_KEY não está configurada' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Handle payment required (both APIs exhausted)
-    if (!aiResult.ok && aiResult.status === 402) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Créditos de IA esgotados. Preencha os dados manualmente.', code: 'NO_CREDITS' }),
-        { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    console.log(`Analyzing payroll document with OpenAI gpt-4o-mini: ${file_name || 'unknown'}`);
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${openAIKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: PROMPT_TEMPLATE(competencia) },
+              { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${image_base64}` } }
+            ]
+          }
+        ],
+        max_tokens: 1500,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('OpenAI API error:', response.status, errorText);
+
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Limite de requisições excedido. Tente novamente em alguns minutos.', code: 'RATE_LIMIT' }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (response.status === 401) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Chave da API OpenAI inválida.', code: 'INVALID_KEY' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (response.status === 402 || response.status === 403) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Problema de acesso/faturamento/cota na OpenAI.', code: 'BILLING_ISSUE' }),
+          { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      throw new Error(`OpenAI API error: ${response.status}`);
     }
 
-    // Handle other errors
-    if (!aiResult.ok) {
-      console.error('AI error:', aiResult.error);
-      throw new Error(`AI API error: ${aiResult.status}`);
-    }
-
-    const content = aiResult.data?.choices?.[0]?.message?.content || '';
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
     console.log('AI Response:', content);
 
     const result = parseAIResponse(content);

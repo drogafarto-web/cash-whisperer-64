@@ -1,3 +1,4 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -8,7 +9,7 @@ const corsHeaders = {
 interface Parcela {
   numero: number;
   valor: number;
-  vencimento: string; // YYYY-MM-DD
+  vencimento: string;
 }
 
 interface SupplierInvoiceOcrResult {
@@ -16,8 +17,8 @@ interface SupplierInvoiceOcrResult {
   document_series: string | null;
   supplier_name: string | null;
   supplier_cnpj: string | null;
-  issue_date: string | null; // YYYY-MM-DD
-  due_date: string | null; // YYYY-MM-DD
+  issue_date: string | null;
+  due_date: string | null;
   total_value: number | null;
   payment_conditions: string | null;
   installments_count: number | null;
@@ -40,12 +41,12 @@ serve(async (req) => {
       throw new Error("Imagem da nota fiscal é obrigatória");
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY não está configurada");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!OPENAI_API_KEY) {
+      throw new Error("OPENAI_API_KEY não está configurada");
     }
 
-    console.log("Processando OCR de nota fiscal de fornecedor...");
+    console.log("Processando OCR de nota fiscal de fornecedor com OpenAI gpt-4o-mini...");
 
     const prompt = `Analise esta imagem de uma NOTA FISCAL DE ENTRADA (de fornecedor/compra) e extraia as seguintes informações em JSON:
 
@@ -82,14 +83,14 @@ INSTRUÇÕES IMPORTANTES:
 7. O array "parcelas" pode estar vazio se não houver informações de pagamento
 8. Retorne APENAS o JSON, sem explicações`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "user",
@@ -104,33 +105,40 @@ INSTRUÇÕES IMPORTANTES:
             ],
           },
         ],
+        max_tokens: 2000,
       }),
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error("OpenAI API error:", response.status, errorText);
+      
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns segundos." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (response.status === 402) {
+      if (response.status === 401) {
         return new Response(
-          JSON.stringify({ error: "Créditos insuficientes. Adicione créditos ao workspace." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ error: "Chave da API OpenAI inválida." }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      const errorText = await response.text();
-      console.error("AI Gateway error:", response.status, errorText);
+      if (response.status === 402 || response.status === 403) {
+        return new Response(
+          JSON.stringify({ error: "Problema de acesso/faturamento/cota na OpenAI." }),
+          { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
       throw new Error("Erro ao processar imagem com IA");
     }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || "";
     
-    console.log("OCR response content:", content);
+    console.log("OCR supplier invoice response:", content);
 
-    // Extract JSON from the response
     let ocrData: Partial<SupplierInvoiceOcrResult>;
     try {
       ocrData = JSON.parse(content);
@@ -148,10 +156,7 @@ INSTRUÇÕES IMPORTANTES:
       }
     }
 
-    // Ensure parcelas is an array
     const parcelas = Array.isArray(ocrData.parcelas) ? ocrData.parcelas : [];
-    
-    // Calculate installments count if not provided
     const installmentsCount = ocrData.installments_count || parcelas.length || 1;
 
     const result: SupplierInvoiceOcrResult = {

@@ -1,3 +1,4 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -17,9 +18,9 @@ serve(async (req) => {
       throw new Error("Image data is required");
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!OPENAI_API_KEY) {
+      throw new Error("OPENAI_API_KEY não está configurada");
     }
 
     const prompt = `Analise esta imagem de comprovante/nota fiscal e extraia as seguintes informações em JSON:
@@ -33,14 +34,16 @@ serve(async (req) => {
 
 Se algum campo não for encontrado, use null. Retorne APENAS o JSON, sem explicações.`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    console.log("Processing receipt OCR with OpenAI gpt-4o-mini...");
+
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "user",
@@ -55,30 +58,40 @@ Se algum campo não for encontrado, use null. Retorne APENAS o JSON, sem explica
             ],
           },
         ],
+        max_tokens: 1000,
       }),
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error("OpenAI API error:", response.status, errorText);
+      
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns segundos." }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      if (response.status === 402) {
+      if (response.status === 401) {
         return new Response(
-          JSON.stringify({ error: "Créditos insuficientes. Adicione créditos ao workspace." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ error: "Chave da API OpenAI inválida." }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      const errorText = await response.text();
-      console.error("AI Gateway error:", response.status, errorText);
+      if (response.status === 402 || response.status === 403) {
+        return new Response(
+          JSON.stringify({ error: "Problema de acesso/faturamento/cota na OpenAI." }),
+          { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
       throw new Error("Erro ao processar imagem com IA");
     }
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || "";
     
+    console.log("OCR receipt response:", content);
+
     // Extract JSON from the response
     let ocrData;
     try {

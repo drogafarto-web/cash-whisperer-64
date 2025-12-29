@@ -38,22 +38,18 @@ interface AnalyzedDocResult {
   classificationReason: string;
   competenceYear: number | null;
   competenceMonth: number | null;
-  // Novos campos para guias tributárias
   codigoBarras: string | null;
   linhaDigitavel: string | null;
   pixKey: string | null;
   pixTipo: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria' | null;
-  // Sugestão contextual para o atendente
   attendantSuggestion: string | null;
 }
 
-// Normaliza CNPJ removendo pontuação
 function normalizeCnpj(cnpj: string | null): string | null {
   if (!cnpj) return null;
   return cnpj.replace(/[^\d]/g, '');
 }
 
-// Classifica documento baseado nos CNPJs e tipo de documento
 function classifyDocument(
   documentType: string,
   issuerCnpj: string | null,
@@ -63,7 +59,6 @@ function classifyDocument(
   labClinCnpjs: string[]
 ): { type: 'revenue' | 'expense' | 'unknown'; reason: string } {
   
-  // REGRA ESPECIAL: Documentos tributários são SEMPRE despesas
   if (TAX_DOCUMENT_TYPES.includes(documentType)) {
     const docLabel = documentType.toUpperCase().replace('_', ' ');
     return {
@@ -72,7 +67,6 @@ function classifyDocument(
     };
   }
   
-  // REGRA ESPECIAL: Documentos de folha/RH são SEMPRE despesas
   if (PAYROLL_DOCUMENT_TYPES.includes(documentType)) {
     return {
       type: 'expense',
@@ -86,7 +80,6 @@ function classifyDocument(
   const issuerIsLabClin = normalizedIssuer && labClinCnpjs.includes(normalizedIssuer);
   const customerIsLabClin = normalizedCustomer && labClinCnpjs.includes(normalizedCustomer);
   
-  // Regra 1: Se prestador é LabClin e tomador NÃO é LabClin → RECEITA
   if (issuerIsLabClin && !customerIsLabClin) {
     return {
       type: 'revenue',
@@ -94,7 +87,6 @@ function classifyDocument(
     };
   }
   
-  // Regra 2: Se tomador é LabClin e prestador NÃO é LabClin → DESPESA
   if (customerIsLabClin && !issuerIsLabClin) {
     return {
       type: 'expense',
@@ -102,7 +94,6 @@ function classifyDocument(
     };
   }
   
-  // Regra 3: Ambos são LabClin ou nenhum é → UNKNOWN (revisão manual)
   if (issuerIsLabClin && customerIsLabClin) {
     return {
       type: 'unknown',
@@ -132,11 +123,11 @@ serve(async (req) => {
       );
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      console.error('LOVABLE_API_KEY not configured');
+    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+    if (!OPENAI_API_KEY) {
+      console.error('OPENAI_API_KEY not configured');
       return new Response(
-        JSON.stringify({ error: 'Lovable AI API key not configured' }),
+        JSON.stringify({ error: 'OPENAI_API_KEY não está configurada' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -156,7 +147,7 @@ serve(async (req) => {
       .filter((cnpj): cnpj is string => cnpj !== null && cnpj.length > 0);
 
     console.log('LabClin CNPJs cadastrados:', labClinCnpjs);
-    console.log('Processing accounting document with Lovable AI (google/gemini-2.5-flash)...');
+    console.log('Processing accounting document with OpenAI gpt-4o-mini...');
 
     const systemPrompt = `Você é um especialista em extrair dados de documentos fiscais brasileiros.
 Analise o documento fornecido e extraia os dados estruturados.
@@ -230,25 +221,25 @@ Exemplos de sugestões:
 
 Retorne os dados no formato JSON. Para valores monetários, use números. Para datas, use YYYY-MM-DD.`;
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
-            {
-              role: 'user',
-              content: [
-                {
-                  type: 'image_url',
-                  image_url: {
-                    url: `data:${mimeType || 'image/png'};base64,${imageBase64}`,
-                    detail: 'high'
-                  }
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${mimeType || 'image/png'};base64,${imageBase64}`,
+                  detail: 'high'
+                }
               },
               {
                 type: 'text',
@@ -374,32 +365,33 @@ Retorne os dados no formato JSON. Para valores monetários, use números. Para d
             }
           }
         ],
-        tool_choice: { type: 'function', function: { name: 'extract_fiscal_data' } }
+        tool_choice: { type: 'function', function: { name: 'extract_fiscal_data' } },
+        max_tokens: 3000,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Lovable AI Gateway error:', response.status, errorText);
+      console.error('OpenAI API error:', response.status, errorText);
       
       if (response.status === 429) {
         return new Response(
-          JSON.stringify({ error: 'Rate limit exceeded. Try again later.' }),
+          JSON.stringify({ error: 'Limite de requisições excedido. Tente novamente em alguns segundos.' }),
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: 'Payment required. Please add funds to your Lovable AI workspace.' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
       if (response.status === 401) {
         return new Response(
-          JSON.stringify({ error: 'Invalid Lovable AI API key.' }),
+          JSON.stringify({ error: 'Chave da API OpenAI inválida.' }),
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      if (response.status === 402 || response.status === 403) {
+        return new Response(
+          JSON.stringify({ error: 'Problema de acesso/faturamento/cota na OpenAI.' }),
+          { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
@@ -410,7 +402,7 @@ Retorne os dados no formato JSON. Para valores monetários, use números. Para d
     }
 
     const data = await response.json();
-    console.log('Lovable AI response received');
+    console.log('OpenAI response received');
 
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     
@@ -453,7 +445,6 @@ Retorne os dados no formato JSON. Para valores monetários, use números. Para d
 
     console.log('Extracted data:', extractedData);
 
-    // Classificar como receita ou despesa (agora passando o tipo de documento)
     const classification = classifyDocument(
       extractedData.document_type || 'outro',
       extractedData.issuer_cnpj,
@@ -488,12 +479,10 @@ Retorne os dados no formato JSON. Para valores monetários, use números. Para d
       classificationReason: classification.reason,
       competenceYear: extractedData.competence_year || null,
       competenceMonth: extractedData.competence_month || null,
-      // Novos campos
       codigoBarras: extractedData.codigo_barras || null,
       linhaDigitavel: extractedData.linha_digitavel || null,
       pixKey: extractedData.pix_key || null,
       pixTipo: extractedData.pix_tipo || null,
-      // Sugestão contextual para o atendente
       attendantSuggestion: extractedData.attendant_suggestion || null,
     };
 
