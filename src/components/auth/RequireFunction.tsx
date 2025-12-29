@@ -2,7 +2,7 @@ import { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth, OperationalFunction } from '@/hooks/useAuth';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ShieldAlert } from 'lucide-react';
+import { ShieldAlert, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface RequireFunctionProps {
@@ -32,9 +32,13 @@ export function RequireFunction({
 }: RequireFunctionProps) {
   const { user, isLoading, hasFunction, isAdmin } = useAuth();
 
-  // Still loading - show nothing to prevent flash
+  // Show loading spinner while authenticating
   if (isLoading) {
-    return null;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   // Not authenticated - redirect to login
