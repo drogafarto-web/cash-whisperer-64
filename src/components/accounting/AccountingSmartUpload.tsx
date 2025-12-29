@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,9 @@ import {
   FolderUp,
   AlertTriangle,
   RefreshCw,
+  Wifi,
+  WifiOff,
+  Zap,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,10 +22,16 @@ import { sanitizeFileName } from '@/lib/sanitizeFileName';
 import { TaxGuideResultCard } from './TaxGuideResultCard';
 import { PayrollAnalysisCard } from './PayrollAnalysisCard';
 import type { TaxGuideOcrResult, PayrollOcrResult } from '@/services/accountingValidationService';
-import { convertPdfToImage } from '@/utils/pdfToImage';
+import { 
+  analyzeAccountingDocument, 
+  AnalyzedDocResult,
+  isTaxDocument,
+  isPayrollDocument,
+} from '@/services/accountingOcrService';
 
 type TaxType = 'das' | 'darf' | 'gps' | 'inss' | 'fgts' | 'iss';
 
+type AIStatus = 'available' | 'limited' | 'unavailable' | 'checking';
 type ErrorCode = 'RATE_LIMIT' | 'NO_CREDITS' | 'GENERIC';
 
 interface UploadedDocument {
@@ -31,7 +40,8 @@ interface UploadedDocument {
   fileName: string;
   filePath?: string;
   status: 'queued' | 'uploading' | 'analyzing' | 'ready' | 'applied' | 'error' | 'manual';
-  type: 'tax' | 'payroll';
+  type: 'tax' | 'payroll' | 'other';
+  analysisResult?: AnalyzedDocResult;
   taxResult?: TaxGuideOcrResult;
   payrollResult?: PayrollOcrResult;
   errorMessage?: string;
@@ -46,18 +56,15 @@ interface AccountingSmartUploadProps {
   onPayrollApply?: (data: { total_folha: number; encargos: number; prolabore: number; num_funcionarios: number }) => void;
 }
 
-// Convert file to base64
-const fileToBase64 = (file: Blob): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-      const result = reader.result as string;
-      const base64 = result.split(',')[1];
-      resolve(base64);
-    };
-    reader.onerror = reject;
-  });
+// Map document types to TaxType
+const DOC_TYPE_TO_TAX_TYPE: Record<string, TaxType> = {
+  das: 'das',
+  darf: 'darf',
+  gps: 'gps',
+  inss_guia: 'inss',
+  inss: 'inss',
+  fgts: 'fgts',
+  iss: 'iss',
 };
 
 export function AccountingSmartUpload({
@@ -69,14 +76,64 @@ export function AccountingSmartUpload({
 }: AccountingSmartUploadProps) {
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [aiStatus, setAiStatus] = useState<AIStatus>('available');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
+
+  // Track AI status based on recent errors
+  const updateAIStatus = useCallback((errorCode?: ErrorCode) => {
+    if (!errorCode) {
+      setAiStatus('available');
+    } else if (errorCode === 'RATE_LIMIT') {
+      setAiStatus('limited');
+    } else if (errorCode === 'NO_CREDITS') {
+      setAiStatus('unavailable');
+    }
+  }, []);
 
   const updateDocument = useCallback((id: string, updates: Partial<UploadedDocument>) => {
     setDocuments((prev) =>
       prev.map((doc) => (doc.id === id ? { ...doc, ...updates } : doc))
     );
   }, []);
+
+  // Convert AnalyzedDocResult to TaxGuideOcrResult for display
+  const convertToTaxResult = (result: AnalyzedDocResult): TaxGuideOcrResult | null => {
+    const taxType = DOC_TYPE_TO_TAX_TYPE[result.documentType];
+    if (!taxType) return null;
+
+    return {
+      tipo_documento: taxType,
+      valor: result.totalValue,
+      vencimento: result.dueDate,
+      codigo_barras: result.codigoBarras,
+      linha_digitavel: result.linhaDigitavel,
+      competencia: result.competenceMonth && result.competenceYear 
+        ? { ano: result.competenceYear, mes: result.competenceMonth } 
+        : null,
+      cnpj_contribuinte: result.issuerCnpj,
+      beneficiario: result.issuerName,
+      sugestao: result.attendantSuggestion,
+      alertas: [],
+      confidence: result.confidence,
+    };
+  };
+
+  // Convert AnalyzedDocResult to PayrollOcrResult for display
+  const convertToPayrollResult = (result: AnalyzedDocResult): PayrollOcrResult => {
+    return {
+      total_folha: result.totalValue || 0,
+      encargos: result.taxes?.inss || 0,
+      prolabore: null,
+      num_funcionarios: null,
+      competencia: result.competenceMonth && result.competenceYear 
+        ? { ano: result.competenceYear, mes: result.competenceMonth }
+        : null,
+      sugestao: result.attendantSuggestion,
+      alertas: [],
+      confidence: result.confidence,
+    };
+  };
 
   const processDocument = async (doc: UploadedDocument) => {
     const { id, file } = doc;
@@ -96,93 +153,69 @@ export function AccountingSmartUpload({
       
       updateDocument(id, { filePath });
       
-      // 2. Analyze with AI
+      // 2. Analyze with unified AI service (same as Reception)
       updateDocument(id, { status: 'analyzing' });
       
-      // Convert to base64 (handle PDF conversion if needed)
-      let base64: string;
-      if (file.type === 'application/pdf') {
-        const imageBlob = await convertPdfToImage(file);
-        base64 = await fileToBase64(imageBlob);
-      } else {
-        base64 = await fileToBase64(file);
-      }
+      const result = await analyzeAccountingDocument(file, unitId);
       
-      // Check if it's a payroll document based on filename
-      const isPayroll = /folha|holerite|resumo.*pagamento|funcionarios/i.test(file.name);
+      // 3. Determine document type and convert result
+      const docType = result.documentType;
       
-      if (isPayroll) {
-        // Call payroll analysis
-        const { data: result, error } = await supabase.functions.invoke('analyze-payroll-document', {
-          body: { 
-            image_base64: base64, 
-            file_name: file.name,
-            competencia: { ano, mes },
-          }
-        });
-        
-        // Handle specific error codes
-        if (error) {
-          const errorCode = detectErrorCode(error, result);
-          handleAIError(id, errorCode, 'payroll');
-          return;
-        }
-        
-        if (result?.success) {
-          updateDocument(id, { 
-            status: 'ready', 
-            type: 'payroll',
-            payrollResult: result.data,
-          });
-        } else {
-          const errorCode = result?.code as ErrorCode || 'GENERIC';
-          handleAIError(id, errorCode, 'payroll', result?.error);
-        }
-      } else {
-        // Call tax document OCR
-        const { data: result, error } = await supabase.functions.invoke('ocr-tax-document', {
-          body: { 
-            image_base64: base64, 
-            file_name: file.name,
-            competencia: { ano, mes },
-          }
-        });
-        
-        // Handle specific error codes
-        if (error) {
-          const errorCode = detectErrorCode(error, result);
-          handleAIError(id, errorCode, 'tax');
-          return;
-        }
-        
-        if (result?.success) {
+      if (isTaxDocument(docType)) {
+        const taxResult = convertToTaxResult(result);
+        if (taxResult) {
           updateDocument(id, { 
             status: 'ready', 
             type: 'tax',
-            taxResult: result.data,
+            analysisResult: result,
+            taxResult,
           });
+          updateAIStatus(); // AI is working
         } else {
-          const errorCode = result?.code as ErrorCode || 'GENERIC';
-          handleAIError(id, errorCode, 'tax', result?.error);
+          updateDocument(id, { 
+            status: 'manual', 
+            type: 'other',
+            analysisResult: result,
+            errorMessage: 'Tipo de guia não identificado. Preencha manualmente.',
+          });
         }
+      } else if (isPayrollDocument(docType)) {
+        const payrollResult = convertToPayrollResult(result);
+        updateDocument(id, { 
+          status: 'ready', 
+          type: 'payroll',
+          analysisResult: result,
+          payrollResult,
+        });
+        updateAIStatus(); // AI is working
+      } else {
+        // Unknown document type - still show result but as manual
+        updateDocument(id, { 
+          status: 'manual', 
+          type: 'other',
+          analysisResult: result,
+          errorMessage: `Documento identificado como "${result.documentType}". Preencha os campos manualmente.`,
+        });
       }
     } catch (error: any) {
       console.error('Processing error:', error);
-      updateDocument(id, { 
-        status: 'error', 
-        errorMessage: error.message || 'Erro ao processar documento',
-        errorCode: 'GENERIC',
-      });
-      toast.error(`Erro ao processar ${doc.fileName}`);
+      
+      const errorCode = detectErrorCode(error);
+      updateAIStatus(errorCode);
+      handleAIError(id, errorCode, 'tax', error.message);
     }
   };
 
-  const detectErrorCode = (error: any, result: any): ErrorCode => {
-    if (result?.code) return result.code;
+  const detectErrorCode = (error: any): ErrorCode => {
+    const message = (error?.message || '').toLowerCase();
+    const status = error?.status || error?.code;
     
-    const message = error?.message?.toLowerCase() || '';
-    if (message.includes('429') || message.includes('rate limit')) return 'RATE_LIMIT';
-    if (message.includes('402') || message.includes('credits') || message.includes('payment')) return 'NO_CREDITS';
+    if (status === 429 || message.includes('429') || message.includes('rate limit')) {
+      return 'RATE_LIMIT';
+    }
+    if (status === 402 || message.includes('402') || message.includes('credits') || message.includes('payment')) {
+      return 'NO_CREDITS';
+    }
     
     return 'GENERIC';
   };
@@ -221,10 +254,11 @@ export function AccountingSmartUpload({
 
   const handleFiles = useCallback(async (files: FileList | File[]) => {
     const fileArray = Array.from(files);
-    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'text/xml', 'application/xml'];
     
     const validFiles = fileArray.filter((file) => {
-      if (!allowedTypes.includes(file.type)) {
+      const isAllowed = allowedTypes.includes(file.type) || file.name.toLowerCase().endsWith('.xml');
+      if (!isAllowed) {
         toast.error(`${file.name}: tipo não suportado`);
         return false;
       }
@@ -243,19 +277,15 @@ export function AccountingSmartUpload({
       file,
       fileName: file.name,
       status: 'queued' as const,
-      type: 'tax' as const, // Will be updated after analysis
+      type: 'tax' as const,
     }));
     
     setDocuments((prev) => [...prev, ...newDocs]);
     
-    // Process documents (max 2 concurrent)
-    const processQueue = async () => {
-      for (const doc of newDocs) {
-        await processDocument(doc);
-      }
-    };
-    
-    processQueue();
+    // Process documents sequentially
+    for (const doc of newDocs) {
+      await processDocument(doc);
+    }
   }, [unitId, ano, mes]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -316,6 +346,41 @@ export function AccountingSmartUpload({
   const readyCount = documents.filter((d) => d.status === 'ready').length;
   const manualCount = documents.filter((d) => d.status === 'manual').length;
 
+  // AI Status indicator component
+  const AIStatusIndicator = () => {
+    const statusConfig = {
+      available: {
+        icon: <Zap className="h-3 w-3" />,
+        label: 'IA Disponível',
+        className: 'bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700',
+      },
+      limited: {
+        icon: <Wifi className="h-3 w-3" />,
+        label: 'IA Limitada',
+        className: 'bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700',
+      },
+      unavailable: {
+        icon: <WifiOff className="h-3 w-3" />,
+        label: 'IA Indisponível',
+        className: 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700',
+      },
+      checking: {
+        icon: <Loader2 className="h-3 w-3 animate-spin" />,
+        label: 'Verificando...',
+        className: 'bg-muted text-muted-foreground',
+      },
+    };
+
+    const config = statusConfig[aiStatus];
+
+    return (
+      <Badge variant="outline" className={`gap-1 text-xs ${config.className}`}>
+        {config.icon}
+        {config.label}
+      </Badge>
+    );
+  };
+
   return (
     <div className="space-y-4">
       {/* Drop Zone */}
@@ -330,19 +395,23 @@ export function AccountingSmartUpload({
         onDragLeave={handleDragLeave}
         onClick={() => fileInputRef.current?.click()}
       >
-        <CardContent className="p-6 text-center">
+        <CardContent className="p-6">
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pdf,.jpg,.jpeg,.png,.webp"
+            accept=".pdf,.jpg,.jpeg,.png,.webp,.xml"
             multiple
             onChange={handleInputChange}
             className="hidden"
           />
           
-          <div className="flex flex-col items-center gap-3">
-            <div className={`p-3 rounded-full ${isDragOver ? 'bg-primary/20' : 'bg-muted'}`}>
-              <FolderUp className={`h-6 w-6 ${isDragOver ? 'text-primary' : 'text-muted-foreground'}`} />
+          <div className="flex flex-col items-center gap-3 text-center">
+            <div className="flex items-center justify-between w-full">
+              <div /> {/* Spacer */}
+              <div className={`p-3 rounded-full ${isDragOver ? 'bg-primary/20' : 'bg-muted'}`}>
+                <FolderUp className={`h-6 w-6 ${isDragOver ? 'text-primary' : 'text-muted-foreground'}`} />
+              </div>
+              <AIStatusIndicator />
             </div>
             
             <div>
@@ -350,7 +419,7 @@ export function AccountingSmartUpload({
                 Arraste guias tributárias ou folha de pagamento aqui
               </p>
               <p className="text-sm text-muted-foreground">
-                DAS, DARF, GPS, FGTS, INSS, ISS, Folha de Pagamento
+                DAS, DARF, GPS, FGTS, INSS, ISS, Folha de Pagamento, XML
               </p>
             </div>
             
@@ -359,7 +428,7 @@ export function AccountingSmartUpload({
               <span>A IA identifica automaticamente e preenche os campos</span>
             </div>
             
-            <Button variant="outline" size="sm" className="gap-2">
+            <Button variant="outline" size="sm" className="gap-2" onClick={(e) => e.stopPropagation()}>
               <Upload className="h-4 w-4" />
               Selecionar Arquivos
             </Button>
@@ -410,6 +479,11 @@ export function AccountingSmartUpload({
                       {doc.filePath && (
                         <p className="text-xs text-muted-foreground mt-1">
                           ✓ Arquivo anexado
+                        </p>
+                      )}
+                      {doc.analysisResult?.attendantSuggestion && (
+                        <p className="text-xs text-muted-foreground mt-1 italic">
+                          💡 {doc.analysisResult.attendantSuggestion}
                         </p>
                       )}
                     </div>
