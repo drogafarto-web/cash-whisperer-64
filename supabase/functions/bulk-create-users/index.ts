@@ -114,6 +114,32 @@ Deno.serve(async (req) => {
           }
 
           userId = authData.user.id;
+
+          // Send welcome email for new users
+          try {
+            const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+            const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+            
+            const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-welcome-email`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${serviceRoleKey}`,
+              },
+              body: JSON.stringify({
+                email: userData.email.toLowerCase(),
+                name: userData.name,
+              }),
+            });
+
+            if (!emailResponse.ok) {
+              console.warn(`Failed to send welcome email to ${userData.email}:`, await emailResponse.text());
+            } else {
+              console.log(`Welcome email sent to: ${userData.email}`);
+            }
+          } catch (emailError) {
+            console.warn(`Error sending welcome email to ${userData.email}:`, emailError);
+          }
         }
 
         // Prepare CPF for storage

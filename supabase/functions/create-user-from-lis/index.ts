@@ -165,12 +165,42 @@ Deno.serve(async (req) => {
       console.warn('Could not generate reset link:', resetError);
     }
 
+    const resetLink = resetData?.properties?.action_link || null;
+
+    // 6. Send welcome email via Resend
+    if (resetLink) {
+      try {
+        const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-welcome-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${serviceRoleKey}`,
+          },
+          body: JSON.stringify({
+            email: email.toLowerCase(),
+            name: nome,
+            resetLink: resetLink,
+          }),
+        });
+
+        if (!emailResponse.ok) {
+          console.warn('Failed to send welcome email:', await emailResponse.text());
+        } else {
+          console.log('Welcome email sent successfully to:', email);
+        }
+      } catch (emailError) {
+        console.warn('Error sending welcome email:', emailError);
+        // Non-critical, continue
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         user_id: userId,
         message: 'User created successfully',
-        reset_link: resetData?.properties?.action_link || null,
+        reset_link: resetLink,
+        email_sent: !!resetLink,
       }),
       { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
