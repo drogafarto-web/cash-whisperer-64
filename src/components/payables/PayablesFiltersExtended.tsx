@@ -1,17 +1,7 @@
-import { useState } from 'react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Search, X, Clock } from 'lucide-react';
-import { DateRange } from 'react-day-picker';
+import { Clock, Search, X, FileText } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Calendar } from '@/components/ui/calendar';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import {
   Select,
   SelectContent,
@@ -19,7 +9,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
 
 interface PayablesFiltersExtendedProps {
   // Period filter (quick select)
@@ -36,6 +25,9 @@ interface PayablesFiltersExtendedProps {
   paymentAccountId: string;
   onPaymentAccountIdChange: (value: string) => void;
   accounts: Array<{ id: string; name: string; institution?: string | null }>;
+  // NF link status filter
+  nfLinkStatus?: string;
+  onNfLinkStatusChange?: (value: string) => void;
   // Clear
   onClear: () => void;
 }
@@ -51,10 +43,16 @@ export function PayablesFiltersExtended({
   paymentAccountId,
   onPaymentAccountIdChange,
   accounts,
+  nfLinkStatus,
+  onNfLinkStatusChange,
   onClear,
 }: PayablesFiltersExtendedProps) {
   const hasFilters =
-    periodDays !== 'all' || beneficiario || (unitId && unitId !== 'all') || (paymentAccountId && paymentAccountId !== 'all');
+    periodDays !== 'all' || 
+    beneficiario || 
+    (unitId && unitId !== 'all') || 
+    (paymentAccountId && paymentAccountId !== 'all') ||
+    (nfLinkStatus && nfLinkStatus !== 'all');
 
   return (
     <div className="flex flex-wrap items-center gap-3 p-4 bg-muted/50 rounded-lg">
@@ -113,6 +111,22 @@ export function PayablesFiltersExtended({
           ))}
         </SelectContent>
       </Select>
+
+      {/* NF Link Status Filter */}
+      {onNfLinkStatusChange && (
+        <Select value={nfLinkStatus || 'all'} onValueChange={onNfLinkStatusChange}>
+          <SelectTrigger className="w-[180px]">
+            <FileText className="mr-2 h-4 w-4" />
+            <SelectValue placeholder="Vinculação NF" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas</SelectItem>
+            <SelectItem value="pendente">Pendente de NF</SelectItem>
+            <SelectItem value="vinculado">NF Vinculada</SelectItem>
+            <SelectItem value="nao_requer">Não Requer</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
 
       {/* Clear Filters */}
       {hasFilters && (
