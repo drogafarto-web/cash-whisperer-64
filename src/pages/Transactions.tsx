@@ -5,13 +5,14 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { Transaction, Account, Category, Document, Unit, Partner } from '@/types/database';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Info } from 'lucide-react';
 import {
   TransactionForm,
   TransactionFilters,
   TransactionTable,
   DocumentPreviewDialog,
 } from '@/components/transactions';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function Transactions() {
   const navigate = useNavigate();
@@ -184,27 +185,39 @@ export default function Transactions() {
     <AppLayout>
       <div className="space-y-6 animate-fade-in">
         {/* Header */}
-        <div className="space-y-2">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            <h1 className="text-2xl font-bold text-foreground">Transações</h1>
-            {user && (
-              <TransactionForm
-                isOpen={isDialogOpen}
-                onOpenChange={setIsDialogOpen}
-                onSuccess={fetchTransactions}
-                units={units}
-                accounts={accounts}
-                categories={categories}
-                partners={partners}
-                isAdmin={isAdmin}
-                userUnit={userUnit}
-                user={user}
-              />
-            )}
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <h1 className="text-2xl font-bold text-foreground">Movimentações Manuais</h1>
+              {user && (
+                <TransactionForm
+                  isOpen={isDialogOpen}
+                  onOpenChange={setIsDialogOpen}
+                  onSuccess={fetchTransactions}
+                  units={units}
+                  accounts={accounts}
+                  categories={categories}
+                  partners={partners}
+                  isAdmin={isAdmin}
+                  userUnit={userUnit}
+                  user={user}
+                />
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Registre aqui movimentações que <strong>não passam pelo LIS</strong>: reembolsos a pacientes, 
+              ajustes de caixa, sangrias, depósitos manuais, correções, etc.
+            </p>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Registre todas as entradas e saídas do dia aqui antes de fazer o fechamento de caixa.
-          </p>
+          
+          <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800">
+            <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <AlertDescription className="text-blue-700 dark:text-blue-300">
+              <strong>Atenção:</strong> Os recebimentos de atendimentos (dinheiro, PIX, cartão) 
+              são importados automaticamente do LIS na Central de Fechamento. 
+              Use esta página apenas para movimentações extras.
+            </AlertDescription>
+          </Alert>
         </div>
 
         {/* Filters for Admin */}
