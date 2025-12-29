@@ -11,7 +11,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Transaction, Document } from '@/types/database';
-import { format } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
 import { 
   Check, 
   X, 
@@ -35,6 +35,42 @@ interface TransactionRowProps {
   onReject: (tx: Transaction, reason: string) => void;
   onViewDocument: (doc: Document) => void;
 }
+
+// Safe date formatter - never throws
+const safeFormatDate = (dateValue: unknown): string => {
+  if (!dateValue) return '—';
+  
+  try {
+    let date: Date;
+    
+    if (typeof dateValue === 'string') {
+      // Try parseISO first (handles ISO strings)
+      date = parseISO(dateValue);
+      // If parseISO fails, try new Date()
+      if (!isValid(date)) {
+        date = new Date(dateValue);
+      }
+    } else if (dateValue instanceof Date) {
+      date = dateValue;
+    } else {
+      return '—';
+    }
+    
+    if (!isValid(date)) {
+      return '—';
+    }
+    
+    return format(date, 'dd/MM/yyyy');
+  } catch {
+    return '—';
+  }
+};
+
+// Safe file type checker - never throws
+const isFilePdf = (fileType: unknown): boolean => {
+  if (!fileType || typeof fileType !== 'string') return false;
+  return fileType.toLowerCase().includes('pdf');
+};
 
 const getStatusBadge = (status: string) => {
   switch (status) {
@@ -63,9 +99,11 @@ const TransactionRow = memo(function TransactionRow({
     }
   }, [onViewDocument, tx.documents]);
 
+  const firstDoc = tx.documents?.[0];
+
   return (
     <TableRow>
-      <TableCell>{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
+      <TableCell>{safeFormatDate(tx.date)}</TableCell>
       {isAdmin && <TableCell className="text-muted-foreground">{tx.unit?.name || '—'}</TableCell>}
       <TableCell>
         <Badge variant={tx.type === 'ENTRADA' ? 'default' : 'secondary'}>
@@ -73,7 +111,7 @@ const TransactionRow = memo(function TransactionRow({
         </Badge>
       </TableCell>
       <TableCell className={tx.type === 'ENTRADA' ? 'text-success font-medium' : 'text-destructive font-medium'}>
-        {tx.type === 'ENTRADA' ? '+' : '-'} R$ {Number(tx.amount).toFixed(2)}
+        {tx.type === 'ENTRADA' ? '+' : '-'} R$ {Number(tx.amount || 0).toFixed(2)}
       </TableCell>
       <TableCell className="hidden md:table-cell">
         {tx.partner ? (
@@ -85,18 +123,18 @@ const TransactionRow = memo(function TransactionRow({
           </div>
         ) : '—'}
       </TableCell>
-      <TableCell className="hidden md:table-cell">{tx.category?.name}</TableCell>
-      <TableCell className="hidden lg:table-cell">{tx.account?.name}</TableCell>
-      {isAdmin && <TableCell>{getStatusBadge(tx.status)}</TableCell>}
+      <TableCell className="hidden md:table-cell">{tx.category?.name || '—'}</TableCell>
+      <TableCell className="hidden lg:table-cell">{tx.account?.name || '—'}</TableCell>
+      {isAdmin && <TableCell>{getStatusBadge(tx.status || 'PENDENTE')}</TableCell>}
       <TableCell className="text-right">
         <div className="flex justify-end gap-1">
-          {tx.documents && tx.documents.length > 0 && (
+          {firstDoc && (
             <Button
               variant="ghost"
               size="icon"
               onClick={handleViewDocument}
             >
-              {tx.documents[0].file_type.includes('pdf') ? (
+              {isFilePdf(firstDoc.file_type) ? (
                 <FileText className="w-4 h-4" />
               ) : (
                 <ImageIcon className="w-4 h-4" />

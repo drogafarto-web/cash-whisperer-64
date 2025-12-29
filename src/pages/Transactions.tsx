@@ -67,29 +67,43 @@ export default function Transactions() {
   };
 
   const fetchTransactions = async () => {
-    let query = supabase
-      .from('transactions')
-      .select(`
-        *,
-        category:categories(*),
-        account:accounts(*),
-        partner:partners(*),
-        unit:units(*),
-        documents(*)
-      `)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false });
+    try {
+      let query = supabase
+        .from('transactions')
+        .select(`
+          *,
+          category:categories(*),
+          account:accounts(*),
+          partner:partners(*),
+          unit:units(*),
+          documents(*)
+        `)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
 
-    if (isAdmin) {
-      if (filterUnitId && filterUnitId !== 'all') {
-        query = query.eq('unit_id', filterUnitId);
+      if (isAdmin) {
+        if (filterUnitId && filterUnitId !== 'all') {
+          query = query.eq('unit_id', filterUnitId);
+        }
+      } else if (userUnit) {
+        query = query.eq('unit_id', userUnit.id);
       }
-    } else if (userUnit) {
-      query = query.eq('unit_id', userUnit.id);
-    }
 
-    const { data: txData } = await query;
-    setTransactions((txData || []) as unknown as Transaction[]);
+      const { data: txData, error } = await query;
+      
+      if (error) {
+        console.error('Error fetching transactions:', error);
+        toast.error('Erro ao carregar transações');
+        setTransactions([]);
+        return;
+      }
+      
+      setTransactions((txData || []) as unknown as Transaction[]);
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      toast.error('Erro ao carregar transações');
+      setTransactions([]);
+    }
   };
 
   const fetchAccountsAndCategories = async () => {
