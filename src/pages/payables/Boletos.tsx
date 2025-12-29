@@ -13,6 +13,9 @@ import {
   QrCode,
   Eye,
   Trash2,
+  Link as LinkIcon,
+  FileCheck,
+  FileWarning,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
@@ -48,6 +51,7 @@ import { BoletoUploadForm } from '@/components/payables/BoletoUploadForm';
 import { PayablesFiltersExtended } from '@/components/payables/PayablesFiltersExtended';
 import { PayableDetailModal } from '@/components/payables/PayableDetailModal';
 import { MarkAsPaidModal } from '@/components/payables/MarkAsPaidModal';
+import { BoletoNfLinkModal } from '@/components/payables/BoletoNfLinkModal';
 import {
   usePayablesWithPaymentData,
   useDeletePayable,
@@ -67,12 +71,16 @@ export default function BoletosPage() {
   const [beneficiarioFilter, setBeneficiarioFilter] = useState('');
   const [unitIdFilter, setUnitIdFilter] = useState('all');
   const [paymentAccountFilter, setPaymentAccountFilter] = useState('all');
+  const [nfLinkFilter, setNfLinkFilter] = useState('all');
 
   // Detail modal state
   const [selectedPayable, setSelectedPayable] = useState<Payable | null>(null);
 
   // Mark as paid modal state
   const [payableToMarkPaid, setPayableToMarkPaid] = useState<PayableWithAccount | null>(null);
+
+  // NF Link modal state
+  const [payableToLink, setPayableToLink] = useState<PayableWithAccount | null>(null);
 
   // Fetch data with API filters
   const { data: allPayables = [], isLoading } = usePayablesWithPaymentData({
@@ -122,12 +130,21 @@ export default function BoletosPage() {
     },
   });
 
-  // Apply client-side filter for beneficiario text search
+  // Apply client-side filters
   const filteredPayables = useMemo(() => {
-    if (!beneficiarioFilter) return allPayables;
-    const searchTerm = beneficiarioFilter.toLowerCase();
-    return allPayables.filter((p) => p.beneficiario?.toLowerCase().includes(searchTerm));
-  }, [allPayables, beneficiarioFilter]);
+    let result = allPayables;
+    
+    if (beneficiarioFilter) {
+      const searchTerm = beneficiarioFilter.toLowerCase();
+      result = result.filter((p) => p.beneficiario?.toLowerCase().includes(searchTerm));
+    }
+    
+    if (nfLinkFilter !== 'all') {
+      result = result.filter((p) => p.nf_vinculacao_status === nfLinkFilter);
+    }
+    
+    return result;
+  }, [allPayables, beneficiarioFilter, nfLinkFilter]);
 
   // Summary calculations
   const today = startOfDay(new Date());
@@ -138,6 +155,7 @@ export default function BoletosPage() {
       hojeAmanhaValor = 0;
     let semana = 0,
       semanaValor = 0;
+    let pendentesNf = 0;
 
     filteredPayables.forEach((p) => {
       const vencimento = startOfDay(new Date(p.vencimento));
@@ -153,9 +171,13 @@ export default function BoletosPage() {
         semana++;
         semanaValor += p.valor;
       }
+      
+      if (p.nf_vinculacao_status === 'pendente') {
+        pendentesNf++;
+      }
     });
 
-    return { vencidos, vencidosValor, hojeAmanha, hojeAmanhaValor, semana, semanaValor };
+    return { vencidos, vencidosValor, hojeAmanha, hojeAmanhaValor, semana, semanaValor, pendentesNf };
   }, [filteredPayables, today]);
 
   // Get urgency badge for due date
@@ -266,6 +288,30 @@ export default function BoletosPage() {
     setBeneficiarioFilter('');
     setUnitIdFilter('all');
     setPaymentAccountFilter('all');
+    setNfLinkFilter('all');
+  };
+
+  // Get NF link status badge
+  const getNfLinkBadge = (payable: PayableWithAccount) => {
+    const status = payable.nf_vinculacao_status;
+    
+    if (status === 'pendente') {
+      return (
+        <Badge variant="outline" className="border-amber-500 text-amber-600 bg-amber-500/10 text-xs gap-1">
+          <FileWarning className="h-3 w-3" />
+          NF Pendente
+        </Badge>
+      );
+    }
+    if (status === 'vinculado') {
+      return (
+        <Badge variant="outline" className="border-green-500 text-green-600 bg-green-500/10 text-xs gap-1">
+          <FileCheck className="h-3 w-3" />
+          NF Vinculada
+        </Badge>
+      );
+    }
+    return null;
   };
 
   const exportToExcel = () => {
@@ -379,11 +425,13 @@ export default function BoletosPage() {
           paymentAccountId={paymentAccountFilter}
           onPaymentAccountIdChange={setPaymentAccountFilter}
           accounts={accounts}
+          nfLinkStatus={nfLinkFilter}
+          onNfLinkStatusChange={setNfLinkFilter}
           onClear={handleClearFilters}
         />
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="border-destructive/50">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-destructive flex items-center gap-2">
@@ -433,6 +481,18 @@ export default function BoletosPage() {
                   currency: 'BRL',
                 })}
               </p>
+            </CardContent>
+          </Card>
+          <Card className={summary.pendentesNf > 0 ? 'border-amber-500/50' : ''}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-amber-600 flex items-center gap-2">
+                <FileWarning className="h-4 w-4" />
+                Sem NF Vinculada
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-amber-600">{summary.pendentesNf}</div>
+              <p className="text-sm text-muted-foreground">boletos de compra</p>
             </CardContent>
           </Card>
         </div>
@@ -499,6 +559,11 @@ export default function BoletosPage() {
 
                       {/* Tipo */}
                       <TableCell>{getPaymentTypeBadge(payable)}</TableCell>
+
+                      {/* NF Status */}
+                      <TableCell>
+                        {getNfLinkBadge(payable)}
+                      </TableCell>
 
                       {/* Conta */}
                       <TableCell className="text-sm text-muted-foreground">
@@ -666,6 +731,15 @@ export default function BoletosPage() {
         accounts={accounts}
         onConfirm={handleMarkAsPaid}
         isPending={markAsPaidMutation.isPending}
+      />
+
+      {/* NF Link Modal */}
+      <BoletoNfLinkModal
+        open={!!payableToLink}
+        onOpenChange={(open) => !open && setPayableToLink(null)}
+        payableId={payableToLink?.id || ''}
+        beneficiario={payableToLink?.beneficiario || ''}
+        valor={payableToLink?.valor || 0}
       />
     </AppLayout>
   );

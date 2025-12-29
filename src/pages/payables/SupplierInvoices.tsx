@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -22,15 +22,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/lib/utils';
 
 import { SupplierInvoiceUploadForm } from '@/components/payables/SupplierInvoiceUploadForm';
+import { NfWaitingBoletoCard } from '@/components/payables/NfWaitingBoletoCard';
 import { useSupplierInvoices, useDeleteSupplierInvoice } from '@/features/payables';
 import { SupplierInvoice } from '@/types/payables';
 
 export default function SupplierInvoicesPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
 
   const { data: invoices = [], isLoading } = useSupplierInvoices();
   const deleteInvoice = useDeleteSupplierInvoice();
@@ -50,6 +59,12 @@ export default function SupplierInvoicesPage() {
       return data || [];
     },
   });
+
+  // Filtered invoices
+  const filteredInvoices = useMemo(() => {
+    if (statusFilter === 'all') return invoices;
+    return invoices.filter((inv) => inv.status === statusFilter);
+  }, [invoices, statusFilter]);
 
   // Summary stats
   const totalInvoices = invoices.length;
@@ -96,48 +111,77 @@ export default function SupplierInvoicesPage() {
           </Button>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total de NFs</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalInvoices}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Valor Total</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <AlertCircle className="h-4 w-4" />
-                Pendentes
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{pendingCount}</div>
-            </CardContent>
-          </Card>
-          <Card className={waitingBoletoCount > 0 ? 'border-amber-500' : ''}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Clock className="h-4 w-4 text-amber-500" />
-                Aguardando Boleto
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-amber-600">{waitingBoletoCount}</div>
-            </CardContent>
-          </Card>
+        {/* Summary Cards + NF Waiting Boleto Dashboard */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Total de NFs</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{totalInvoices}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Valor Total</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4" />
+                  Pendentes
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{pendingCount}</div>
+              </CardContent>
+            </Card>
+            <Card className={waitingBoletoCount > 0 ? 'border-amber-500' : ''}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-amber-500" />
+                  Aguardando Boleto
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-amber-600">{waitingBoletoCount}</div>
+              </CardContent>
+            </Card>
+          </div>
+          
+          {/* NF Waiting Boleto Dashboard */}
+          <div className="lg:col-span-1">
+            <NfWaitingBoletoCard />
+          </div>
+        </div>
+
+        {/* Status Filter */}
+        <div className="flex items-center gap-4">
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[220px]">
+              <SelectValue placeholder="Filtrar por status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os Status</SelectItem>
+              <SelectItem value="pendente">Pendente</SelectItem>
+              <SelectItem value="aguardando_boleto">Aguardando Boleto</SelectItem>
+              <SelectItem value="parcial">Parcial</SelectItem>
+              <SelectItem value="quitada">Quitada</SelectItem>
+              <SelectItem value="cancelada">Cancelada</SelectItem>
+            </SelectContent>
+          </Select>
+          {statusFilter !== 'all' && (
+            <Button variant="ghost" size="sm" onClick={() => setStatusFilter('all')}>
+              Limpar filtro
+            </Button>
+          )}
         </div>
 
         {/* Table */}
@@ -162,14 +206,14 @@ export default function SupplierInvoicesPage() {
                       Carregando...
                     </TableCell>
                   </TableRow>
-                ) : invoices.length === 0 ? (
+                ) : filteredInvoices.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                      Nenhuma nota fiscal cadastrada
+                      {statusFilter !== 'all' ? 'Nenhuma nota fiscal encontrada com este status' : 'Nenhuma nota fiscal cadastrada'}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  invoices.map((invoice) => (
+                  filteredInvoices.map((invoice) => (
                     <TableRow key={invoice.id}>
                       <TableCell className="font-medium">{invoice.document_number}</TableCell>
                       <TableCell>{invoice.supplier_name}</TableCell>
