@@ -9,10 +9,7 @@ import { RequireFunction } from '@/components/auth/RequireFunction';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-
-function formatCurrency(value: number) {
-  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
+import { formatCurrency } from '@/lib/utils';
 
 interface PaymentCardProps {
   title: string;

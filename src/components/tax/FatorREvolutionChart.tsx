@@ -102,10 +102,6 @@ export function FatorREvolutionChart({ monthlyData, selectedMonth }: FatorREvolu
     };
   }, [currentMonth]);
 
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  };
-
   const CustomTooltip = ({ active, payload }: any) => {
     if (!active || !payload || !payload.length) return null;
     
