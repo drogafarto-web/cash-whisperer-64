@@ -100,7 +100,7 @@ export const navigationGroups: NavGroup[] = [
       { name: 'Central Fechamento', href: '/cash-hub', icon: Banknote, roles: ['admin', 'secretaria', 'gestor_unidade'] },
       { name: 'Importar Movimento', href: '/import/daily-movement', icon: FileUp, roles: ['admin', 'secretaria', 'gestor_unidade'] },
       { name: 'Fechar Envelope', href: '/envelope-closing', icon: Wallet, roles: ['admin', 'secretaria', 'gestor_unidade'] },
-      { name: 'Transações', href: '/transactions', icon: Receipt, roles: ['admin', 'secretaria', 'contabilidade', 'gestor_unidade', 'financeiro'] },
+      { name: 'Mov. Manuais', href: '/transactions', icon: Receipt, roles: ['admin', 'secretaria', 'contabilidade', 'gestor_unidade', 'financeiro'] },
       { name: 'Importar Extrato', href: '/import/bank-statement', icon: FileUp, roles: ['admin', 'secretaria', 'gestor_unidade', 'financeiro'] },
       { name: 'Unidades', href: '/settings/units', icon: MapPin, roles: ['admin'] },
       { name: 'Contas', href: '/settings/accounts', icon: Building2, roles: ['admin'] },
