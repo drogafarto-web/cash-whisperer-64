@@ -46,6 +46,7 @@ import {
   BankStatementParseResult,
   parseFile,
   enrichRecordsWithSuggestions,
+  ParseProgressCallback,
 } from '@/utils/bankStatementImport';
 
 export default function BankStatementImport() {
@@ -55,6 +56,7 @@ export default function BankStatementImport() {
   const [isLoading, setIsLoading] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
+  const [parseProgress, setParseProgress] = useState<string>('');
   
   const [partners, setPartners] = useState<Partner[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -136,8 +138,14 @@ export default function BankStatementImport() {
     if (!file) return;
 
     setIsParsing(true);
+    setParseProgress('');
+    
+    const onProgress: ParseProgressCallback = (message, current, total) => {
+      setParseProgress(message);
+    };
+    
     try {
-      const result = await parseFile(file);
+      const result = await parseFile(file, onProgress);
       
       // Enrich with partner/category suggestions
       const enrichedRecords = enrichRecordsWithSuggestions(result.records, partners, categories);
@@ -157,6 +165,7 @@ export default function BankStatementImport() {
       toast.error(error instanceof Error ? error.message : 'Erro ao processar arquivo');
     } finally {
       setIsParsing(false);
+      setParseProgress('');
       // Reset input
       e.target.value = '';
     }
@@ -305,7 +314,7 @@ export default function BankStatementImport() {
         <div className="space-y-2">
           <h1 className="text-2xl font-bold text-foreground">Importar Extrato Bancário</h1>
           <p className="text-sm text-muted-foreground">
-            Importe extratos OFX ou CSV e classifique automaticamente as transações por parceiro e categoria.
+            Importe extratos OFX, CSV ou PDF e classifique automaticamente as transações por parceiro e categoria.
           </p>
         </div>
 
@@ -351,11 +360,11 @@ export default function BankStatementImport() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Arquivo OFX/CSV</label>
+                <label className="text-sm font-medium">Arquivo OFX/CSV/PDF</label>
                 <div className="relative">
                   <input
                     type="file"
-                    accept=".ofx,.csv"
+                    accept=".ofx,.csv,.pdf"
                     onChange={handleFileChange}
                     className="hidden"
                     id="bank-file-upload"
@@ -363,7 +372,7 @@ export default function BankStatementImport() {
                   />
                   <label 
                     htmlFor="bank-file-upload" 
-                    className={`flex items-center justify-center gap-2 p-2 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
+                    className={`flex flex-col items-center justify-center gap-1 p-3 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
                       isParsing || !selectedUnitId || !selectedAccountId 
                         ? 'opacity-50 cursor-not-allowed' 
                         : 'hover:border-primary/50'
@@ -372,7 +381,7 @@ export default function BankStatementImport() {
                     {isParsing ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        <span className="text-sm">Processando...</span>
+                        <span className="text-sm">{parseProgress || 'Processando...'}</span>
                       </>
                     ) : (
                       <>
