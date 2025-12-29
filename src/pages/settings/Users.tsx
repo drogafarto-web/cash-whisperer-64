@@ -348,20 +348,20 @@ export default function UsersSettings() {
   const handleResendInvite = async (targetUser: UserWithRole) => {
     setResendingInvite(targetUser.id);
     try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: targetUser.email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
+      // Use edge function to generate new reset link and send welcome email
+      const { data, error } = await supabase.functions.invoke('send-welcome-email', {
+        body: { 
+          email: targetUser.email,
+          name: targetUser.name,
         }
       });
 
       if (error) throw error;
       
-      toast.success('Convite reenviado!');
+      toast.success('Email de convite enviado com sucesso!');
     } catch (error: any) {
       console.error('Error resending invite:', error);
-      toast.error('Erro ao reenviar convite');
+      toast.error('Erro ao reenviar convite. Verifique se o email está correto.');
     } finally {
       setResendingInvite(null);
     }
