@@ -26,9 +26,9 @@ serve(async (req) => {
       throw new Error('imageBase64 is required');
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+    if (!openAIApiKey) {
+      throw new Error('OPENAI_API_KEY is not configured');
     }
 
     console.log(`Processing page ${pageNumber || 1}...`);
@@ -61,14 +61,14 @@ Exemplo de resposta:
   {"date": "2024-01-15", "description": "PAGTO COBRANCA CEDENTE: CEMIG", "amount": 245.80, "type": "SAIDA"}
 ]`;
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: systemPrompt },
           {
@@ -78,6 +78,7 @@ Exemplo de resposta:
                 type: 'image_url',
                 image_url: {
                   url: `data:image/png;base64,${imageBase64}`,
+                  detail: 'high',
                 },
               },
               {
@@ -87,6 +88,7 @@ Exemplo de resposta:
             ],
           },
         ],
+        max_tokens: 4096,
       }),
     });
 
@@ -100,14 +102,14 @@ Exemplo de resposta:
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: 'Payment required. Please add credits.' }), {
-          status: 402,
+      if (response.status === 401) {
+        return new Response(JSON.stringify({ error: 'Invalid API key. Please check your OpenAI API key.' }), {
+          status: 401,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
       
-      throw new Error(`AI gateway error: ${response.status}`);
+      throw new Error(`OpenAI API error: ${response.status}`);
     }
 
     const data = await response.json();
