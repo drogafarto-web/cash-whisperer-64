@@ -125,13 +125,19 @@ export function AccountingFileUpload({
         confidence: result.confidence,
       };
 
-      await supabase
+      const { error: updateError } = await supabase
         .from('accounting_competence_documents')
         .update({ 
           ocr_status: ocrStatus,
           ocr_data: ocrData,
         })
         .eq('id', documentId);
+
+      if (updateError) {
+        console.error('Error updating OCR data:', updateError);
+        toast.error('Erro ao salvar dados do OCR');
+        return;
+      }
 
       // If OCR was successful and we have values, call the callback
       const valor = result.totalValue;
