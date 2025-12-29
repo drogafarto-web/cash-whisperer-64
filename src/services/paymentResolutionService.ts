@@ -143,7 +143,8 @@ export async function getPendingCashCount(unitId: string): Promise<number> {
     .from('lis_closure_items')
     .select('id', { count: 'exact', head: true })
     .eq('unit_id', unitId)
-    .gt('cash_component', 0)
+    .eq('payment_method', 'DINHEIRO')
+    .eq('payment_status', 'PENDENTE')
     .is('envelope_id', null);
 
   if (error) throw error;
@@ -158,7 +159,8 @@ export async function getPendingCashTotal(unitId: string): Promise<number> {
     .from('lis_closure_items')
     .select('cash_component')
     .eq('unit_id', unitId)
-    .gt('cash_component', 0)
+    .eq('payment_method', 'DINHEIRO')
+    .eq('payment_status', 'PENDENTE')
     .is('envelope_id', null);
 
   if (error) throw error;
