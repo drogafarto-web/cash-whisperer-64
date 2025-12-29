@@ -79,6 +79,34 @@ export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUpl
   const [selectedPayableId, setSelectedPayableId] = useState<string | null>(null);
   const [selectedPayableInfo, setSelectedPayableInfo] = useState<{ beneficiario?: string; valor?: number }>({});
 
+  // Se não há unitId, mostrar mensagem de erro
+  if (!unitId) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-6">
+        <Button variant="ghost" onClick={onBack} className="gap-2">
+          <ArrowLeft className="h-4 w-4" />
+          Voltar
+        </Button>
+        
+        <Card className="max-w-md w-full mx-auto">
+          <CardContent className="pt-8 pb-8 text-center space-y-6">
+            <div className="mx-auto w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+              <AlertCircle className="w-8 h-8 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-xl font-semibold text-foreground">
+                Nenhuma Unidade Selecionada
+              </h2>
+              <p className="text-muted-foreground">
+                Você precisa estar vinculado a uma unidade para processar documentos.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // Get current month/year for competence
   const now = new Date();
   const competenceYear = now.getFullYear();
@@ -136,13 +164,34 @@ export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUpl
 
     } catch (error) {
       console.error('Error processing document:', error);
+      
+      // Determinar mensagem de erro mais amigável
+      let errorMessage = 'Erro desconhecido ao processar documento';
+      if (error instanceof Error) {
+        if (error.message.includes('Rate limit') || error.message.includes('429')) {
+          errorMessage = 'Limite de requisições atingido. Tente novamente em alguns segundos.';
+        } else if (error.message.includes('timeout') || error.message.includes('Timeout')) {
+          errorMessage = 'Tempo esgotado. O documento pode ser muito grande ou complexo.';
+        } else if (error.message.includes('Invalid') || error.message.includes('401')) {
+          errorMessage = 'Erro de autenticação com o serviço de IA. Contate o suporte.';
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       setDocumentQueue(prev => prev.map(d => 
         d.id === doc.id ? { 
           ...d, 
           status: 'error' as QueueStatus, 
-          error: error instanceof Error ? error.message : 'Erro desconhecido' 
+          error: errorMessage 
         } : d
       ));
+      
+      toast.error('Erro ao processar documento', {
+        description: errorMessage,
+      });
     }
   };
 
