@@ -78,26 +78,28 @@ export function ReceptionHome({ onNavigate, onCheckEnvelope, unitId }: Reception
     : null;
 
   return (
-    <div className="max-w-lg mx-auto space-y-4">
+    <div className="space-y-4 lg:grid lg:grid-cols-5 lg:gap-6 lg:space-y-0">
       {/* Card Principal - Processamento Inteligente */}
       <Card 
-        className="bg-gradient-to-br from-violet-600 via-purple-600 to-purple-700 border-0 p-6 text-white cursor-pointer hover:shadow-xl transition-all duration-300 hover:scale-[1.02]"
+        className="bg-gradient-to-br from-violet-600 via-purple-600 to-purple-700 border-0 p-6 lg:p-8 text-white cursor-pointer hover:shadow-xl transition-all duration-300 hover:scale-[1.01] lg:col-span-3 lg:row-span-2 lg:flex lg:flex-col lg:justify-between lg:min-h-[280px]"
         onClick={() => onNavigate('document-upload')}
       >
-        <div className="flex items-center gap-2 text-sm opacity-90 uppercase tracking-wide">
-          <Sparkles className="h-4 w-4" />
-          <span className="font-medium">Processamento Inteligente</span>
+        <div>
+          <div className="flex items-center gap-2 text-sm opacity-90 uppercase tracking-wide">
+            <Sparkles className="h-4 w-4 lg:h-5 lg:w-5" />
+            <span className="font-medium">Processamento Inteligente</span>
+          </div>
+          
+          <h2 className="text-2xl lg:text-3xl xl:text-4xl font-bold mt-4 lg:mt-6 leading-tight">
+            Arraste ou clique para processar magicamente
+          </h2>
+          
+          <p className="text-white/70 mt-2 lg:mt-3 text-sm lg:text-base">
+            Análise automática de guias e documentos
+          </p>
         </div>
         
-        <h2 className="text-2xl font-bold mt-4 leading-tight">
-          Arraste ou clique para processar magicamente
-        </h2>
-        
-        <p className="text-white/70 mt-2 text-sm">
-          Análise automática de guias e documentos
-        </p>
-        
-        <div className="flex items-center justify-between mt-6">
+        <div className="flex items-center justify-between mt-6 lg:mt-8">
           <div className="flex gap-2">
             <Badge variant="secondary" className="bg-white/20 text-white border-0 hover:bg-white/30">
               AI
@@ -108,7 +110,7 @@ export function ReceptionHome({ onNavigate, onCheckEnvelope, unitId }: Reception
           </div>
           <Button 
             variant="secondary" 
-            className="bg-white text-violet-700 hover:bg-white/90 font-semibold"
+            className="bg-white text-violet-700 hover:bg-white/90 font-semibold lg:text-base lg:px-6"
           >
             Processar
             <ArrowRight className="h-4 w-4 ml-2" />
@@ -116,16 +118,22 @@ export function ReceptionHome({ onNavigate, onCheckEnvelope, unitId }: Reception
         </div>
       </Card>
 
-      {/* Cards de Status - Grid 2 colunas */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* Coluna lateral com cards de status - empilhados verticalmente em desktop */}
+      <div className="grid grid-cols-2 gap-4 lg:col-span-2 lg:grid-cols-1 lg:gap-4 lg:row-span-2">
         {/* Card Guias do Dia */}
         <Card 
-          className="p-4 cursor-pointer hover:shadow-md transition-all duration-200 hover:border-primary/50"
+          className="p-4 cursor-pointer hover:shadow-md transition-all duration-200 hover:border-primary/50 lg:flex lg:items-center lg:gap-4"
           onClick={() => onNavigate('import')}
         >
-          <div className="flex items-start justify-between">
-            <div className={`p-2.5 rounded-xl ${importCompleted ? 'bg-green-100' : 'bg-orange-100'}`}>
-              <FileUp className={`h-5 w-5 ${importCompleted ? 'text-green-600' : 'text-orange-600'}`} />
+          <div className="flex items-start justify-between lg:flex-col lg:items-start lg:gap-2 lg:flex-1">
+            <div className="flex items-center gap-3">
+              <div className={`p-2.5 rounded-xl ${importCompleted ? 'bg-green-100' : 'bg-orange-100'}`}>
+                <FileUp className={`h-5 w-5 ${importCompleted ? 'text-green-600' : 'text-orange-600'}`} />
+              </div>
+              <div className="hidden lg:block">
+                <p className="text-xs text-muted-foreground">Importação</p>
+                <p className="font-semibold text-foreground">Guias do Dia</p>
+              </div>
             </div>
             <Badge 
               variant="secondary" 
@@ -139,28 +147,38 @@ export function ReceptionHome({ onNavigate, onCheckEnvelope, unitId }: Reception
             </Badge>
           </div>
           
-          <p className="text-xs text-muted-foreground mt-3">Importação</p>
-          <p className="font-semibold text-foreground">Guias do Dia</p>
+          <div className="lg:hidden">
+            <p className="text-xs text-muted-foreground mt-3">Importação</p>
+            <p className="font-semibold text-foreground">Guias do Dia</p>
+          </div>
           
           {importCompleted && importTime && (
-            <p className="text-xs text-green-600 flex items-center mt-2">
+            <p className="text-xs text-green-600 flex items-center mt-2 lg:mt-0">
               <Clock className="h-3 w-3 mr-1" />
               {importTime}
             </p>
           )}
           
           {!importCompleted && (
-            <p className="text-xs text-orange-600 mt-2">
+            <p className="text-xs text-orange-600 mt-2 lg:mt-0">
               Aguardando importação
             </p>
           )}
         </Card>
 
         {/* Card Envelope */}
-        <Card className="p-4">
-          <div className="flex items-start justify-between">
-            <div className={`p-2.5 rounded-xl ${pendingEnvelope ? 'bg-orange-100' : 'bg-muted'}`}>
-              <Wallet className={`h-5 w-5 ${pendingEnvelope ? 'text-orange-600' : 'text-muted-foreground'}`} />
+        <Card className="p-4 lg:flex lg:items-center lg:gap-4">
+          <div className="flex items-start justify-between lg:flex-col lg:items-start lg:gap-2 lg:flex-1">
+            <div className="flex items-center gap-3">
+              <div className={`p-2.5 rounded-xl ${pendingEnvelope ? 'bg-orange-100' : 'bg-muted'}`}>
+                <Wallet className={`h-5 w-5 ${pendingEnvelope ? 'text-orange-600' : 'text-muted-foreground'}`} />
+              </div>
+              <div className="hidden lg:block">
+                <p className="text-xs text-muted-foreground">Físico</p>
+                <p className="font-semibold text-foreground">
+                  {pendingEnvelope ? `Envelope #${pendingEnvelope.lis_codes_count || '?'}` : 'Envelope'}
+                </p>
+              </div>
             </div>
             <Badge 
               variant="secondary" 
@@ -174,40 +192,44 @@ export function ReceptionHome({ onNavigate, onCheckEnvelope, unitId }: Reception
             </Badge>
           </div>
           
-          <p className="text-xs text-muted-foreground mt-3">Físico</p>
-          <p className="font-semibold text-foreground">
-            {pendingEnvelope ? `Envelope #${pendingEnvelope.lis_codes_count || '?'}` : 'Envelope'}
-          </p>
+          <div className="lg:hidden">
+            <p className="text-xs text-muted-foreground mt-3">Físico</p>
+            <p className="font-semibold text-foreground">
+              {pendingEnvelope ? `Envelope #${pendingEnvelope.lis_codes_count || '?'}` : 'Envelope'}
+            </p>
+          </div>
           
-          {pendingEnvelope ? (
-            <Button 
-              size="sm" 
-              className="mt-2 w-full bg-orange-500 hover:bg-orange-600 text-white"
-              onClick={(e) => {
-                e.stopPropagation();
-                onCheckEnvelope();
-              }}
-            >
-              Conferir
-            </Button>
-          ) : (
-            <Button 
-              size="sm" 
-              variant="outline"
-              className="mt-2 w-full"
-              onClick={(e) => {
-                e.stopPropagation();
-                onCheckEnvelope();
-              }}
-            >
-              Fechar Caixa
-            </Button>
-          )}
+          <div className="lg:ml-auto">
+            {pendingEnvelope ? (
+              <Button 
+                size="sm" 
+                className="mt-2 w-full lg:mt-0 lg:w-auto bg-orange-500 hover:bg-orange-600 text-white"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCheckEnvelope();
+                }}
+              >
+                Conferir
+              </Button>
+            ) : (
+              <Button 
+                size="sm" 
+                variant="outline"
+                className="mt-2 w-full lg:mt-0 lg:w-auto"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCheckEnvelope();
+                }}
+              >
+                Fechar Caixa
+              </Button>
+            )}
+          </div>
         </Card>
       </div>
 
-      {/* Card Resumo Rápido */}
-      <Card className="p-4 flex items-center gap-4 cursor-pointer hover:shadow-md transition-all duration-200 hover:border-primary/50">
+      {/* Card Resumo Rápido - largura total em desktop */}
+      <Card className="p-4 lg:p-5 flex items-center gap-4 cursor-pointer hover:shadow-md transition-all duration-200 hover:border-primary/50 lg:col-span-5">
         <div className="bg-primary/10 p-3 rounded-xl">
           <BarChart3 className="h-6 w-6 text-primary" />
         </div>
