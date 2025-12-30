@@ -46,7 +46,8 @@ export interface EnvelopeData {
  * 
  * REGRA DE NEGÓCIO CRÍTICA:
  * - Busca por unit_id (não por closure_id)
- * - cash_component > 0 (tem dinheiro a receber)
+ * - payment_method = 'DINHEIRO' (apenas pagamentos em dinheiro)
+ * - payment_status = 'PENDENTE' (apenas pendentes de fechamento)
  * - envelope_id IS NULL (ainda não está em nenhum envelope)
  * 
  * Um código LIS permanece disponível até ser vinculado a um envelope,
@@ -60,7 +61,8 @@ export async function getAvailableItemsForEnvelope(unitId: string): Promise<LisI
       unit:units(name)
     `)
     .eq('unit_id', unitId)
-    .gt('cash_component', 0)
+    .eq('payment_method', 'DINHEIRO')
+    .eq('payment_status', 'PENDENTE')
     .is('envelope_id', null)
     .order('date', { ascending: false })
     .order('lis_code', { ascending: true });
