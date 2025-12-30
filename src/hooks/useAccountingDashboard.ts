@@ -52,7 +52,29 @@ export function useAccountingDashboard(ano: number, mes: number) {
   return useQuery({
     queryKey: ['accounting-dashboard', ano, mes],
     queryFn: async (): Promise<AccountingDashboardData> => {
-      // Buscar dados de impostos
+      // Definir período da competência
+      const startDate = `${ano}-${String(mes).padStart(2, '0')}-01`;
+      const endDate = new Date(ano, mes, 0).toISOString().split('T')[0]; // Último dia do mês
+
+      // Buscar payables pagos da competência com categoria
+      const { data: payablesData } = await supabase
+        .from('payables')
+        .select(`
+          id, valor, paid_amount, status, beneficiario,
+          category:categories(id, name, tax_group, entra_fator_r)
+        `)
+        .gte('vencimento', startDate)
+        .lte('vencimento', endDate)
+        .in('status', ['pago', 'PAGO']);
+
+      // Buscar invoices (receitas) da competência
+      const { data: invoicesData } = await supabase
+        .from('invoices')
+        .select('id, service_value, net_value')
+        .eq('competence_year', ano)
+        .eq('competence_month', mes);
+
+      // Buscar dados de impostos legados (fallback)
       const { data: taxData } = await supabase
         .from('seed_taxes')
         .select('*')
@@ -60,7 +82,7 @@ export function useAccountingDashboard(ano: number, mes: number) {
         .eq('mes', mes)
         .maybeSingle();
 
-      // Buscar dados de receita
+      // Buscar dados de receita legados (fallback)
       const { data: revenueData } = await supabase
         .from('seed_revenue')
         .select('*')
@@ -68,7 +90,7 @@ export function useAccountingDashboard(ano: number, mes: number) {
         .eq('mes', mes)
         .maybeSingle();
 
-      // Buscar dados de folha
+      // Buscar dados de folha legados (fallback)
       const { data: payrollData } = await supabase
         .from('seed_payroll')
         .select('*')
@@ -95,30 +117,64 @@ export function useAccountingDashboard(ano: number, mes: number) {
         .limit(1)
         .maybeSingle();
 
-      // Calcular valores
+      // Calcular folha de payables
+      let payablesFolha = 0;
+      let payablesImpostos = 0;
+      
+      if (payablesData) {
+        payablesData.forEach((p: any) => {
+          const amount = Math.abs(Number(p.paid_amount || p.valor || 0));
+          const taxGroup = p.category?.tax_group;
+          const entraFatorR = p.category?.entra_fator_r ?? false;
+          
+          if (taxGroup === 'PESSOAL' && entraFatorR) {
+            payablesFolha += amount;
+          } else if (taxGroup === 'IMPOSTOS' || taxGroup === 'TRIBUTARIAS') {
+            payablesImpostos += amount;
+          }
+        });
+      }
+
+      // Calcular receita de invoices
+      let invoicesReceita = 0;
+      if (invoicesData) {
+        invoicesData.forEach((inv: any) => {
+          invoicesReceita += Number(inv.service_value || inv.net_value || 0);
+        });
+      }
+
+      // Usar dados de payables/invoices se disponíveis, senão fallback para seed_*
+      const usarPayables = payablesData && payablesData.length > 0;
+      const usarInvoices = invoicesData && invoicesData.length > 0;
+
+      // Calcular valores - priorizando dados reais
       const impostos = {
-        das: taxData?.das || 0,
-        iss_proprio: taxData?.iss_proprio || 0,
-        iss_retido: taxData?.iss_retido || 0,
-        irrf_retido: taxData?.irrf_retido || 0,
-        outros: taxData?.outros || 0,
-        total: (taxData?.das || 0) + (taxData?.iss_proprio || 0) + (taxData?.iss_retido || 0) + (taxData?.irrf_retido || 0) + (taxData?.outros || 0),
+        das: usarPayables ? 0 : (taxData?.das || 0), // TODO: identificar DAS de payables
+        iss_proprio: usarPayables ? 0 : (taxData?.iss_proprio || 0),
+        iss_retido: usarPayables ? 0 : (taxData?.iss_retido || 0),
+        irrf_retido: usarPayables ? 0 : (taxData?.irrf_retido || 0),
+        outros: usarPayables ? payablesImpostos : (taxData?.outros || 0),
+        total: usarPayables ? payablesImpostos : ((taxData?.das || 0) + (taxData?.iss_proprio || 0) + (taxData?.iss_retido || 0) + (taxData?.irrf_retido || 0) + (taxData?.outros || 0)),
       };
 
+      // Receita: priorizar invoices reais
       const receita = {
-        servicos: revenueData?.receita_servicos || 0,
-        outras: revenueData?.receita_outras || 0,
-        total: (revenueData?.receita_servicos || 0) + (revenueData?.receita_outras || 0),
+        servicos: usarInvoices ? invoicesReceita : (revenueData?.receita_servicos || 0),
+        outras: usarInvoices ? 0 : (revenueData?.receita_outras || 0),
+        total: usarInvoices ? invoicesReceita : ((revenueData?.receita_servicos || 0) + (revenueData?.receita_outras || 0)),
       };
 
+      // Folha: priorizar payables reais
+      const seedFolhaTotal = (payrollData?.salarios || 0) + (payrollData?.prolabore || 0) + (payrollData?.inss_patronal || 0) + (payrollData?.fgts || 0) + (payrollData?.decimo_terceiro || 0) + (payrollData?.ferias || 0);
+      
       const folha = {
-        salarios: payrollData?.salarios || 0,
-        prolabore: payrollData?.prolabore || 0,
-        inss_patronal: payrollData?.inss_patronal || 0,
-        fgts: payrollData?.fgts || 0,
-        decimo_terceiro: payrollData?.decimo_terceiro || 0,
-        ferias: payrollData?.ferias || 0,
-        total: (payrollData?.salarios || 0) + (payrollData?.prolabore || 0) + (payrollData?.inss_patronal || 0) + (payrollData?.fgts || 0) + (payrollData?.decimo_terceiro || 0) + (payrollData?.ferias || 0),
+        salarios: usarPayables ? payablesFolha : (payrollData?.salarios || 0),
+        prolabore: usarPayables ? 0 : (payrollData?.prolabore || 0), // TODO: separar de payables
+        inss_patronal: usarPayables ? 0 : (payrollData?.inss_patronal || 0),
+        fgts: usarPayables ? 0 : (payrollData?.fgts || 0),
+        decimo_terceiro: usarPayables ? 0 : (payrollData?.decimo_terceiro || 0),
+        ferias: usarPayables ? 0 : (payrollData?.ferias || 0),
+        total: usarPayables ? payablesFolha : seedFolhaTotal,
       };
 
       // Calcular Fator R
