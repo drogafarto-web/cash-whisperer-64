@@ -381,17 +381,68 @@ export function AccountingSmartUpload({
       );
       
       if (result.success) {
-        toast.success('Conta a pagar criada com sucesso!');
+        // Also insert into accounting_lab_documents for visibility in Tax Documents screen
+        const docTipo = doc.taxResult?.tipo_documento || 'outro';
+        const competencia = doc.taxResult?.competencia;
+        
+        await supabase.from('accounting_lab_documents').insert({
+          unit_id: unitId,
+          ano: competencia?.ano || ano,
+          mes: competencia?.mes || mes,
+          tipo: docTipo,
+          file_name: doc.fileName,
+          file_path: doc.filePath,
+          valor: doc.analysisResult.totalValue,
+          descricao: `${taxType} - Venc: ${doc.analysisResult.dueDate || 'N/A'}`,
+          created_by: user?.id,
+        });
+        
+        toast.success(
+          <div className="flex flex-col gap-1">
+            <span>Conta a pagar criada com sucesso!</span>
+            <a 
+              href="/payables/tax-documents" 
+              className="text-xs text-primary underline hover:no-underline"
+            >
+              Ver em Documentos Tributários →
+            </a>
+          </div>
+        );
         updateDocument(doc.id, { status: 'applied' });
         onPayableCreated?.(result.id!);
       } else if (result.error === 'duplicate') {
-        toast.warning('Já existe uma conta a pagar com esses dados.');
+        const matchLabels: Record<string, string> = {
+          codigo_barras: 'código de barras',
+          linha_digitavel: 'linha digitável',
+          cnpj_document: 'CNPJ e número do documento',
+          cnpj_valor_vencimento: 'CNPJ, valor e vencimento',
+        };
+        const matchLabel = result.matchType ? matchLabels[result.matchType] || result.matchType : 'dados';
+        
+        toast.warning(
+          <div className="flex flex-col gap-1">
+            <span>Já existe uma conta a pagar com o mesmo {matchLabel}.</span>
+            {result.id && (
+              <a 
+                href={`/payables/boletos?highlight=${result.id}`} 
+                className="text-xs text-primary underline hover:no-underline"
+              >
+                Abrir registro existente →
+              </a>
+            )}
+          </div>
+        );
       } else {
         toast.error('Erro ao criar conta a pagar: ' + result.error);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating payable:', error);
-      toast.error('Erro ao criar conta a pagar');
+      // Check for unique constraint violation (duplicate in database)
+      if (error?.code === '23505' || error?.message?.includes('unique') || error?.message?.includes('duplicate')) {
+        toast.warning('Este documento já foi cadastrado anteriormente (código de barras/linha digitável duplicada).');
+      } else {
+        toast.error('Erro ao criar conta a pagar');
+      }
     } finally {
       setCreatingPayableFor(null);
     }
