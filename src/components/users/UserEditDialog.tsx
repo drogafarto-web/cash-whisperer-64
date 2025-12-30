@@ -17,7 +17,7 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table';
-import { Loader2, Star, Building2, Briefcase, Link2, Check, Shield, AlertTriangle, Phone, Calendar, CreditCard } from 'lucide-react';
+import { Loader2, Star, Building2, Briefcase, Link2, Check, Shield, AlertTriangle, Phone, Calendar, CreditCard, KeyRound } from 'lucide-react';
 import { Unit, AppRole } from '@/types/database';
 import { OPERATIONAL_FUNCTIONS } from '@/hooks/useProfileFunctions';
 import { ROLE_CONFIG } from '@/lib/access-policy';
@@ -56,6 +56,8 @@ interface UserEditDialogProps {
   currentRole?: AppRole | null;
   onRoleChange?: (role: AppRole) => void;
   onStatusToggle?: (userId: string, isActive: boolean) => void;
+  onForcePasswordChange?: (userId: string) => void;
+  isForcePasswordLoading?: boolean;
 }
 
 export function UserEditDialog({
@@ -71,6 +73,8 @@ export function UserEditDialog({
   currentRole,
   onRoleChange,
   onStatusToggle,
+  onForcePasswordChange,
+  isForcePasswordLoading,
 }: UserEditDialogProps) {
   const [lisLogin, setLisLogin] = useState<string>('');
   const [lisId, setLisId] = useState<number | null>(null);
@@ -195,6 +199,46 @@ export function UserEditDialog({
                     </AlertDescription>
                   </Alert>
                 )}
+              </div>
+            )}
+
+            {/* Security Section - Force Password Change */}
+            {onForcePasswordChange && (
+              <div className="p-4 border rounded-lg bg-muted/20 space-y-3">
+                <div className="flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-primary" />
+                  <Label className="font-medium">Segurança</Label>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">Troca de senha obrigatória</p>
+                    <p className="text-xs text-muted-foreground">
+                      {user.must_change_password 
+                        ? 'Usuário será obrigado a trocar a senha no próximo login'
+                        : 'Forçar usuário a definir nova senha no próximo acesso'}
+                    </p>
+                  </div>
+                  {user.must_change_password ? (
+                    <Badge variant="secondary" className="bg-amber-500/10 text-amber-700 dark:text-amber-300">
+                      <KeyRound className="w-3 h-3 mr-1" />
+                      Pendente
+                    </Badge>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onForcePasswordChange(user.id)}
+                      disabled={isForcePasswordLoading}
+                    >
+                      {isForcePasswordLoading ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <KeyRound className="w-4 h-4 mr-2" />
+                      )}
+                      Forçar troca
+                    </Button>
+                  )}
+                </div>
               </div>
             )}
 

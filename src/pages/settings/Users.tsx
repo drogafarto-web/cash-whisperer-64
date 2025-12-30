@@ -115,6 +115,7 @@ export default function UsersSettings() {
   // Edit dialog state
   const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
   const [isEditSubmitting, setIsEditSubmitting] = useState(false);
+  const [isForcePasswordLoading, setIsForcePasswordLoading] = useState(false);
   
   // Excel Import modal state
   const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
@@ -174,6 +175,7 @@ export default function UsersSettings() {
           last_access: (profile as any).last_access,
           lis_login: (profile as any).lis_login,
           lis_id: (profile as any).lis_id,
+          must_change_password: (profile as any).must_change_password,
         };
       });
 
@@ -406,6 +408,32 @@ export default function UsersSettings() {
       toast.error('Erro ao atualizar usuário');
     } finally {
       setIsEditSubmitting(false);
+    }
+  };
+
+  const handleForcePasswordChange = async (userId: string) => {
+    setIsForcePasswordLoading(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ must_change_password: true })
+        .eq('id', userId);
+
+      if (error) throw error;
+      
+      toast.success('Usuário será obrigado a trocar a senha no próximo login');
+      
+      // Update local state
+      if (editingUser && editingUser.id === userId) {
+        setEditingUser({ ...editingUser, must_change_password: true } as UserWithRole);
+      }
+      
+      fetchUsers();
+    } catch (error) {
+      console.error('Error forcing password change:', error);
+      toast.error('Erro ao forçar troca de senha');
+    } finally {
+      setIsForcePasswordLoading(false);
     }
   };
 
@@ -780,7 +808,7 @@ export default function UsersSettings() {
         <UserEditDialog
           open={!!editingUser}
           onOpenChange={(open) => !open && setEditingUser(null)}
-          user={editingUser}
+          user={editingUser ? { ...editingUser, must_change_password: (editingUser as any).must_change_password } : null}
           units={units}
           currentUnitIds={editingUserUnitIds}
           primaryUnitId={editingUserPrimaryUnitId}
@@ -799,6 +827,8 @@ export default function UsersSettings() {
               }
             }
           }}
+          onForcePasswordChange={handleForcePasswordChange}
+          isForcePasswordLoading={isForcePasswordLoading}
         />
 
         {/* Deactivate Confirmation Dialog */}
