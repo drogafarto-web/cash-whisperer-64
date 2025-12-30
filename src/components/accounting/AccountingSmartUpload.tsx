@@ -332,14 +332,90 @@ export function AccountingSmartUpload({
     e.target.value = '';
   }, [handleFiles]);
 
-  const handleTaxApply = (doc: UploadedDocument) => {
+  const handleTaxApply = async (doc: UploadedDocument) => {
     if (!doc.taxResult || !onTaxApply) return;
     
     const taxType = doc.taxResult.tipo_documento as TaxType;
-    if (['das', 'darf', 'gps', 'inss', 'fgts', 'iss'].includes(taxType)) {
+    if (!['das', 'darf', 'gps', 'inss', 'fgts', 'iss'].includes(taxType)) return;
+    
+    setCreatingPayableFor(doc.id);
+    
+    try {
+      // 1. First, create the payable (if possible)
+      let payableCreated = false;
+      if (doc.analysisResult && doc.filePath) {
+        const description = `Guia ${taxType.toUpperCase()} - ${mes.toString().padStart(2, '0')}/${ano}`;
+        
+        const result = await createPayableFromOcr(
+          doc.analysisResult,
+          unitId,
+          doc.filePath,
+          doc.fileName,
+          { description }
+        );
+        
+        if (result.success) {
+          // Also insert into accounting_lab_documents
+          const competencia = doc.taxResult?.competencia;
+          
+          await supabase.from('accounting_lab_documents').insert({
+            unit_id: unitId,
+            ano: competencia?.ano || ano,
+            mes: competencia?.mes || mes,
+            tipo: taxType,
+            file_name: doc.fileName,
+            file_path: doc.filePath,
+            valor: doc.analysisResult.totalValue,
+            descricao: `${taxType.toUpperCase()} - Venc: ${doc.analysisResult.dueDate || 'N/A'}`,
+            created_by: user?.id,
+          });
+          
+          payableCreated = true;
+          onPayableCreated?.(result.id!);
+        } else if (result.error === 'duplicate') {
+          // Duplicate found - still apply values, just warn
+          const matchLabels: Record<string, string> = {
+            codigo_barras: 'código de barras',
+            linha_digitavel: 'linha digitável',
+            cnpj_document: 'CNPJ e número do documento',
+            cnpj_valor_vencimento: 'CNPJ, valor e vencimento',
+          };
+          const matchLabel = result.matchType ? matchLabels[result.matchType] || result.matchType : 'dados';
+          
+          toast.warning(`Conta já existe (${matchLabel}). Valores aplicados no painel.`);
+        } else {
+          // Other error creating payable - log but continue to apply values
+          console.warn('Could not create payable:', result.error);
+        }
+      }
+      
+      // 2. Apply values to the accounting panel
       onTaxApply(taxType, doc.taxResult.valor || 0, doc.taxResult.vencimento);
       updateDocument(doc.id, { status: 'applied' });
-      toast.success(`${taxType.toUpperCase()} aplicado com sucesso!`);
+      
+      if (payableCreated) {
+        toast.success(
+          <div className="flex flex-col gap-1">
+            <span>{taxType.toUpperCase()} aplicado e conta a pagar criada!</span>
+            <a 
+              href="/payables/tax-documents" 
+              className="text-xs text-primary underline hover:no-underline"
+            >
+              Ver em Documentos Tributários →
+            </a>
+          </div>
+        );
+      } else if (!doc.analysisResult || !doc.filePath) {
+        toast.success(`${taxType.toUpperCase()} aplicado com sucesso!`);
+      }
+    } catch (error: any) {
+      console.error('Error in handleTaxApply:', error);
+      // Even if payable creation failed, still apply values
+      onTaxApply(taxType, doc.taxResult.valor || 0, doc.taxResult.vencimento);
+      updateDocument(doc.id, { status: 'applied' });
+      toast.success(`${taxType.toUpperCase()} aplicado. (Erro ao criar conta a pagar)`);
+    } finally {
+      setCreatingPayableFor(null);
     }
   };
 
@@ -634,8 +710,7 @@ export function AccountingSmartUpload({
                 fileName={doc.fileName}
                 status={doc.status as 'processing' | 'ready' | 'applied' | 'error'}
                 onApply={() => handleTaxApply(doc)}
-                onCreatePayable={() => handleCreatePayable(doc)}
-                isCreatingPayable={creatingPayableFor === doc.id}
+                isApplying={creatingPayableFor === doc.id}
                 onRemove={() => handleRemove(doc.id)}
               />
             ) : (
