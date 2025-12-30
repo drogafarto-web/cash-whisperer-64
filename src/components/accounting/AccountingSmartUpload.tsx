@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,7 @@ import {
   Wifi,
   WifiOff,
   Zap,
+  PlayCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,6 +22,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { sanitizeFileName } from '@/lib/sanitizeFileName';
 import { TaxGuideResultCard } from './TaxGuideResultCard';
 import { PayrollAnalysisCard } from './PayrollAnalysisCard';
+import { BatchApplyResultModal, BatchApplyResult, BatchResultItem } from './BatchApplyResultModal';
 import type { TaxGuideOcrResult, PayrollOcrResult } from '@/services/accountingValidationService';
 import { 
   analyzeAccountingDocument, 
@@ -81,6 +83,9 @@ export function AccountingSmartUpload({
   const [isDragOver, setIsDragOver] = useState(false);
   const [aiStatus, setAiStatus] = useState<AIStatus>('available');
   const [creatingPayableFor, setCreatingPayableFor] = useState<string | null>(null);
+  const [isApplyingAll, setIsApplyingAll] = useState(false);
+  const [batchResult, setBatchResult] = useState<BatchApplyResult | null>(null);
+  const [showBatchModal, setShowBatchModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
 
@@ -524,6 +529,132 @@ export function AccountingSmartUpload({
     }
   };
 
+  // Handle batch apply all ready documents
+  const handleApplyAll = async () => {
+    const readyDocs = documents.filter((d) => d.status === 'ready');
+    if (readyDocs.length === 0) return;
+    
+    setIsApplyingAll(true);
+    const results: BatchResultItem[] = [];
+    
+    for (const doc of readyDocs) {
+      try {
+        if (doc.type === 'tax' && doc.taxResult) {
+          const taxType = doc.taxResult.tipo_documento as TaxType;
+          if (!['das', 'darf', 'gps', 'inss', 'fgts', 'iss'].includes(taxType)) continue;
+          
+          let status: BatchResultItem['status'] = 'success';
+          
+          // Create payable
+          if (doc.analysisResult && doc.filePath) {
+            const description = `Guia ${taxType.toUpperCase()} - ${mes.toString().padStart(2, '0')}/${ano}`;
+            
+            const result = await createPayableFromOcr(
+              doc.analysisResult,
+              unitId,
+              doc.filePath,
+              doc.fileName,
+              { description }
+            );
+            
+            if (result.success) {
+              const competencia = doc.taxResult?.competencia;
+              await supabase.from('accounting_lab_documents').insert({
+                unit_id: unitId,
+                ano: competencia?.ano || ano,
+                mes: competencia?.mes || mes,
+                tipo: taxType,
+                file_name: doc.fileName,
+                file_path: doc.filePath,
+                valor: doc.analysisResult.totalValue,
+                descricao: `${taxType.toUpperCase()} - Venc: ${doc.analysisResult.dueDate || 'N/A'}`,
+                created_by: user?.id,
+              });
+              onPayableCreated?.(result.id!);
+            } else if (result.error === 'duplicate') {
+              status = 'duplicate';
+            }
+          }
+          
+          // Apply to panel
+          if (onTaxApply) {
+            onTaxApply(taxType, doc.taxResult.valor || 0, doc.taxResult.vencimento);
+          }
+          updateDocument(doc.id, { status: 'applied' });
+          
+          results.push({
+            type: taxType,
+            valor: doc.taxResult.valor || 0,
+            status,
+            fileName: doc.fileName,
+          });
+        } else if (doc.type === 'payroll' && doc.payrollResult && onPayrollApply) {
+          onPayrollApply({
+            total_folha: doc.payrollResult.total_folha || 0,
+            encargos: doc.payrollResult.encargos || 0,
+            prolabore: doc.payrollResult.prolabore || 0,
+            num_funcionarios: doc.payrollResult.num_funcionarios || 0,
+          });
+          updateDocument(doc.id, { status: 'applied' });
+          
+          results.push({
+            type: 'folha',
+            valor: doc.payrollResult.total_folha || 0,
+            status: 'success',
+            fileName: doc.fileName,
+          });
+        }
+      } catch (error: any) {
+        console.error('Error in batch apply:', error);
+        results.push({
+          type: doc.taxResult?.tipo_documento || 'documento',
+          valor: doc.taxResult?.valor || doc.payrollResult?.total_folha || 0,
+          status: 'error',
+          fileName: doc.fileName,
+          errorMessage: error.message,
+        });
+      }
+    }
+    
+    // Calculate summary
+    const successItems = results.filter(r => r.status === 'success');
+    const duplicateItems = results.filter(r => r.status === 'duplicate');
+    const errorItems = results.filter(r => r.status === 'error');
+    
+    setBatchResult({
+      applied: results,
+      totalApplied: results.filter(r => r.status !== 'error').reduce((sum, r) => sum + r.valor, 0),
+      payablesCreated: successItems.length,
+      duplicatesFound: duplicateItems.length,
+      errorsCount: errorItems.length,
+    });
+    setShowBatchModal(true);
+    setIsApplyingAll(false);
+  };
+
+  // Handle inline edit save
+  const handleEditSave = (docId: string, updatedResult: TaxGuideOcrResult) => {
+    updateDocument(docId, { 
+      taxResult: updatedResult,
+    });
+    
+    // Also update analysisResult values if present
+    setDocuments((prev) =>
+      prev.map((doc) => {
+        if (doc.id !== docId || !doc.analysisResult) return doc;
+        return {
+          ...doc,
+          analysisResult: {
+            ...doc.analysisResult,
+            totalValue: updatedResult.valor,
+            dueDate: updatedResult.vencimento,
+          },
+        };
+      })
+    );
+    toast.success('Valores atualizados');
+  };
+
   const pendingCount = documents.filter((d) =>
     ['queued', 'uploading', 'analyzing'].includes(d.status)
   ).length;
@@ -621,25 +752,43 @@ export function AccountingSmartUpload({
         </CardContent>
       </Card>
 
-      {/* Status Summary */}
+      {/* Status Summary + Apply All Button */}
       {documents.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap">
-          {pendingCount > 0 && (
-            <Badge variant="secondary" className="gap-1">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              {pendingCount} processando
-            </Badge>
-          )}
-          {readyCount > 0 && (
-            <Badge variant="outline" className="gap-1 border-green-500 text-green-600">
-              {readyCount} pronto(s) para aplicar
-            </Badge>
-          )}
-          {manualCount > 0 && (
-            <Badge variant="outline" className="gap-1 border-amber-500 text-amber-600">
-              <AlertTriangle className="h-3 w-3" />
-              {manualCount} anexado(s) - preencher manual
-            </Badge>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            {pendingCount > 0 && (
+              <Badge variant="secondary" className="gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                {pendingCount} processando
+              </Badge>
+            )}
+            {readyCount > 0 && (
+              <Badge variant="outline" className="gap-1 border-green-500 text-green-600">
+                {readyCount} pronto(s) para aplicar
+              </Badge>
+            )}
+            {manualCount > 0 && (
+              <Badge variant="outline" className="gap-1 border-amber-500 text-amber-600">
+                <AlertTriangle className="h-3 w-3" />
+                {manualCount} anexado(s) - preencher manual
+              </Badge>
+            )}
+          </div>
+          
+          {/* Apply All Button */}
+          {readyCount >= 2 && (
+            <Button 
+              onClick={handleApplyAll}
+              disabled={isApplyingAll || pendingCount > 0}
+              className="gap-2"
+            >
+              {isApplyingAll ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <PlayCircle className="h-4 w-4" />
+              )}
+              Aplicar Todos ({readyCount})
+            </Button>
           )}
         </div>
       )}
@@ -710,8 +859,9 @@ export function AccountingSmartUpload({
                 fileName={doc.fileName}
                 status={doc.status as 'processing' | 'ready' | 'applied' | 'error'}
                 onApply={() => handleTaxApply(doc)}
-                isApplying={creatingPayableFor === doc.id}
+                isApplying={creatingPayableFor === doc.id || isApplyingAll}
                 onRemove={() => handleRemove(doc.id)}
+                onEditSave={(updated) => handleEditSave(doc.id, updated)}
               />
             ) : (
               <Card>
@@ -731,6 +881,13 @@ export function AccountingSmartUpload({
           </div>
         ))}
       </div>
+      
+      {/* Batch Result Modal */}
+      <BatchApplyResultModal
+        open={showBatchModal}
+        onOpenChange={setShowBatchModal}
+        result={batchResult}
+      />
     </div>
   );
 }
