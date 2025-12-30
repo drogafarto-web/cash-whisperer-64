@@ -382,7 +382,30 @@ export function AccountingSmartUpload({
     }, null, 2));
     
     try {
-      // 1. First, create the payable (if possible)
+      // 1. ALWAYS insert into accounting_lab_documents first (for visibility in tax documents list)
+      const competencia = doc.taxResult?.competencia;
+      const valorDoc = doc.analysisResult?.totalValue || doc.taxResult?.valor || 0;
+      const vencimentoDoc = doc.analysisResult?.dueDate || doc.taxResult?.vencimento || 'N/A';
+      
+      try {
+        await supabase.from('accounting_lab_documents').insert({
+          unit_id: unitId,
+          ano: competencia?.ano || ano,
+          mes: competencia?.mes || mes,
+          tipo: taxType,
+          file_name: doc.fileName,
+          file_path: doc.filePath || null,
+          valor: valorDoc,
+          descricao: `${taxType.toUpperCase()} - Venc: ${vencimentoDoc}`,
+          created_by: user?.id,
+        });
+        console.log('[handleTaxApply] Tax document saved to accounting_lab_documents');
+      } catch (insertError) {
+        console.error('[handleTaxApply] Error inserting tax document:', insertError);
+        toast.warning('Documento salvo, mas pode não aparecer na lista de tributários.');
+      }
+      
+      // 2. Try to create the payable (if possible)
       let payableCreated = false;
       
       // Check if we have all required data for payable creation
@@ -406,21 +429,6 @@ export function AccountingSmartUpload({
         );
         
         if (result.success) {
-          // Also insert into accounting_lab_documents
-          const competencia = doc.taxResult?.competencia;
-          
-          await supabase.from('accounting_lab_documents').insert({
-            unit_id: unitId,
-            ano: competencia?.ano || ano,
-            mes: competencia?.mes || mes,
-            tipo: taxType,
-            file_name: doc.fileName,
-            file_path: doc.filePath,
-            valor: doc.analysisResult.totalValue,
-            descricao: `${taxType.toUpperCase()} - Venc: ${doc.analysisResult.dueDate || 'N/A'}`,
-            created_by: user?.id,
-          });
-          
           payableCreated = true;
           onPayableCreated?.(result.id!);
         } else if (result.error === 'duplicate') {
@@ -507,11 +515,11 @@ export function AccountingSmartUpload({
         { description }
       );
       
-      if (result.success) {
-        // Also insert into accounting_lab_documents for visibility in Tax Documents screen
-        const docTipo = doc.taxResult?.tipo_documento || 'outro';
-        const competencia = doc.taxResult?.competencia;
-        
+      // Insert into accounting_lab_documents first (for visibility)
+      const docTipo = doc.taxResult?.tipo_documento || 'outro';
+      const competencia = doc.taxResult?.competencia;
+      
+      try {
         await supabase.from('accounting_lab_documents').insert({
           unit_id: unitId,
           ano: competencia?.ano || ano,
@@ -523,7 +531,11 @@ export function AccountingSmartUpload({
           descricao: `${taxType} - Venc: ${doc.analysisResult.dueDate || 'N/A'}`,
           created_by: user?.id,
         });
-        
+      } catch (insertError) {
+        console.error('[handleCreatePayable] Error inserting tax document:', insertError);
+      }
+      
+      if (result.success) {
         toast.success(
           <div className="flex flex-col gap-1">
             <span>Conta a pagar criada com sucesso!</span>
@@ -619,7 +631,28 @@ export function AccountingSmartUpload({
             );
           }
           
-          // Create payable
+          // ALWAYS insert into accounting_lab_documents first (for visibility)
+          const competencia = doc.taxResult?.competencia;
+          const valorDoc = doc.analysisResult?.totalValue || doc.taxResult?.valor || 0;
+          const vencimentoDoc = doc.analysisResult?.dueDate || doc.taxResult?.vencimento || 'N/A';
+          
+          try {
+            await supabase.from('accounting_lab_documents').insert({
+              unit_id: unitId,
+              ano: competencia?.ano || ano,
+              mes: competencia?.mes || mes,
+              tipo: taxType,
+              file_name: doc.fileName,
+              file_path: doc.filePath || null,
+              valor: valorDoc,
+              descricao: `${taxType.toUpperCase()} - Venc: ${vencimentoDoc}`,
+              created_by: user?.id,
+            });
+          } catch (insertError) {
+            console.error('[handleApplyAll] Error inserting tax document:', insertError);
+          }
+          
+          // Try to create payable
           if (doc.analysisResult && doc.filePath) {
             const description = `Guia ${taxType.toUpperCase()} - ${mes.toString().padStart(2, '0')}/${ano}`;
             
@@ -632,18 +665,6 @@ export function AccountingSmartUpload({
             );
             
             if (result.success) {
-              const competencia = doc.taxResult?.competencia;
-              await supabase.from('accounting_lab_documents').insert({
-                unit_id: unitId,
-                ano: competencia?.ano || ano,
-                mes: competencia?.mes || mes,
-                tipo: taxType,
-                file_name: doc.fileName,
-                file_path: doc.filePath,
-                valor: doc.analysisResult.totalValue,
-                descricao: `${taxType.toUpperCase()} - Venc: ${doc.analysisResult.dueDate || 'N/A'}`,
-                created_by: user?.id,
-              });
               onPayableCreated?.(result.id!);
             } else if (result.error === 'duplicate') {
               status = 'duplicate';
