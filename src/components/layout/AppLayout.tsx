@@ -6,6 +6,7 @@ import { useBadgeCounts, BadgeCounts } from '@/hooks/useBadgeCounts';
 import { Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Sidebar } from './Sidebar';
+import { HelpFloatingButton } from '@/components/help/HelpFloatingButton';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -76,6 +77,9 @@ export function AppLayout({ children }: AppLayoutProps) {
           {children}
         </div>
       </main>
+
+      {/* Floating help button */}
+      <HelpFloatingButton />
     </div>
   );
 }
