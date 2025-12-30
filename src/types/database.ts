@@ -11,6 +11,8 @@ export interface Profile {
   email: string;
   name: string;
   unit_id: string | null;
+  must_change_password?: boolean | null;
+  last_access?: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { DollarSign, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { z } from 'zod';
+import labclinLogo from '@/assets/labclin-logo.png';
 
 const passwordSchema = z.object({
   password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
@@ -19,6 +20,9 @@ const passwordSchema = z.object({
 
 export default function ResetPassword() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isForced = searchParams.get('force') === 'true';
+  
   const [isLoading, setIsLoading] = useState(false);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -26,20 +30,20 @@ export default function ResetPassword() {
   const [checkingSession, setCheckingSession] = useState(true);
 
   useEffect(() => {
-    // Check if user has a valid recovery session
+    // Check if user has a valid session (recovery or forced change)
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setIsValidSession(true);
       } else {
-        toast.error('Link de recuperação inválido ou expirado');
+        toast.error(isForced ? 'Sessão expirada. Faça login novamente.' : 'Link de recuperação inválido ou expirado');
         navigate('/auth');
       }
       setCheckingSession(false);
     };
 
     checkSession();
-  }, [navigate]);
+  }, [navigate, isForced]);
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,16 +55,32 @@ export default function ResetPassword() {
     }
 
     setIsLoading(true);
-    const { error } = await supabase.auth.updateUser({ password });
-    setIsLoading(false);
+    
+    const { data: { user }, error } = await supabase.auth.updateUser({ password });
 
     if (error) {
+      setIsLoading(false);
       toast.error('Erro ao atualizar senha. Tente novamente.');
       return;
     }
 
+    // If this was a forced password change, update the profile flag
+    if (isForced && user) {
+      await supabase
+        .from('profiles')
+        .update({ must_change_password: false })
+        .eq('id', user.id);
+    }
+
+    setIsLoading(false);
     toast.success('Senha atualizada com sucesso!');
-    navigate('/auth');
+    
+    // Redirect to main app if forced change, otherwise to auth
+    if (isForced) {
+      navigate('/transactions');
+    } else {
+      navigate('/auth');
+    }
   };
 
   if (checkingSession) {
@@ -80,20 +100,24 @@ export default function ResetPassword() {
       <div className="w-full max-w-md space-y-6 animate-fade-in">
         {/* Logo */}
         <div className="flex flex-col items-center gap-3">
-          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center shadow-lg">
-            <DollarSign className="w-10 h-10 text-primary-foreground" />
-          </div>
+          <img 
+            src={labclinLogo} 
+            alt="LabClin Logo" 
+            className="w-20 h-20 object-contain"
+          />
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-foreground">FinGest</h1>
+            <h1 className="text-2xl font-bold text-foreground">LabClin</h1>
             <p className="text-muted-foreground">Sistema de Gestão Financeira</p>
           </div>
         </div>
 
         <Card className="border-0 shadow-xl">
           <CardHeader>
-            <CardTitle>Redefinir Senha</CardTitle>
+            <CardTitle>{isForced ? 'Criar Nova Senha' : 'Redefinir Senha'}</CardTitle>
             <CardDescription>
-              Digite sua nova senha abaixo
+              {isForced 
+                ? 'Por segurança, defina uma nova senha para acessar o sistema' 
+                : 'Digite sua nova senha abaixo'}
             </CardDescription>
           </CardHeader>
           <CardContent>
