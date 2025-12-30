@@ -59,7 +59,8 @@ export async function createPayable(
   filePath?: string,
   fileName?: string,
   ocrConfidence?: number,
-  nfVinculacaoStatus?: 'nao_requer' | 'pendente' | 'vinculado'
+  nfVinculacaoStatus?: 'nao_requer' | 'pendente' | 'vinculado',
+  nfExemptionReason?: string
 ) {
   const { data: result, error } = await supabase
     .from('payables')
@@ -84,6 +85,7 @@ export async function createPayable(
       ocr_confidence: ocrConfidence,
       status: 'pendente',
       nf_vinculacao_status: nfVinculacaoStatus || 'nao_requer',
+      nf_exemption_reason: nfExemptionReason || null,
     })
     .select()
     .single();

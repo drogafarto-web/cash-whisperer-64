@@ -60,13 +60,15 @@ export function useCreatePayable() {
       fileName,
       ocrConfidence,
       nfVinculacaoStatus,
+      nfExemptionReason,
     }: {
       data: PayableFormData;
       filePath?: string;
       fileName?: string;
       ocrConfidence?: number;
       nfVinculacaoStatus?: 'nao_requer' | 'pendente' | 'vinculado';
-    }) => createPayable(data, filePath, fileName, ocrConfidence, nfVinculacaoStatus),
+      nfExemptionReason?: string;
+    }) => createPayable(data, filePath, fileName, ocrConfidence, nfVinculacaoStatus, nfExemptionReason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
       toast.success('Boleto cadastrado', { description: 'O boleto foi salvo com sucesso.' });

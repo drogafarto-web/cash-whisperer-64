@@ -105,6 +105,7 @@ export interface PayableFormData {
   category_id?: string;
   file_path?: string;
   file_name?: string;
+  nf_exemption_reason?: string;
 }
 
 // Status types
