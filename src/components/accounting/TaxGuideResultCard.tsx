@@ -28,6 +28,8 @@ interface TaxGuideResultCardProps {
   fileName: string;
   status: 'processing' | 'ready' | 'applied' | 'error';
   onApply?: () => void;
+  onCreatePayable?: () => void;
+  isCreatingPayable?: boolean;
   onRemove?: () => void;
 }
 
@@ -36,6 +38,8 @@ export function TaxGuideResultCard({
   fileName,
   status,
   onApply,
+  onCreatePayable,
+  isCreatingPayable,
   onRemove,
 }: TaxGuideResultCardProps) {
   const config = TAX_TYPE_CONFIG[result.tipo_documento] || TAX_TYPE_CONFIG.outro;
@@ -163,6 +167,22 @@ export function TaxGuideResultCard({
             {onRemove && (
               <Button variant="ghost" size="sm" onClick={onRemove}>
                 Remover
+              </Button>
+            )}
+            {onCreatePayable && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={onCreatePayable}
+                disabled={isCreatingPayable}
+                className="gap-1"
+              >
+                {isCreatingPayable ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Receipt className="h-4 w-4" />
+                )}
+                Criar Conta a Pagar
               </Button>
             )}
             {onApply && (
