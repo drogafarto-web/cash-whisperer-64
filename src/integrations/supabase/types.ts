@@ -2047,6 +2047,7 @@ export type Database = {
           linha_digitavel: string | null
           matched_bank_item_id: string | null
           matched_transaction_id: string | null
+          nf_exemption_reason: string | null
           nf_vinculacao_status: string | null
           ocr_confidence: number | null
           paid_amount: number | null
@@ -2085,6 +2086,7 @@ export type Database = {
           linha_digitavel?: string | null
           matched_bank_item_id?: string | null
           matched_transaction_id?: string | null
+          nf_exemption_reason?: string | null
           nf_vinculacao_status?: string | null
           ocr_confidence?: number | null
           paid_amount?: number | null
@@ -2123,6 +2125,7 @@ export type Database = {
           linha_digitavel?: string | null
           matched_bank_item_id?: string | null
           matched_transaction_id?: string | null
+          nf_exemption_reason?: string | null
           nf_vinculacao_status?: string | null
           ocr_confidence?: number | null
           paid_amount?: number | null

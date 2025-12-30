@@ -52,7 +52,7 @@ import {
 import { PayableFormData, SupplierInvoice, SupplierInvoiceFormData } from '@/types/payables';
 import { toast } from 'sonner';
 
-// Schema now makes supplier_invoice_id optional
+// Schema now makes supplier_invoice_id optional but requires justification when not linked
 const formSchema = z.object({
   beneficiario: z.string().min(1, 'Beneficiário é obrigatório'),
   beneficiario_cnpj: z.string().optional(),
@@ -68,6 +68,7 @@ const formSchema = z.object({
   supplier_invoice_id: z.string().optional(),
   unit_id: z.string().optional(),
   category_id: z.string().optional(),
+  nf_exemption_reason: z.string().optional(),
 });
 
 interface Props {
@@ -103,6 +104,8 @@ export function BoletoUploadForm({
   const [showCreateNfDialog, setShowCreateNfDialog] = useState(false);
   const [matchingSuggestions, setMatchingSuggestions] = useState<SupplierInvoiceMatch[]>([]);
   const [isSearchingMatches, setIsSearchingMatches] = useState(false);
+  const [showExemptionForm, setShowExemptionForm] = useState(false);
+  const [exemptionReason, setExemptionReason] = useState('');
   const [boletoTipo, setBoletoTipo] = useState<BoletoTipo>('compra');
 
   const { processFile, isProcessing } = useBoletoOcr();
@@ -279,12 +282,32 @@ export function BoletoUploadForm({
 
       // Determine nf_vinculacao_status based on type and invoice link
       let nfVinculacaoStatus: 'nao_requer' | 'pendente' | 'vinculado' = 'nao_requer';
+      let nfExemptionReason: string | undefined = undefined;
       
       if (boletoTipo === 'compra') {
         if (data.supplier_invoice_id) {
           nfVinculacaoStatus = 'vinculado';
         } else {
-          nfVinculacaoStatus = 'pendente';
+          // If no NF linked for 'compra', require justification
+          if (!showExemptionForm) {
+            // First time clicking submit without NF - show exemption form
+            setShowExemptionForm(true);
+            toast.info('Justificativa necessária', {
+              description: 'Por favor, explique o motivo de cadastrar sem NF.',
+            });
+            return;
+          }
+          
+          // Validate exemption reason
+          if (!exemptionReason || exemptionReason.trim().length < 10) {
+            toast.error('Justificativa obrigatória', {
+              description: 'Informe o motivo (mínimo 10 caracteres) para cadastrar sem NF.',
+            });
+            return;
+          }
+          
+          nfVinculacaoStatus = 'nao_requer';
+          nfExemptionReason = exemptionReason.trim();
         }
       }
 
@@ -295,6 +318,7 @@ export function BoletoUploadForm({
         },
         ocrConfidence: ocrConfidence ?? undefined,
         nfVinculacaoStatus,
+        nfExemptionReason,
       });
 
       onSuccess?.();
@@ -427,12 +451,33 @@ export function BoletoUploadForm({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {hasNoNfLinked && (
+            {hasNoNfLinked && !showExemptionForm && (
               <Alert className="border-amber-500 bg-amber-500/10">
                 <AlertCircle className="h-4 w-4 text-amber-600" />
                 <AlertDescription className="text-amber-700">
                   Este boleto será salvo como <strong>"Pendente Vinculação"</strong>.
-                  Você poderá vincular a NF posteriormente na listagem de boletos.
+                  Você poderá vincular a NF posteriormente, ou informar o motivo da dispensa.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Exemption Reason Form */}
+            {hasNoNfLinked && showExemptionForm && (
+              <Alert className="border-primary bg-primary/5">
+                <FileWarning className="h-4 w-4 text-primary" />
+                <AlertDescription className="text-foreground">
+                  <div className="space-y-3">
+                    <p className="font-medium">Por que este boleto não precisa de NF?</p>
+                    <Textarea
+                      value={exemptionReason}
+                      onChange={(e) => setExemptionReason(e.target.value)}
+                      placeholder="Ex: Serviço de pessoa física (RPA), taxa governamental, reembolso de despesa..."
+                      className="min-h-[80px]"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Mínimo 10 caracteres. Exemplos: serviço PF, taxa cartório, reembolso viagem.
+                    </p>
+                  </div>
                 </AlertDescription>
               </Alert>
             )}
