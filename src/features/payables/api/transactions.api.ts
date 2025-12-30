@@ -69,9 +69,9 @@ export async function fetchPayablesDashboardSummary(unitId?: string) {
     baseQuery = baseQuery.eq('unit_id', unitId);
   }
 
-  // Fetch all pending/overdue payables
+  // Fetch all pending/overdue payables (accept both uppercase and lowercase status)
   const { data: allPayables, error } = await baseQuery
-    .in('status', ['pendente', 'vencido'])
+    .in('status', ['pendente', 'vencido', 'PENDENTE', 'VENCIDO'])
     .order('vencimento', { ascending: true });
 
   if (error) throw error;
@@ -147,7 +147,7 @@ export async function fetchMonthlyPayablesHistory(
   let paidQuery = supabase
     .from('payables')
     .select('paid_at, paid_amount, valor')
-    .eq('status', 'pago')
+    .in('status', ['pago', 'PAGO'])
     .gte('paid_at', startDateStr);
 
   if (unitId) {
@@ -158,7 +158,7 @@ export async function fetchMonthlyPayablesHistory(
   let overdueQuery = supabase
     .from('payables')
     .select('vencimento, valor, status')
-    .in('status', ['pendente', 'vencido'])
+    .in('status', ['pendente', 'vencido', 'PENDENTE', 'VENCIDO'])
     .gte('vencimento', startDateStr)
     .lte('vencimento', today.toISOString().split('T')[0]);
 
@@ -252,7 +252,7 @@ export async function fetchPayablesByCategory(unitId?: string): Promise<Category
         name
       )
     `)
-    .in('status', ['pendente', 'vencido']);
+    .in('status', ['pendente', 'vencido', 'PENDENTE', 'VENCIDO']);
 
   if (unitId) {
     query = query.eq('unit_id', unitId);
