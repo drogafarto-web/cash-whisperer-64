@@ -170,7 +170,7 @@ export default function TaxScenarios() {
   });
 
   // Buscar transações dos últimos 12 meses com categorias
-  const { data: transactionsData, isLoading } = useQuery({
+  const { data: transactionsData, isLoading: transactionsLoading } = useQuery({
     queryKey: ['tax-transactions', selectedUnitId, selectedMonth],
     queryFn: async () => {
       const endDate = endOfMonth(new Date(selectedMonth + '-01'));
@@ -198,11 +198,140 @@ export default function TaxScenarios() {
     enabled: !!selectedMonth,
   });
 
+  // Buscar payables de folha e impostos para incluir no Fator R
+  const { data: payablesData, isLoading: payablesLoading } = useQuery({
+    queryKey: ['tax-payables', selectedUnitId, selectedMonth],
+    queryFn: async () => {
+      const endDate = endOfMonth(new Date(selectedMonth + '-01'));
+      const startDate = startOfMonth(subMonths(endDate, 11));
+
+      let query = supabase
+        .from('payables')
+        .select(`
+          *,
+          category:categories(id, name, type, tax_group, entra_fator_r, is_informal)
+        `)
+        .gte('vencimento', format(startDate, 'yyyy-MM-dd'))
+        .lte('vencimento', format(endDate, 'yyyy-MM-dd'))
+        .in('status', ['pago', 'PAGO']);
+
+      if (selectedUnitId !== 'all') {
+        query = query.eq('unit_id', selectedUnitId);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!selectedMonth,
+  });
+
+  const isLoading = transactionsLoading || payablesLoading;
+
+  // Função auxiliar para processar item (transação ou payable) e adicionar aos dados mensais
+  const processExpenseItem = (
+    item: any, 
+    monthlyDataMap: Map<string, MonthlyFinancialData>,
+    dateField: 'date' | 'vencimento' = 'date'
+  ) => {
+    const dateValue = item[dateField];
+    if (!dateValue) return;
+    
+    const monthKey = format(new Date(dateValue), 'yyyy-MM');
+    const data = monthlyDataMap.get(monthKey);
+    if (!data) return;
+
+    const taxGroup = item.category?.tax_group;
+    const amount = Math.abs(Number(item.amount || item.paid_amount || item.valor || 0));
+    const isExpense = item.type === 'SAIDA' || dateField === 'vencimento';
+
+    if (!isExpense && item.type === 'ENTRADA') {
+      if (taxGroup === 'RECEITA_SERVICOS') {
+        data.receita_servicos += amount;
+      } else {
+        data.receita_outras += amount;
+      }
+      return;
+    }
+
+    // Processar despesas
+    switch (taxGroup) {
+      case 'PESSOAL':
+        const isInformal = item.category?.is_informal ?? false;
+        
+        if (isInformal) {
+          data.folha_informal += amount;
+          break;
+        }
+        
+        const entraFatorR = item.category?.entra_fator_r ?? false;
+        
+        if (!entraFatorR) {
+          data.despesas_administrativas += amount;
+          break;
+        }
+        
+        const catName = item.category?.name?.toLowerCase() || '';
+        const beneficiario = (item.beneficiario || '').toLowerCase();
+        
+        // Identificar tipo de despesa pelo nome da categoria OU pelo beneficiário (para payables)
+        if (catName.includes('pró-labore') || catName.includes('pro-labore') || 
+            beneficiario.includes('prolabore') || beneficiario.includes('pró-labore')) {
+          data.folha_prolabore += amount;
+        } else if (
+          catName.includes('inss') || catName.includes('fgts') || 
+          catName.includes('encargo') || catName.includes('patronal') ||
+          beneficiario.includes('inss') || beneficiario.includes('fgts')
+        ) {
+          data.folha_encargos += amount;
+        } else {
+          data.folha_salarios += amount;
+        }
+        break;
+      case 'INSUMOS':
+        data.insumos += amount;
+        break;
+      case 'SERVICOS_TERCEIROS':
+        data.servicos_terceiros += amount;
+        break;
+      case 'ADMINISTRATIVAS':
+        data.despesas_administrativas += amount;
+        break;
+      case 'FINANCEIRAS':
+        data.despesas_financeiras += amount;
+        break;
+      case 'TRIBUTARIAS':
+        data.impostos_pagos += amount;
+        break;
+      default:
+        // Para payables sem categoria, tentar inferir do beneficiário
+        if (dateField === 'vencimento') {
+          const ben = (item.beneficiario || '').toLowerCase();
+          if (ben.includes('folha') || ben.includes('salário') || ben.includes('salario') ||
+              ben.includes('funcionário') || ben.includes('funcionario')) {
+            data.folha_salarios += amount;
+          } else if (ben.includes('inss') || ben.includes('gps')) {
+            data.folha_encargos += amount;
+          } else if (ben.includes('fgts')) {
+            data.folha_encargos += amount;
+          } else if (ben.includes('prolabore') || ben.includes('pró-labore') || ben.includes('pro-labore')) {
+            data.folha_prolabore += amount;
+          } else if (ben.includes('das') || ben.includes('simples') || ben.includes('darf') || ben.includes('iss')) {
+            data.impostos_pagos += amount;
+          } else {
+            data.despesas_administrativas += amount;
+          }
+        } else {
+          data.despesas_administrativas += amount;
+        }
+    }
+  };
+
   // Processar dados para o simulador
   const simulationResult = useMemo<ExtendedTaxSimulationOutput | null>(() => {
     if (!transactionsData || !taxParameters || !taxConfig) return null;
 
-    // Agrupar transações por mês
+    // Agrupar dados por mês
     const monthlyDataMap = new Map<string, MonthlyFinancialData>();
     
     // Inicializar os 12 meses
@@ -214,77 +343,18 @@ export default function TaxScenarios() {
 
     // Processar transações
     transactionsData.forEach((tx: any) => {
-      const monthKey = format(new Date(tx.date), 'yyyy-MM');
-      const data = monthlyDataMap.get(monthKey);
-      if (!data) return;
-
-      const taxGroup = tx.category?.tax_group;
-      const amount = Math.abs(Number(tx.amount));
-
-      if (tx.type === 'ENTRADA') {
-        if (taxGroup === 'RECEITA_SERVICOS') {
-          data.receita_servicos += amount;
-        } else {
-          data.receita_outras += amount;
-        }
-      } else {
-        // SAIDA
-        switch (taxGroup) {
-          case 'PESSOAL':
-            // Verificar se é pagamento informal
-            const isInformal = tx.category?.is_informal ?? false;
-            
-            if (isInformal) {
-              // Pagamentos informais - NÃO entram no Fator R
-              data.folha_informal += amount;
-              break;
-            }
-            
-            // Usar flag entra_fator_r para determinar se entra no cálculo
-            const entraFatorR = tx.category?.entra_fator_r ?? false;
-            
-            if (!entraFatorR) {
-              // Benefícios e outros que NÃO entram no Fator R
-              data.despesas_administrativas += amount;
-              break;
-            }
-            
-            // Identificar tipo de despesa de pessoal pelo nome da categoria
-            const catName = tx.category?.name?.toLowerCase() || '';
-            if (catName.includes('pró-labore') || catName.includes('pro-labore')) {
-              data.folha_prolabore += amount;
-            } else if (
-              catName.includes('inss') || 
-              catName.includes('fgts') || 
-              catName.includes('encargo') ||
-              catName.includes('patronal')
-            ) {
-              data.folha_encargos += amount;
-            } else {
-              // Salários, 13º, Férias
-              data.folha_salarios += amount;
-            }
-            break;
-          case 'INSUMOS':
-            data.insumos += amount;
-            break;
-          case 'SERVICOS_TERCEIROS':
-            data.servicos_terceiros += amount;
-            break;
-          case 'ADMINISTRATIVAS':
-            data.despesas_administrativas += amount;
-            break;
-          case 'FINANCEIRAS':
-            data.despesas_financeiras += amount;
-            break;
-          case 'TRIBUTARIAS':
-            data.impostos_pagos += amount;
-            break;
-          default:
-            data.despesas_administrativas += amount;
-        }
-      }
+      processExpenseItem(tx, monthlyDataMap, 'date');
     });
+
+    // Processar payables pagos (folha, impostos, etc.)
+    // Evitar duplicidade: só incluir payables que NÃO têm matched_transaction_id
+    if (payablesData) {
+      payablesData.forEach((payable: any) => {
+        // Se o payable já está vinculado a uma transaction, pular para evitar duplicidade
+        if (payable.matched_transaction_id) return;
+        processExpenseItem(payable, monthlyDataMap, 'vencimento');
+      });
+    }
 
     const monthlyDataArray = Array.from(monthlyDataMap.values());
     const currentMonthData = monthlyDataArray.find(m => m.mes === selectedMonth) || createEmptyMonthlyData(selectedMonth);
@@ -310,7 +380,7 @@ export default function TaxScenarios() {
       folhaInformal12,
       custoPessoalTotal,
     };
-  }, [transactionsData, taxParameters, taxConfig, selectedMonth]);
+  }, [transactionsData, payablesData, taxParameters, taxConfig, selectedMonth]);
 
   // Simulador de Regularização
   const regularizationResult = useMemo<RegularizationResult | null>(() => {

@@ -16,6 +16,7 @@ import {
   Link as LinkIcon,
   FileCheck,
   FileWarning,
+  ListFilter,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
@@ -72,6 +73,7 @@ export default function BoletosPage() {
   const [unitIdFilter, setUnitIdFilter] = useState('all');
   const [paymentAccountFilter, setPaymentAccountFilter] = useState('all');
   const [nfLinkFilter, setNfLinkFilter] = useState('all');
+  const [showAll, setShowAll] = useState(false); // Toggle para mostrar todas despesas
 
   // Detail modal state
   const [selectedPayable, setSelectedPayable] = useState<Payable | null>(null);
@@ -87,6 +89,7 @@ export default function BoletosPage() {
     unitId: unitIdFilter !== 'all' ? unitIdFilter : undefined,
     paymentAccountId: paymentAccountFilter !== 'all' ? paymentAccountFilter : undefined,
     periodDays: periodDays !== 'all' ? parseInt(periodDays) : undefined,
+    showAll,
   });
 
   const deletePayable = useDeletePayable();
@@ -289,6 +292,7 @@ export default function BoletosPage() {
     setUnitIdFilter('all');
     setPaymentAccountFilter('all');
     setNfLinkFilter('all');
+    setShowAll(false);
   };
 
   // Get NF link status badge
@@ -414,21 +418,41 @@ export default function BoletosPage() {
         />
 
         {/* Filters */}
-        <PayablesFiltersExtended
-          periodDays={periodDays}
-          onPeriodDaysChange={setPeriodDays}
-          beneficiario={beneficiarioFilter}
-          onBeneficiarioChange={setBeneficiarioFilter}
-          unitId={unitIdFilter}
-          onUnitIdChange={setUnitIdFilter}
-          units={units}
-          paymentAccountId={paymentAccountFilter}
-          onPaymentAccountIdChange={setPaymentAccountFilter}
-          accounts={accounts}
-          nfLinkStatus={nfLinkFilter}
-          onNfLinkStatusChange={setNfLinkFilter}
-          onClear={handleClearFilters}
-        />
+        <div className="space-y-3">
+          <PayablesFiltersExtended
+            periodDays={periodDays}
+            onPeriodDaysChange={setPeriodDays}
+            beneficiario={beneficiarioFilter}
+            onBeneficiarioChange={setBeneficiarioFilter}
+            unitId={unitIdFilter}
+            onUnitIdChange={setUnitIdFilter}
+            units={units}
+            paymentAccountId={paymentAccountFilter}
+            onPaymentAccountIdChange={setPaymentAccountFilter}
+            accounts={accounts}
+            nfLinkStatus={nfLinkFilter}
+            onNfLinkStatusChange={setNfLinkFilter}
+            onClear={handleClearFilters}
+          />
+          
+          {/* Toggle para mostrar todas despesas */}
+          <div className="flex items-center gap-2 px-1">
+            <Button
+              variant={showAll ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setShowAll(!showAll)}
+              className="gap-2"
+            >
+              <ListFilter className="h-4 w-4" />
+              {showAll ? 'Todas as despesas' : 'Apenas com dados de pagamento'}
+            </Button>
+            {showAll && (
+              <span className="text-xs text-muted-foreground">
+                Exibindo despesas mesmo sem código de barras, PIX ou linha digitável
+              </span>
+            )}
+          </div>
+        </div>
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

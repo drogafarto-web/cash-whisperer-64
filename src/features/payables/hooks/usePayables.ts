@@ -268,6 +268,7 @@ export function usePayablesWithPaymentData(filters?: {
   unitId?: string;
   paymentAccountId?: string;
   periodDays?: number;
+  showAll?: boolean;
 }) {
   return useQuery({
     queryKey: [QUERY_KEY, 'with-payment-data', filters],
