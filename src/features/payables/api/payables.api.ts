@@ -161,22 +161,97 @@ export async function markPayableAsPaid(
   paidMethod: string,
   transactionId?: string
 ) {
+  const paidAt = new Date().toISOString();
+  
   const { data, error } = await supabase
     .from('payables')
     .update({
       status: 'pago',
-      paid_at: new Date().toISOString(),
+      paid_at: paidAt,
       paid_amount: paidAmount,
       paid_method: paidMethod,
       matched_transaction_id: transactionId,
-      updated_at: new Date().toISOString(),
+      updated_at: paidAt,
     })
     .eq('id', id)
     .select()
     .single();
 
   if (error) throw error;
+
+  // Se não tinha transaction vinculada, criar uma nova para o fluxo de caixa
+  if (!transactionId && data) {
+    await createTransactionFromPayable(data as Payable, paidAt);
+  }
+
   return data as Payable;
+}
+
+// Função auxiliar para criar transaction a partir de um payable pago
+async function createTransactionFromPayable(
+  payable: Payable,
+  paidAt: string,
+  paymentAccountId?: string
+) {
+  try {
+    // Verificar campos obrigatórios - se não tiver, não criar transaction
+    const accountId = paymentAccountId || payable.payment_bank_account_id;
+    if (!accountId) {
+      console.warn('Não foi possível criar transaction: account_id ausente');
+      return;
+    }
+
+    const categoryId = payable.category_id;
+    if (!categoryId) {
+      console.warn('Não foi possível criar transaction: category_id ausente');
+      return;
+    }
+
+    const description = [
+      payable.beneficiario,
+      payable.description
+    ].filter(Boolean).join(' - ') || 'Pagamento';
+
+    // Obter usuário autenticado para created_by
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.id) {
+      console.warn('Não foi possível criar transaction: usuário não autenticado');
+      return;
+    }
+
+    const { data: newTx, error: txError } = await supabase
+      .from('transactions')
+      .insert({
+        type: 'SAIDA',
+        amount: -(payable.paid_amount || payable.valor),
+        date: paidAt.split('T')[0],
+        description,
+        account_id: accountId,
+        category_id: categoryId,
+        unit_id: payable.unit_id,
+        status: 'APROVADO',
+        payment_method: payable.paid_method || 'transferencia',
+        created_by: user.id,
+        revenue_source: 'payables',
+      })
+      .select('id')
+      .single();
+
+    if (txError) {
+      console.error('Erro ao criar transaction para payable:', txError);
+      return;
+    }
+
+    // Atualizar o payable com o ID da transaction criada
+    if (newTx?.id) {
+      await supabase
+        .from('payables')
+        .update({ matched_transaction_id: newTx.id })
+        .eq('id', payable.id);
+    }
+  } catch (err) {
+    console.error('Erro ao sincronizar payable com transactions:', err);
+  }
 }
 
 export async function reconcilePayableWithBankItem(
@@ -367,17 +442,23 @@ export async function updatePayablePaymentData(
 }
 
 // Fetch payables with payment data (linha_digitavel, codigo_barras, or pix_key)
+// Now with optional toggle to show ALL payables, not just those with payment data
 export async function fetchPayablesWithPaymentData(filters?: {
   unitId?: string;
   paymentAccountId?: string;
   periodDays?: number; // 7, 30, or undefined for all
+  showAll?: boolean; // If true, show all payables regardless of payment data
 }) {
   let query = supabase
     .from('payables')
     .select('*, accounts:payment_bank_account_id(id, name, institution)')
-    .or('linha_digitavel.neq.null,codigo_barras.neq.null,pix_key.neq.null')
     .in('status', ['PENDENTE', 'pendente', 'VENCIDO', 'vencido'])
     .order('vencimento', { ascending: true });
+
+  // Only filter by payment data if showAll is not true
+  if (!filters?.showAll) {
+    query = query.or('linha_digitavel.neq.null,codigo_barras.neq.null,pix_key.neq.null');
+  }
 
   if (filters?.unitId && filters.unitId !== 'all') {
     query = query.eq('unit_id', filters.unitId);
@@ -427,5 +508,11 @@ export async function markPayableAsPaidWithAccount(
     .single();
 
   if (error) throw error;
+
+  // Criar transaction para o fluxo de caixa (se não tiver vinculada)
+  if (data && !(data as Payable).matched_transaction_id) {
+    await createTransactionFromPayable(data as Payable, paidAt, paymentAccountId);
+  }
+
   return data as Payable;
 }
