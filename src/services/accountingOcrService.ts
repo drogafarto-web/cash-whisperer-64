@@ -479,6 +479,23 @@ export async function createPayableFromOcr(
       category_id: categoryId,
     };
 
+    // Definir nf_vinculacao_status baseado no tipo de documento
+    if (tipo === 'boleto') {
+      // Boletos precisam de NF vinculada, marcar como pendente
+      payableData.nf_vinculacao_status = 'pendente';
+    } else if (isTaxDocument(result.documentType)) {
+      // Guias tributárias não precisam de NF
+      payableData.nf_vinculacao_status = 'nao_requer';
+      payableData.nf_exemption_reason = 'Documento tributário - não requer NF';
+    } else if (isPayrollDocument(result.documentType)) {
+      // Folha de pagamento não precisa de NF
+      payableData.nf_vinculacao_status = 'nao_requer';
+      payableData.nf_exemption_reason = 'Folha de pagamento - não requer NF';
+    } else {
+      // Outros tipos - pendente por padrão
+      payableData.nf_vinculacao_status = 'pendente';
+    }
+
     // Adicionar campos de edição OCR se o valor foi corrigido
     if (extras?.ocrEdit?.ocrValueEdited) {
       payableData.ocr_original_value = extras.ocrEdit.ocrOriginalValue;
