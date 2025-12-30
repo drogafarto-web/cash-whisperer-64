@@ -345,9 +345,29 @@ export function AccountingSmartUpload({
     
     setCreatingPayableFor(doc.id);
     
+    // Debug: Log document state before processing
+    console.log('[handleTaxApply] Processing document:', {
+      id: doc.id,
+      fileName: doc.fileName,
+      hasAnalysisResult: !!doc.analysisResult,
+      hasFilePath: !!doc.filePath,
+      filePath: doc.filePath,
+      taxResult: doc.taxResult,
+    });
+    
     try {
       // 1. First, create the payable (if possible)
       let payableCreated = false;
+      
+      // Check if we have all required data for payable creation
+      if (!doc.analysisResult) {
+        console.warn('[handleTaxApply] Missing analysisResult - payable will NOT be created');
+        toast.warning('Dados de análise ausentes. Conta a pagar não será criada.');
+      } else if (!doc.filePath) {
+        console.warn('[handleTaxApply] Missing filePath - payable will NOT be created');
+        toast.warning('Arquivo não foi salvo no storage. Conta a pagar não será criada.');
+      }
+      
       if (doc.analysisResult && doc.filePath) {
         const description = `Guia ${taxType.toUpperCase()} - ${mes.toString().padStart(2, '0')}/${ano}`;
         
@@ -544,6 +564,25 @@ export function AccountingSmartUpload({
           if (!['das', 'darf', 'gps', 'inss', 'fgts', 'iss'].includes(taxType)) continue;
           
           let status: BatchResultItem['status'] = 'success';
+          let payableSkipped = false;
+          
+          // Debug: Log document state
+          console.log('[handleApplyAll] Processing document:', {
+            id: doc.id,
+            fileName: doc.fileName,
+            hasAnalysisResult: !!doc.analysisResult,
+            hasFilePath: !!doc.filePath,
+            filePath: doc.filePath,
+          });
+          
+          // Check for missing data
+          if (!doc.analysisResult || !doc.filePath) {
+            console.warn('[handleApplyAll] Missing data for payable:', {
+              hasAnalysisResult: !!doc.analysisResult,
+              hasFilePath: !!doc.filePath,
+            });
+            payableSkipped = true;
+          }
           
           // Create payable
           if (doc.analysisResult && doc.filePath) {
@@ -574,6 +613,10 @@ export function AccountingSmartUpload({
             } else if (result.error === 'duplicate') {
               status = 'duplicate';
             }
+          } else if (payableSkipped) {
+            // Payable was skipped due to missing data but values will still be applied
+            status = 'success'; // Values applied, just no payable
+            console.log('[handleApplyAll] Payable skipped, values will be applied to panel only');
           }
           
           // Apply to panel
@@ -587,6 +630,7 @@ export function AccountingSmartUpload({
             valor: doc.taxResult.valor || 0,
             status,
             fileName: doc.fileName,
+            payableSkipped,
           });
         } else if (doc.type === 'payroll' && doc.payrollResult && onPayrollApply) {
           onPayrollApply({
@@ -617,14 +661,25 @@ export function AccountingSmartUpload({
     }
     
     // Calculate summary
-    const successItems = results.filter(r => r.status === 'success');
+    const successItems = results.filter(r => r.status === 'success' && !r.payableSkipped);
+    const skippedItems = results.filter(r => r.status === 'success' && r.payableSkipped);
     const duplicateItems = results.filter(r => r.status === 'duplicate');
     const errorItems = results.filter(r => r.status === 'error');
+    
+    // Log summary for debugging
+    console.log('[handleApplyAll] Summary:', {
+      total: results.length,
+      payablesCreated: successItems.length,
+      payablesSkipped: skippedItems.length,
+      duplicates: duplicateItems.length,
+      errors: errorItems.length,
+    });
     
     setBatchResult({
       applied: results,
       totalApplied: results.filter(r => r.status !== 'error').reduce((sum, r) => sum + r.valor, 0),
       payablesCreated: successItems.length,
+      payablesSkipped: skippedItems.length,
       duplicatesFound: duplicateItems.length,
       errorsCount: errorItems.length,
     });
