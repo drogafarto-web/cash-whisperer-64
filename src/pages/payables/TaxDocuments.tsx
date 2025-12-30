@@ -13,6 +13,8 @@ import { ReprocessDocumentModal } from '@/components/payables/ReprocessDocumentM
 import { TaxDocumentOcrResult, TAX_DOCUMENT_LABELS } from '@/types/payables';
 import { createPayable } from '@/features/payables/api/payables.api';
 import { UnitSelector } from '@/components/UnitSelector';
+import { AIErrorExplanation } from '@/components/ui/AIErrorExplanation';
+import { handleError } from '@/lib/errorHandler';
 
 export default function TaxDocumentsPage() {
   const { profile } = useAuth();
@@ -30,6 +32,9 @@ export default function TaxDocumentsPage() {
   
   // Refresh trigger for list
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // AI Error state
+  const [aiError, setAiError] = useState<{ message: string; context?: Record<string, any> } | null>(null);
 
   const handleOcrComplete = (result: TaxDocumentOcrResult, file: File, filePath: string) => {
     setOcrResult(result);
@@ -146,7 +151,12 @@ export default function TaxDocumentsPage() {
 
     } catch (error) {
       console.error('Error confirming document:', error);
-      toast.error(error instanceof Error ? error.message : 'Erro ao salvar');
+      const errorMsg = error instanceof Error ? error.message : 'Erro ao salvar';
+      setAiError({
+        message: errorMsg,
+        context: { screen: 'Documentos Tributários', action: 'confirmar_documento', tipo: ocrResult?.tipo_documento }
+      });
+      handleError(error, { screen: 'Documentos Tributários', action: 'confirmar_documento' });
       throw error;
     }
   };
@@ -257,6 +267,18 @@ export default function TaxDocumentsPage() {
           document={documentToReprocess}
           onSuccess={handleReprocessSuccess}
         />
+
+        {/* AI Error Explanation */}
+        {aiError && (
+          <div className="fixed bottom-20 right-4 max-w-md z-40">
+            <AIErrorExplanation
+              error={aiError.message}
+              context={aiError.context}
+              useAI={true}
+              onDismiss={() => setAiError(null)}
+            />
+          </div>
+        )}
       </div>
     </AppLayout>
   );

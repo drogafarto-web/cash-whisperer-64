@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
-import { X, Send, Loader2, Bot, User, Sparkles } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { Send, Loader2, Bot, User, Sparkles, MapPin } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { useLocation } from 'react-router-dom';
@@ -18,7 +19,89 @@ interface HelpChatModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const SUGGESTED_QUESTIONS = [
+// Perguntas contextuais por rota
+const SCREEN_QUESTIONS: Record<string, { name: string; questions: string[] }> = {
+  '/reception-panel': {
+    name: 'Recepção',
+    questions: [
+      'Como importar movimento diário?',
+      'O que fazer se der erro na importação?',
+      'Como fechar envelope de dinheiro?',
+      'Como confirmar PIX e cartão?'
+    ]
+  },
+  '/payables/boletos': {
+    name: 'Boletos',
+    questions: [
+      'Como cadastrar um boleto?',
+      'Como vincular boleto a nota fiscal?',
+      'Por que o boleto deu erro ao salvar?',
+      'Como marcar boleto como pago?'
+    ]
+  },
+  '/payables/tax-documents': {
+    name: 'Guias',
+    questions: [
+      'Quais guias devo enviar para contabilidade?',
+      'Como fazer upload de FGTS ou GPS?',
+      'O que é competência de uma guia?',
+      'Por que minha guia não foi aceita?'
+    ]
+  },
+  '/accounting-panel': {
+    name: 'Contabilidade',
+    questions: [
+      'Como enviar documentos para contabilidade?',
+      'O que é o Smart Upload?',
+      'Quais documentos a contabilidade precisa?',
+      'Como funciona a competência mensal?'
+    ]
+  },
+  '/envelope-cash-closing': {
+    name: 'Fechamento Envelope',
+    questions: [
+      'Como funciona o fechamento de envelope?',
+      'O que fazer se houver diferença no caixa?',
+      'Como reimprimir a etiqueta?',
+      'Posso editar um envelope já fechado?'
+    ]
+  },
+  '/pix-closing': {
+    name: 'Confirmação PIX',
+    questions: [
+      'Como confirmar recebimentos PIX?',
+      'Posso confirmar parcialmente?',
+      'Por que alguns PIX não aparecem?'
+    ]
+  },
+  '/card-closing': {
+    name: 'Confirmação Cartão',
+    questions: [
+      'Como confirmar pagamentos em cartão?',
+      'Como são calculadas as taxas?',
+      'Onde vejo os valores líquidos?'
+    ]
+  },
+  '/billing/invoices': {
+    name: 'Faturamento',
+    questions: [
+      'Como cadastrar uma fatura de convênio?',
+      'Como usar OCR para extrair dados?',
+      'Como acompanhar pagamentos de convênios?'
+    ]
+  },
+  '/transactions': {
+    name: 'Transações',
+    questions: [
+      'Como filtrar transações por período?',
+      'Como categorizar uma transação?',
+      'O que são transações informais?'
+    ]
+  }
+};
+
+// Perguntas padrão quando não há contexto específico
+const DEFAULT_QUESTIONS = [
   'Como faço upload de uma guia FGTS?',
   'O que é competência?',
   'Como vincular boleto a NF?',
@@ -32,6 +115,24 @@ export function HelpChatModal({ open, onOpenChange }: HelpChatModalProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { role, unit } = useAuth();
   const location = useLocation();
+
+  // Determina perguntas contextuais baseado na rota atual
+  const screenContext = useMemo(() => {
+    const path = location.pathname;
+    // Tenta match exato primeiro
+    if (SCREEN_QUESTIONS[path]) {
+      return SCREEN_QUESTIONS[path];
+    }
+    // Tenta match parcial (para rotas com parâmetros)
+    for (const [route, context] of Object.entries(SCREEN_QUESTIONS)) {
+      if (path.startsWith(route)) {
+        return context;
+      }
+    }
+    return null;
+  }, [location.pathname]);
+
+  const suggestedQuestions = screenContext?.questions || DEFAULT_QUESTIONS;
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -162,12 +263,23 @@ export function HelpChatModal({ open, onOpenChange }: HelpChatModalProps) {
                 </div>
               </div>
 
+              {/* Contexto da tela atual */}
+              {screenContext && (
+                <div className="flex items-center gap-2 px-1">
+                  <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Você está em:</span>
+                  <Badge variant="secondary" className="text-xs">
+                    {screenContext.name}
+                  </Badge>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <p className="text-xs text-muted-foreground font-medium">
-                  Perguntas sugeridas:
+                  {screenContext ? 'Perguntas sobre esta tela:' : 'Perguntas sugeridas:'}
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {SUGGESTED_QUESTIONS.map((q, i) => (
+                  {suggestedQuestions.map((q, i) => (
                     <Button
                       key={i}
                       variant="outline"
