@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { FileUp, Wallet, Sparkles, ArrowRight, BarChart3, ChevronRight, Clock, AlertTriangle, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -6,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { ReceptionDaySummaryModal } from './ReceptionDaySummaryModal';
 
 export type ReceptionStep = 'home' | 'import' | 'document-upload';
 
@@ -16,6 +18,7 @@ interface ReceptionHomeProps {
 }
 
 export function ReceptionHome({ onNavigate, onCheckEnvelope, unitId }: ReceptionHomeProps) {
+  const [summaryModalOpen, setSummaryModalOpen] = useState(false);
   const today = new Date().toISOString().split('T')[0];
 
   // Hooks PRIMEIRO - antes de qualquer return condicional
@@ -252,7 +255,10 @@ export function ReceptionHome({ onNavigate, onCheckEnvelope, unitId }: Reception
       </div>
 
       {/* Card Resumo Rápido - largura total em desktop */}
-      <Card className="p-4 lg:p-5 flex items-center gap-4 cursor-pointer hover:shadow-md transition-all duration-200 hover:border-primary/50 lg:col-span-5">
+      <Card 
+        className="p-4 lg:p-5 flex items-center gap-4 cursor-pointer hover:shadow-md transition-all duration-200 hover:border-primary/50 lg:col-span-5"
+        onClick={() => setSummaryModalOpen(true)}
+      >
         <div className="bg-primary/10 p-3 rounded-xl">
           <BarChart3 className="h-6 w-6 text-primary" />
         </div>
@@ -273,6 +279,14 @@ export function ReceptionHome({ onNavigate, onCheckEnvelope, unitId }: Reception
         
         <ChevronRight className="h-5 w-5 text-muted-foreground" />
       </Card>
+
+      {/* Modal de Resumo do Dia */}
+      <ReceptionDaySummaryModal
+        open={summaryModalOpen}
+        onClose={() => setSummaryModalOpen(false)}
+        unitId={unitId}
+        date={today}
+      />
     </div>
   );
 }
