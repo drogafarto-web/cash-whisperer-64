@@ -345,7 +345,14 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
       notifySuccess('Importação concluída', `${recordsToImport.length} registros importados com sucesso!`);
     } catch (error) {
       console.error('Erro na importação:', error);
-      notifyError('Erro na importação', error instanceof Error ? error.message : 'Não foi possível importar os dados.');
+      const errorMsg = error instanceof Error ? error.message : 'Não foi possível importar os dados.';
+      
+      // Detectar erro de data e mostrar mensagem mais clara
+      if (errorMsg.includes('date/time') || errorMsg.includes('out of range')) {
+        notifyError('Erro de data', 'Uma ou mais datas no arquivo estão em formato inválido. Verifique se as datas estão no formato DD/MM/AAAA.');
+      } else {
+        notifyError('Erro na importação', errorMsg);
+      }
     } finally {
       setIsImporting(false);
     }

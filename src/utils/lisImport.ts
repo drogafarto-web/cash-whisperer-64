@@ -175,18 +175,44 @@ function parseDate(value: unknown): string | null {
     return null;
   }
   
-  // Handle string in dd/mm/yyyy format
+  // Handle string in dd/mm/yyyy format (with fallback to mm/dd/yyyy)
   if (typeof value === 'string') {
     const dateStr = value.trim();
     const match = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
     if (match) {
-      const day = match[1].padStart(2, '0');
-      const month = match[2].padStart(2, '0');
+      let first = parseInt(match[1], 10);
+      let second = parseInt(match[2], 10);
       let year = match[3];
+      
       if (year.length === 2) {
         year = '20' + year;
       }
-      return `${year}-${month}-${day}`;
+      
+      let day: number;
+      let month: number;
+      
+      // Validação inteligente: detectar formato DD/MM ou MM/DD
+      if (second > 12 && first <= 12) {
+        // Formato MM/DD/YYYY (americano) - second é dia, first é mês
+        day = second;
+        month = first;
+      } else if (first > 12 && second <= 12) {
+        // first > 12 significa que first é dia, second é mês (DD/MM/YYYY)
+        day = first;
+        month = second;
+      } else {
+        // Ambos <= 12, assumir formato brasileiro DD/MM/YYYY
+        day = first;
+        month = second;
+      }
+      
+      // Validar limites finais
+      if (month < 1 || month > 12 || day < 1 || day > 31) {
+        console.warn('[parseDate] Data inválida detectada:', value, '-> dia:', day, 'mês:', month);
+        return null;
+      }
+      
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     }
   }
   
