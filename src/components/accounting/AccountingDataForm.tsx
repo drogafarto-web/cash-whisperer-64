@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Form,
   FormControl,
@@ -24,11 +25,24 @@ import {
   Save,
   Loader2,
   Calendar,
+  Sparkles,
+  FileText,
+  ExternalLink,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { useCompetenceData, useSaveCompetenceData, useCompetenceDocuments, type DocumentCategory } from '@/hooks/useAccountingCompetence';
+import { supabase } from '@/integrations/supabase/client';
+import { 
+  useCompetenceData, 
+  useSaveCompetenceData, 
+  useCompetenceDocuments, 
+  useProcessedTaxDocuments,
+  useMarkDocumentsSynced,
+  aggregateProcessedTaxDocs,
+  type DocumentCategory,
+  type ProcessedTaxDocument
+} from '@/hooks/useAccountingCompetence';
 import { AccountingFileUpload } from './AccountingFileUpload';
 import { AccountingSmartUpload } from './AccountingSmartUpload';
 
@@ -83,9 +97,19 @@ export function AccountingDataForm({ unitId, unitName, competence, section, onBa
   
   const { data: existingData, isLoading } = useCompetenceData(unitId, ano, mes);
   const { data: documents = [], refetch: refetchDocuments } = useCompetenceDocuments(unitId, ano, mes);
+  const { data: processedTaxDocs = [] } = useProcessedTaxDocuments(unitId, ano, mes);
   const saveMutation = useSaveCompetenceData();
+  const markSyncedMutation = useMarkDocumentsSynced();
   
   const competenceLabel = format(competence, "MMMM 'de' yyyy", { locale: ptBR });
+
+  // Aggregate processed documents by tax type
+  const processedByType = useMemo(() => {
+    return aggregateProcessedTaxDocs(processedTaxDocs);
+  }, [processedTaxDocs]);
+
+  // Track which fields were pre-filled by AI
+  const [aiFilledFields, setAiFilledFields] = useState<Set<string>>(new Set());
 
   // Group documents by category
   const documentsByCategory = useMemo(() => {
@@ -132,9 +156,10 @@ export function AccountingDataForm({ unitId, unitName, competence, section, onBa
     },
   });
 
-  // Populate form with existing data
+  // Populate form with existing data OR processed documents
   useEffect(() => {
     if (existingData) {
+      // Priority: existing saved data
       form.reset({
         total_folha: existingData.total_folha || 0,
         encargos: existingData.encargos || 0,
@@ -156,8 +181,29 @@ export function AccountingDataForm({ unitId, unitName, competence, section, onBa
         receita_outras: existingData.receita_outras || 0,
         receita_observacoes: existingData.receita_observacoes || null,
       });
+    } else if (Object.keys(processedByType).length > 0) {
+      // No existing data, but we have processed documents - pre-fill from AI
+      const aiFields = new Set<string>();
+      
+      const taxTypes = ['das', 'darf', 'gps', 'inss', 'fgts', 'iss'] as const;
+      taxTypes.forEach(tipo => {
+        const doc = processedByType[tipo];
+        if (doc?.valor) {
+          form.setValue(`${tipo}_valor`, doc.valor);
+          aiFields.add(`${tipo}_valor`);
+        }
+      });
+      
+      if (aiFields.size > 0) {
+        setAiFilledFields(aiFields);
+        
+        toast.info(
+          `${aiFields.size} campo(s) preenchido(s) automaticamente via Processamento Inteligente`,
+          { duration: 5000 }
+        );
+      }
     }
-  }, [existingData, form]);
+  }, [existingData, processedByType, form]);
 
   // OCR completion handlers
   const handleOcrComplete = useCallback((taxType: TaxType, result: { valor: number | null; vencimento: string | null }) => {
@@ -204,6 +250,12 @@ export function AccountingDataForm({ unitId, unitName, competence, section, onBa
         mes,
         ...values,
       });
+      
+      // Mark processed documents as synced
+      if (Object.keys(processedByType).length > 0) {
+        await markSyncedMutation.mutateAsync({ unitId, ano, mes });
+      }
+      
       toast.success('Dados salvos com sucesso');
       onBack();
     } catch (error) {
@@ -236,6 +288,55 @@ export function AccountingDataForm({ unitId, unitName, competence, section, onBa
         onDeleteComplete={() => refetchDocuments()}
         onOcrComplete={(result) => handleOcrComplete(categoria, result)}
       />
+    );
+  };
+
+  // Helper to render AI-filled badge for a tax type
+  const renderAiBadge = (taxType: TaxType) => {
+    const doc = processedByType[taxType];
+    const isAiFilled = aiFilledFields.has(`${taxType}_valor`) || doc;
+    
+    if (!isAiFilled || !doc) return null;
+    
+    return (
+      <div className="flex items-center justify-between">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200 cursor-help">
+              <Sparkles className="h-3 w-3 mr-1" />
+              Via IA
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-xs">
+            <p className="text-xs">Preenchido automaticamente via Processamento Inteligente</p>
+          </TooltipContent>
+        </Tooltip>
+        {doc.file_name && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button 
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                onClick={async () => {
+                  const { data } = await supabase.storage
+                    .from('accounting-documents')
+                    .createSignedUrl(doc.file_path, 60);
+                  if (data?.signedUrl) {
+                    window.open(data.signedUrl, '_blank');
+                  }
+                }}
+              >
+                <FileText className="h-3 w-3" />
+                <span className="truncate max-w-[100px]">{doc.file_name}</span>
+                <ExternalLink className="h-2.5 w-2.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <p className="text-xs">Ver documento processado</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </div>
     );
   };
 
@@ -366,7 +467,14 @@ export function AccountingDataForm({ unitId, unitName, competence, section, onBa
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* DAS */}
                 <div className="p-3 bg-muted/50 rounded-lg space-y-3">
-                  <p className="text-sm font-medium">DAS</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">DAS</p>
+                    {processedByType['das'] && (
+                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                        ✓ Processado
+                      </Badge>
+                    )}
+                  </div>
                   <FormField
                     control={form.control}
                     name="das_valor"
@@ -395,12 +503,20 @@ export function AccountingDataForm({ unitId, unitName, competence, section, onBa
                       </FormItem>
                     )}
                   />
+                  {renderAiBadge('das')}
                   {renderTaxUpload('das')}
                 </div>
 
                 {/* DARF */}
                 <div className="p-3 bg-muted/50 rounded-lg space-y-3">
-                  <p className="text-sm font-medium">DARF</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">DARF</p>
+                    {processedByType['darf'] && (
+                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                        ✓ Processado
+                      </Badge>
+                    )}
+                  </div>
                   <FormField
                     control={form.control}
                     name="darf_valor"
@@ -429,12 +545,20 @@ export function AccountingDataForm({ unitId, unitName, competence, section, onBa
                       </FormItem>
                     )}
                   />
+                  {renderAiBadge('darf')}
                   {renderTaxUpload('darf')}
                 </div>
 
                 {/* GPS */}
                 <div className="p-3 bg-muted/50 rounded-lg space-y-3">
-                  <p className="text-sm font-medium">GPS</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">GPS</p>
+                    {processedByType['gps'] && (
+                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                        ✓ Processado
+                      </Badge>
+                    )}
+                  </div>
                   <FormField
                     control={form.control}
                     name="gps_valor"
@@ -463,12 +587,20 @@ export function AccountingDataForm({ unitId, unitName, competence, section, onBa
                       </FormItem>
                     )}
                   />
+                  {renderAiBadge('gps')}
                   {renderTaxUpload('gps')}
                 </div>
 
                 {/* INSS */}
                 <div className="p-3 bg-muted/50 rounded-lg space-y-3">
-                  <p className="text-sm font-medium">INSS</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">INSS</p>
+                    {processedByType['inss'] && (
+                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                        ✓ Processado
+                      </Badge>
+                    )}
+                  </div>
                   <FormField
                     control={form.control}
                     name="inss_valor"
@@ -497,12 +629,20 @@ export function AccountingDataForm({ unitId, unitName, competence, section, onBa
                       </FormItem>
                     )}
                   />
+                  {renderAiBadge('inss')}
                   {renderTaxUpload('inss')}
                 </div>
 
                 {/* FGTS */}
                 <div className="p-3 bg-muted/50 rounded-lg space-y-3">
-                  <p className="text-sm font-medium">FGTS</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">FGTS</p>
+                    {processedByType['fgts'] && (
+                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                        ✓ Processado
+                      </Badge>
+                    )}
+                  </div>
                   <FormField
                     control={form.control}
                     name="fgts_valor"
@@ -531,12 +671,20 @@ export function AccountingDataForm({ unitId, unitName, competence, section, onBa
                       </FormItem>
                     )}
                   />
+                  {renderAiBadge('fgts')}
                   {renderTaxUpload('fgts')}
                 </div>
 
                 {/* ISS */}
                 <div className="p-3 bg-muted/50 rounded-lg space-y-3">
-                  <p className="text-sm font-medium">ISS</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">ISS</p>
+                    {processedByType['iss'] && (
+                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                        ✓ Processado
+                      </Badge>
+                    )}
+                  </div>
                   <FormField
                     control={form.control}
                     name="iss_valor"
@@ -565,6 +713,7 @@ export function AccountingDataForm({ unitId, unitName, competence, section, onBa
                       </FormItem>
                     )}
                   />
+                  {renderAiBadge('iss')}
                   {renderTaxUpload('iss')}
                 </div>
               </div>
