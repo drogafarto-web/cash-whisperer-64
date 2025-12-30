@@ -490,6 +490,12 @@ export async function markPayableAsPaidWithAccount(
   paidAt: string,
   paymentAccountId?: string
 ) {
+  // Verificar autenticação antes de prosseguir
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user?.id) {
+    throw new Error('Usuário não autenticado. Faça login e tente novamente.');
+  }
+
   const updateData: Record<string, unknown> = {
     status: 'pago',
     paid_at: paidAt,

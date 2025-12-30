@@ -301,8 +301,21 @@ export function useMarkPayableAsPaidWithAccount() {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
       toast.success('Pagamento registrado', { description: 'O boleto foi marcado como pago.' });
     },
-    onError: (error) => {
-      toast.error('Erro ao registrar pagamento', { description: error.message });
+    onError: (error: any) => {
+      let description = error.message;
+      
+      // Traduzir erros de constraint para mensagens amigáveis
+      if (error?.message?.includes('created_by')) {
+        description = 'Falha ao registrar pagamento: usuário não identificado. Faça logout e login novamente.';
+      } else if (error?.message?.includes('category_id')) {
+        description = 'Falha ao registrar: categoria não encontrada. Configure uma categoria para esta despesa.';
+      } else if (error?.message?.includes('account_id')) {
+        description = 'Falha ao registrar: conta de pagamento não configurada. Selecione uma conta.';
+      } else if (error?.message?.includes('não autenticado')) {
+        description = error.message;
+      }
+      
+      toast.error('Erro ao registrar pagamento', { description });
     },
   });
 }
