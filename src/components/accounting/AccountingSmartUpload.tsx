@@ -601,13 +601,22 @@ export function AccountingSmartUpload({
             filePath: doc.filePath,
           });
           
-          // Check for missing data
+          // Check for missing data - show warning toast immediately
           if (!doc.analysisResult || !doc.filePath) {
             console.warn('[handleApplyAll] Missing data for payable:', {
+              docId: doc.id,
+              fileName: doc.fileName,
               hasAnalysisResult: !!doc.analysisResult,
               hasFilePath: !!doc.filePath,
             });
             payableSkipped = true;
+            
+            // Show immediate warning toast
+            const tipoGuia = doc.taxResult?.tipo_documento?.toUpperCase() || 'DOCUMENTO';
+            toast.warning(
+              `${tipoGuia}: Arquivo não salvo corretamente. Valores aplicados apenas ao painel, conta a pagar não criada.`,
+              { duration: 6000 }
+            );
           }
           
           // Create payable
