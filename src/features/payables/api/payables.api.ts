@@ -11,7 +11,7 @@ export async function fetchPayables(filters?: {
   let query = supabase
     .from('payables')
     .select('*')
-    .order('vencimento', { ascending: true });
+    .order('created_at', { ascending: false });
 
   if (filters?.unitId) {
     query = query.eq('unit_id', filters.unitId);
@@ -455,7 +455,7 @@ export async function fetchPayablesWithPaymentData(filters?: {
     .from('payables')
     .select('*, accounts:payment_bank_account_id(id, name, institution)')
     .in('status', ['PENDENTE', 'pendente', 'VENCIDO', 'vencido'])
-    .order('vencimento', { ascending: true });
+    .order('created_at', { ascending: false });
 
   // Only filter by payment data if showAll is not true
   if (!filters?.showAll) {
