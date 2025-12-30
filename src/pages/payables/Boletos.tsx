@@ -535,6 +535,7 @@ export default function BoletosPage() {
                   <TableHead>Descrição</TableHead>
                   <TableHead className="text-right">Valor</TableHead>
                   <TableHead className="w-[100px]">Tipo</TableHead>
+                  <TableHead className="w-[120px]">NF</TableHead>
                   <TableHead className="w-[140px]">Conta</TableHead>
                   <TableHead className="w-[220px]">Dados p/ Pagamento</TableHead>
                   <TableHead className="text-right w-[100px]">Ações</TableHead>
@@ -543,13 +544,13 @@ export default function BoletosPage() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={9} className="text-center py-8">
                       Carregando...
                     </TableCell>
                   </TableRow>
                 ) : filteredPayables.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                       Nenhum pagamento pendente encontrado
                     </TableCell>
                   </TableRow>
@@ -587,9 +588,28 @@ export default function BoletosPage() {
                       {/* Tipo */}
                       <TableCell>{getPaymentTypeBadge(payable)}</TableCell>
 
-                      {/* NF Status */}
+                      {/* NF Status - Coluna dedicada com botão de vincular */}
                       <TableCell>
-                        {getNfLinkBadge(payable)}
+                        {payable.supplier_invoice_id ? (
+                          <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs gap-1">
+                            <FileCheck className="h-3 w-3" />
+                            Vinculada
+                          </Badge>
+                        ) : payable.nf_vinculacao_status === 'pendente' ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs gap-1 text-amber-600 border-amber-300 hover:bg-amber-50"
+                            onClick={() => setPayableToLink(payable)}
+                          >
+                            <LinkIcon className="h-3 w-3" />
+                            Vincular NF
+                          </Button>
+                        ) : payable.nf_vinculacao_status === 'nao_requer' ? (
+                          <Badge variant="secondary" className="text-xs">N/A</Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
                       </TableCell>
 
                       {/* Conta */}
