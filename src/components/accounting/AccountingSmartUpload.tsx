@@ -23,6 +23,8 @@ import { sanitizeFileName } from '@/lib/sanitizeFileName';
 import { TaxGuideResultCard } from './TaxGuideResultCard';
 import { PayrollAnalysisCard } from './PayrollAnalysisCard';
 import { BatchApplyResultModal, BatchApplyResult, BatchResultItem } from './BatchApplyResultModal';
+import { TaxDuplicateModal } from './TaxDuplicateModal';
+import { AIErrorExplanation } from '@/components/ui/AIErrorExplanation';
 import type { TaxGuideOcrResult, PayrollOcrResult } from '@/services/accountingValidationService';
 import { 
   analyzeAccountingDocument, 
@@ -30,6 +32,7 @@ import {
   isTaxDocument,
   isPayrollDocument,
   createPayableFromOcr,
+  checkDuplicatePayable,
 } from '@/services/accountingOcrService';
 
 type TaxType = 'das' | 'darf' | 'gps' | 'inss' | 'fgts' | 'iss';
@@ -49,6 +52,20 @@ interface UploadedDocument {
   payrollResult?: PayrollOcrResult;
   errorMessage?: string;
   errorCode?: ErrorCode;
+}
+
+interface DuplicateWarning {
+  doc: UploadedDocument;
+  matchType: string;
+  existingId: string;
+  existingData: {
+    id: string;
+    beneficiario: string | null;
+    valor: number | null;
+    vencimento: string | null;
+    status: string | null;
+    created_at: string | null;
+  } | null;
 }
 
 interface AccountingSmartUploadProps {
@@ -86,6 +103,9 @@ export function AccountingSmartUpload({
   const [isApplyingAll, setIsApplyingAll] = useState(false);
   const [batchResult, setBatchResult] = useState<BatchApplyResult | null>(null);
   const [showBatchModal, setShowBatchModal] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState<DuplicateWarning | null>(null);
+  const [forcingDuplicate, setForcingDuplicate] = useState(false);
+  const [aiError, setAiError] = useState<{ message: string; context?: Record<string, any> } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
 
@@ -357,13 +377,14 @@ export function AccountingSmartUpload({
     e.target.value = '';
   }, [handleFiles]);
 
-  const handleTaxApply = async (doc: UploadedDocument) => {
+  const handleTaxApply = async (doc: UploadedDocument, skipDuplicateCheck = false) => {
     if (!doc.taxResult || !onTaxApply) return;
     
     const taxType = doc.taxResult.tipo_documento as TaxType;
     if (!['das', 'darf', 'gps', 'inss', 'fgts', 'iss'].includes(taxType)) return;
     
     setCreatingPayableFor(doc.id);
+    setAiError(null);
     
     // Debug: Log complete document state before processing
     console.log('[handleTaxApply] Full document state:', JSON.stringify({
@@ -382,7 +403,40 @@ export function AccountingSmartUpload({
     }, null, 2));
     
     try {
-      // 1. ALWAYS insert into accounting_lab_documents first (for visibility in tax documents list)
+      // 0. CHECK FOR DUPLICATES FIRST (before saving anything)
+      if (!skipDuplicateCheck && doc.analysisResult) {
+        const duplicateResult = await checkDuplicatePayable(
+          doc.analysisResult.issuerCnpj,
+          doc.analysisResult.documentNumber,
+          doc.analysisResult.totalValue,
+          doc.analysisResult.dueDate,
+          doc.analysisResult.codigoBarras,
+          doc.analysisResult.linhaDigitavel
+        );
+        
+        if (duplicateResult.isDuplicate && duplicateResult.existingId) {
+          console.log('[handleTaxApply] Duplicate detected:', duplicateResult);
+          
+          // Fetch existing payable data for the modal
+          const { data: existingPayable } = await supabase
+            .from('payables')
+            .select('id, beneficiario, valor, vencimento, status, created_at')
+            .eq('id', duplicateResult.existingId)
+            .single();
+          
+          // Show duplicate warning modal - BLOCK the process
+          setDuplicateWarning({
+            doc,
+            matchType: duplicateResult.matchType || 'dados',
+            existingId: duplicateResult.existingId,
+            existingData: existingPayable,
+          });
+          setCreatingPayableFor(null);
+          return; // STOP here - user must decide
+        }
+      }
+      
+      // 1. Insert into accounting_lab_documents (for visibility in tax documents list)
       const competencia = doc.taxResult?.competencia;
       const valorDoc = doc.analysisResult?.totalValue || doc.taxResult?.valor || 0;
       const vencimentoDoc = doc.analysisResult?.dueDate || doc.taxResult?.vencimento || 'N/A';
@@ -412,20 +466,16 @@ export function AccountingSmartUpload({
           mes: competencia?.mes || mes,
         });
         
-        // Mensagens específicas para cada tipo de erro de constraint
-        if (errorMessage.includes('ano_check')) {
-          toast.error(
-            `Ano da competência (${competencia?.ano || ano}) fora do intervalo permitido (2020-2099).`
-          );
-        } else if (errorMessage.includes('tipo_check')) {
-          toast.error(`Tipo de documento "${taxType}" não é suportado pelo sistema.`);
-        } else if (errorMessage.includes('mes_check')) {
-          toast.error(`Mês da competência (${competencia?.mes || mes}) inválido (deve ser 1-12).`);
-        } else {
-          toast.warning(
-            'Documento não foi salvo na lista de tributários. A conta a pagar ainda será criada se possível.'
-          );
-        }
+        // Show AI-powered error explanation
+        setAiError({
+          message: errorMessage,
+          context: { 
+            tipo: taxType, 
+            ano: competencia?.ano || ano, 
+            mes: competencia?.mes || mes,
+            action: 'salvar_documento_tributario'
+          },
+        });
       }
       
       // 2. Try to create the payable (if possible)
@@ -800,6 +850,28 @@ export function AccountingSmartUpload({
     toast.success('Valores atualizados');
   };
 
+  // Handle duplicate warning - cancel
+  const handleDuplicateCancel = () => {
+    if (duplicateWarning) {
+      updateDocument(duplicateWarning.doc.id, { status: 'ready' }); // Keep as ready
+    }
+    setDuplicateWarning(null);
+  };
+
+  // Handle duplicate warning - force continue anyway
+  const handleDuplicateForceContinue = async () => {
+    if (!duplicateWarning) return;
+    
+    setForcingDuplicate(true);
+    try {
+      // Call handleTaxApply again with skipDuplicateCheck=true
+      await handleTaxApply(duplicateWarning.doc, true);
+      setDuplicateWarning(null);
+    } finally {
+      setForcingDuplicate(false);
+    }
+  };
+
   const pendingCount = documents.filter((d) =>
     ['queued', 'uploading', 'analyzing'].includes(d.status)
   ).length;
@@ -1033,6 +1105,31 @@ export function AccountingSmartUpload({
         onOpenChange={setShowBatchModal}
         result={batchResult}
       />
+      
+      {/* Duplicate Warning Modal */}
+      <TaxDuplicateModal
+        open={!!duplicateWarning}
+        onOpenChange={(open) => !open && handleDuplicateCancel()}
+        documentName={duplicateWarning?.doc.fileName || ''}
+        matchType={duplicateWarning?.matchType || ''}
+        existingData={duplicateWarning?.existingData || null}
+        onCancel={handleDuplicateCancel}
+        onForceContinue={handleDuplicateForceContinue}
+        isLoading={forcingDuplicate}
+      />
+      
+      {/* AI Error Explanation */}
+      {aiError && (
+        <div className="fixed bottom-4 right-4 max-w-md z-50">
+          <AIErrorExplanation
+            error={aiError.message}
+            context={aiError.context}
+            action="upload_documento_tributario"
+            onDismiss={() => setAiError(null)}
+            useAI={true}
+          />
+        </div>
+      )}
     </div>
   );
 }
