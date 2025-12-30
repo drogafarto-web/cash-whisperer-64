@@ -78,6 +78,20 @@ function normalizeCnpj(cnpj: string | null): string | null {
   return cnpj.replace(/[^\d]/g, '');
 }
 
+// Normaliza código de barras (remove tudo que não é dígito)
+function normalizeCodigoBarras(codigo: string | null): string | null {
+  if (!codigo) return null;
+  const normalized = codigo.replace(/[^\d]/g, '');
+  return normalized.length > 0 ? normalized : null;
+}
+
+// Normaliza linha digitável (remove espaços e pontuação)
+function normalizeLinhaDigitavel(linha: string | null): string | null {
+  if (!linha) return null;
+  const normalized = linha.replace(/[\s.\-]/g, '');
+  return normalized.length > 0 ? normalized : null;
+}
+
 // Verifica se arquivo é XML
 function isXmlFile(file: File): boolean {
   return file.type === 'text/xml' || 
@@ -184,16 +198,79 @@ export async function checkDuplicateInvoice(
   return { isDuplicate: false };
 }
 
-// Verifica duplicidade de payable por CNPJ + document_number
+// Verifica duplicidade de payable por código de barras
+async function checkDuplicateByCodigoBarras(
+  codigoBarras: string | null
+): Promise<{ isDuplicate: boolean; existingId?: string }> {
+  const normalized = normalizeCodigoBarras(codigoBarras);
+  if (!normalized) return { isDuplicate: false };
+
+  // Use raw query to match normalized value
+  const { data } = await supabase
+    .from('payables')
+    .select('id, codigo_barras')
+    .not('codigo_barras', 'is', null);
+
+  if (data) {
+    const match = data.find(p => normalizeCodigoBarras(p.codigo_barras) === normalized);
+    if (match) {
+      return { isDuplicate: true, existingId: match.id };
+    }
+  }
+
+  return { isDuplicate: false };
+}
+
+// Verifica duplicidade de payable por linha digitável
+async function checkDuplicateByLinhaDigitavel(
+  linhaDigitavel: string | null
+): Promise<{ isDuplicate: boolean; existingId?: string }> {
+  const normalized = normalizeLinhaDigitavel(linhaDigitavel);
+  if (!normalized) return { isDuplicate: false };
+
+  const { data } = await supabase
+    .from('payables')
+    .select('id, linha_digitavel')
+    .not('linha_digitavel', 'is', null);
+
+  if (data) {
+    const match = data.find(p => normalizeLinhaDigitavel(p.linha_digitavel) === normalized);
+    if (match) {
+      return { isDuplicate: true, existingId: match.id };
+    }
+  }
+
+  return { isDuplicate: false };
+}
+
+// Verifica duplicidade de payable - prioriza codigo_barras e linha_digitavel
 export async function checkDuplicatePayable(
   issuerCnpj: string | null,
   documentNumber: string | null,
   valor?: number | null,
-  vencimento?: string | null
-): Promise<{ isDuplicate: boolean; existingId?: string }> {
+  vencimento?: string | null,
+  codigoBarras?: string | null,
+  linhaDigitavel?: string | null
+): Promise<{ isDuplicate: boolean; existingId?: string; matchType?: string }> {
+  // Prioridade 1: Código de barras (mais confiável)
+  if (codigoBarras) {
+    const result = await checkDuplicateByCodigoBarras(codigoBarras);
+    if (result.isDuplicate) {
+      return { ...result, matchType: 'codigo_barras' };
+    }
+  }
+
+  // Prioridade 2: Linha digitável
+  if (linhaDigitavel) {
+    const result = await checkDuplicateByLinhaDigitavel(linhaDigitavel);
+    if (result.isDuplicate) {
+      return { ...result, matchType: 'linha_digitavel' };
+    }
+  }
+
   const normalizedCnpj = normalizeCnpj(issuerCnpj);
   
-  // Verificação primária: CNPJ + document_number (mais precisa)
+  // Prioridade 3: CNPJ + document_number
   if (normalizedCnpj && documentNumber) {
     const { data } = await supabase
       .from('payables')
@@ -203,11 +280,11 @@ export async function checkDuplicatePayable(
       .limit(1);
 
     if (data && data.length > 0) {
-      return { isDuplicate: true, existingId: data[0].id };
+      return { isDuplicate: true, existingId: data[0].id, matchType: 'cnpj_document' };
     }
   }
 
-  // Verificação secundária: CNPJ + valor + vencimento (fallback)
+  // Prioridade 4: CNPJ + valor + vencimento (fallback)
   if (normalizedCnpj && valor && vencimento) {
     const { data } = await supabase
       .from('payables')
@@ -218,7 +295,7 @@ export async function checkDuplicatePayable(
       .limit(1);
 
     if (data && data.length > 0) {
-      return { isDuplicate: true, existingId: data[0].id };
+      return { isDuplicate: true, existingId: data[0].id, matchType: 'cnpj_valor_vencimento' };
     }
   }
 
@@ -294,21 +371,24 @@ export async function createPayableFromOcr(
   filePath: string,
   fileName: string,
   extras?: { description?: string; paymentMethod?: string }
-): Promise<{ success: boolean; id?: string; error?: string }> {
+): Promise<{ success: boolean; id?: string; error?: string; matchType?: string }> {
   try {
-    // Verificar duplicidade com CNPJ + document_number + valor + vencimento
+    // Verificar duplicidade priorizando codigo_barras e linha_digitavel
     const vencimento = result.dueDate || result.issueDate || new Date().toISOString().split('T')[0];
     const duplicate = await checkDuplicatePayable(
       result.issuerCnpj, 
       result.documentNumber,
       result.totalValue,
-      vencimento
+      vencimento,
+      result.codigoBarras,
+      result.linhaDigitavel
     );
     if (duplicate.isDuplicate) {
       return { 
         success: false, 
         error: 'duplicate',
-        id: duplicate.existingId 
+        id: duplicate.existingId,
+        matchType: duplicate.matchType
       };
     }
 
@@ -355,12 +435,12 @@ export async function createPayableFromOcr(
       intended_payment_method: extras?.paymentMethod || null,
     };
 
-    // Adicionar campos extras para guias tributárias
+    // Adicionar campos extras para guias tributárias (normalizados)
     if (result.codigoBarras) {
-      payableData.codigo_barras = result.codigoBarras;
+      payableData.codigo_barras = normalizeCodigoBarras(result.codigoBarras);
     }
     if (result.linhaDigitavel) {
-      payableData.linha_digitavel = result.linhaDigitavel;
+      payableData.linha_digitavel = normalizeLinhaDigitavel(result.linhaDigitavel);
     }
     if (result.pixKey) {
       payableData.pix_key = result.pixKey;
