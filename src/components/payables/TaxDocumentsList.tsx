@@ -1,10 +1,15 @@
 import { useState, useEffect } from 'react';
-import { format, parseISO } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { 
   Table, 
   TableBody, 
@@ -15,19 +20,22 @@ import {
 } from '@/components/ui/table';
 import { 
   FileText, 
-  Copy, 
-  Check, 
   ExternalLink, 
   ChevronRight,
   Calendar,
   Banknote,
+  RefreshCw,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  AlertCircle,
+  Filter,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { TAX_DOCUMENT_LABELS, TaxDocumentType } from '@/types/payables';
-import { Json } from '@/integrations/supabase/types';
 
-interface TaxDocument {
+export interface TaxDocument {
   id: string;
   tipo: string;
   valor: number | null;
@@ -38,22 +46,35 @@ interface TaxDocument {
   ano: number;
   mes: number;
   unit_id: string | null;
+  payable_id: string | null;
+  payable_status: string | null;
 }
 
 interface TaxDocumentsListProps {
   unitId?: string;
   limit?: number;
   showViewAll?: boolean;
+  onReprocessDocument?: (doc: TaxDocument) => void;
+  statusFilter?: string;
 }
 
-export function TaxDocumentsList({ unitId, limit = 10, showViewAll = true }: TaxDocumentsListProps) {
+export function TaxDocumentsList({ 
+  unitId, 
+  limit = 10, 
+  showViewAll = true,
+  onReprocessDocument,
+  statusFilter: externalStatusFilter
+}: TaxDocumentsListProps) {
   const [documents, setDocuments] = useState<TaxDocument[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [internalStatusFilter, setInternalStatusFilter] = useState<string>('all');
+  
+  // Use external filter if provided, otherwise use internal
+  const statusFilter = externalStatusFilter ?? internalStatusFilter;
 
   useEffect(() => {
     loadDocuments();
-  }, [unitId]);
+  }, [unitId, statusFilter]);
 
   const loadDocuments = async () => {
     setIsLoading(true);
@@ -69,9 +90,18 @@ export function TaxDocumentsList({ unitId, limit = 10, showViewAll = true }: Tax
         query = query.eq('unit_id', unitId);
       }
 
+      // Apply status filter
+      if (statusFilter && statusFilter !== 'all') {
+        if (statusFilter === 'pending') {
+          query = query.or('payable_status.is.null,payable_status.eq.pending,payable_status.eq.failed,payable_status.eq.skipped');
+        } else {
+          query = query.eq('payable_status', statusFilter);
+        }
+      }
+
       const { data, error } = await query;
       if (error) throw error;
-      setDocuments(data || []);
+      setDocuments((data || []) as TaxDocument[]);
     } catch (error) {
       console.error('Error loading tax documents:', error);
     } finally {
@@ -79,15 +109,41 @@ export function TaxDocumentsList({ unitId, limit = 10, showViewAll = true }: Tax
     }
   };
 
-  const handleCopy = async (text: string, id: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedId(id);
-      toast.success('Copiado!');
-      setTimeout(() => setCopiedId(null), 2000);
-    } catch {
-      toast.error('Erro ao copiar');
+  const getStatusBadge = (doc: TaxDocument) => {
+    if (doc.payable_id || doc.payable_status === 'created') {
+      return (
+        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+          <CheckCircle2 className="h-3 w-3 mr-1" />
+          Vinculado
+        </Badge>
+      );
     }
+    if (doc.payable_status === 'failed') {
+      return (
+        <Badge variant="destructive">
+          <XCircle className="h-3 w-3 mr-1" />
+          Falhou
+        </Badge>
+      );
+    }
+    if (doc.payable_status === 'skipped') {
+      return (
+        <Badge variant="secondary">
+          <Clock className="h-3 w-3 mr-1" />
+          Ignorado
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant="outline">
+        <AlertCircle className="h-3 w-3 mr-1" />
+        Pendente
+      </Badge>
+    );
+  };
+
+  const canReprocess = (doc: TaxDocument) => {
+    return !doc.payable_id && doc.payable_status !== 'created';
   };
 
   const handleOpenFile = async (filePath: string) => {
@@ -154,11 +210,26 @@ export function TaxDocumentsList({ unitId, limit = 10, showViewAll = true }: Tax
           <FileText className="h-5 w-5" />
           Documentos Tributários Recentes
         </CardTitle>
-        {showViewAll && documents.length >= limit && (
-          <Button variant="ghost" size="sm">
-            Ver Todos <ChevronRight className="ml-1 h-4 w-4" />
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {!externalStatusFilter && (
+            <Select value={internalStatusFilter} onValueChange={setInternalStatusFilter}>
+              <SelectTrigger className="w-[140px] h-8">
+                <Filter className="h-3.5 w-3.5 mr-1" />
+                <SelectValue placeholder="Filtrar" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="created">Vinculados</SelectItem>
+                <SelectItem value="pending">Pendentes</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+          {showViewAll && documents.length >= limit && (
+            <Button variant="ghost" size="sm">
+              Ver Todos <ChevronRight className="ml-1 h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <Table>
@@ -167,6 +238,7 @@ export function TaxDocumentsList({ unitId, limit = 10, showViewAll = true }: Tax
               <TableHead>Tipo</TableHead>
               <TableHead>Valor</TableHead>
               <TableHead>Competência</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Arquivo</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
@@ -192,12 +264,25 @@ export function TaxDocumentsList({ unitId, limit = 10, showViewAll = true }: Tax
                   </div>
                 </TableCell>
                 <TableCell>
+                  {getStatusBadge(doc)}
+                </TableCell>
+                <TableCell>
                   <span className="text-sm text-muted-foreground truncate max-w-[150px] block">
                     {doc.file_name}
                   </span>
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
+                    {canReprocess(doc) && onReprocessDocument && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => onReprocessDocument(doc)}
+                        title="Reprocessar documento"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button
                       size="icon"
                       variant="ghost"

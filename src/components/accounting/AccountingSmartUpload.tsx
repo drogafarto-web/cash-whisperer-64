@@ -387,8 +387,9 @@ export function AccountingSmartUpload({
       const valorDoc = doc.analysisResult?.totalValue || doc.taxResult?.valor || 0;
       const vencimentoDoc = doc.analysisResult?.dueDate || doc.taxResult?.vencimento || 'N/A';
       
+      let insertedDocId: string | null = null;
       try {
-        await supabase.from('accounting_lab_documents').insert({
+        const { data: insertedDoc } = await supabase.from('accounting_lab_documents').insert({
           unit_id: unitId,
           ano: competencia?.ano || ano,
           mes: competencia?.mes || mes,
@@ -398,7 +399,9 @@ export function AccountingSmartUpload({
           valor: valorDoc,
           descricao: `${taxType.toUpperCase()} - Venc: ${vencimentoDoc}`,
           created_by: user?.id,
-        });
+          payable_status: doc.filePath && doc.analysisResult ? 'pending' : 'skipped',
+        }).select('id').single();
+        insertedDocId = insertedDoc?.id || null;
         console.log('[handleTaxApply] Tax document saved to accounting_lab_documents');
       } catch (insertError) {
         console.error('[handleTaxApply] Error inserting tax document:', insertError);
@@ -431,6 +434,12 @@ export function AccountingSmartUpload({
         if (result.success) {
           payableCreated = true;
           onPayableCreated?.(result.id!);
+          // Update document with payable reference
+          if (insertedDocId) {
+            await supabase.from('accounting_lab_documents')
+              .update({ payable_id: result.id, payable_status: 'created' })
+              .eq('id', insertedDocId);
+          }
         } else if (result.error === 'duplicate') {
           // Duplicate found - still apply values, just warn
           const matchLabels: Record<string, string> = {
@@ -443,8 +452,13 @@ export function AccountingSmartUpload({
           
           toast.warning(`Conta já existe (${matchLabel}). Valores aplicados no painel.`);
         } else {
-          // Other error creating payable - log but continue to apply values
+          // Other error creating payable - log and update document status
           console.warn('Could not create payable:', result.error);
+          if (insertedDocId) {
+            await supabase.from('accounting_lab_documents')
+              .update({ payable_status: 'failed' })
+              .eq('id', insertedDocId);
+          }
         }
       }
       
