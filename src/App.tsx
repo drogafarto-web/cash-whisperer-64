@@ -80,7 +80,16 @@ import AccountingAudit from "./pages/AccountingAudit";
 import About from "./pages/About";
 import Changelog from "./pages/Changelog";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutos
+      retry: 1,
+      refetchOnWindowFocus: false,
+      refetchOnMount: true,
+    },
+  },
+});
 
 const App = () => (
   <ErrorBoundary>

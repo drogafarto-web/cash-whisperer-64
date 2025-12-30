@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { GitMerge, Check, AlertCircle, RefreshCw } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -191,7 +192,7 @@ export default function ReconciliationPage() {
                       Importe um extrato bancário ou verifique o filtro de unidade
                     </p>
                     <Button variant="outline" className="mt-4" asChild>
-                      <a href="/import/bank-statement">Importar Extrato</a>
+                      <Link to="/import/bank-statement">Importar Extrato</Link>
                     </Button>
                   </div>
                 ) : (
