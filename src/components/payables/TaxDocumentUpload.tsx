@@ -40,7 +40,7 @@ export function TaxDocumentUpload({ unitId, onOcrComplete, onError }: TaxDocumen
       const filePath = `tax-documents/${folder}/${timestamp}_${safeFileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('payables')
+        .from('accounting-documents')
         .upload(filePath, file);
 
       if (uploadError) {

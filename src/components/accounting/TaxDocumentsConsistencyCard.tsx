@@ -60,7 +60,7 @@ export function TaxDocumentsConsistencyCard({
       let query = supabase
         .from('accounting_lab_documents')
         .select('id, tipo, valor, mes, ano, file_name, payable_id, payable_status')
-        .in('tipo', ['das', 'darf', 'gps', 'inss', 'fgts']);
+        .in('tipo', ['das', 'darf', 'gps', 'inss', 'fgts', 'iss']);
 
       if (unitId) {
         query = query.eq('unit_id', unitId);

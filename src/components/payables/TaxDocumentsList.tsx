@@ -82,7 +82,7 @@ export function TaxDocumentsList({
       let query = supabase
         .from('accounting_lab_documents')
         .select('*')
-        .in('tipo', ['das', 'darf', 'gps', 'inss', 'fgts'])
+        .in('tipo', ['das', 'darf', 'gps', 'inss', 'fgts', 'iss'])
         .order('created_at', { ascending: false })
         .limit(limit);
 

@@ -405,7 +405,7 @@ export type Database = {
           created_by: string | null
           descricao: string | null
           file_name: string
-          file_path: string
+          file_path: string | null
           file_size: number | null
           id: string
           mes: number
@@ -423,7 +423,7 @@ export type Database = {
           created_by?: string | null
           descricao?: string | null
           file_name: string
-          file_path: string
+          file_path?: string | null
           file_size?: number | null
           id?: string
           mes: number
@@ -441,7 +441,7 @@ export type Database = {
           created_by?: string | null
           descricao?: string | null
           file_name?: string
-          file_path?: string
+          file_path?: string | null
           file_size?: number | null
           id?: string
           mes?: number
