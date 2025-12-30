@@ -668,6 +668,22 @@ export default function BoletosPage() {
                       {/* Ações */}
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
+                          {/* Link NF button - only for payables without linked invoice */}
+                          {!payable.supplier_invoice_id && payable.nf_vinculacao_status === 'pendente' && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                  onClick={() => setPayableToLink(payable)}
+                                >
+                                  <LinkIcon className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Vincular NF</TooltipContent>
+                            </Tooltip>
+                          )}
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
@@ -766,6 +782,7 @@ export default function BoletosPage() {
         onOpenChange={(open) => !open && setPayableToLink(null)}
         payableId={payableToLink?.id || ''}
         beneficiario={payableToLink?.beneficiario || ''}
+        beneficiarioCnpj={payableToLink?.beneficiario_cnpj || ''}
         valor={payableToLink?.valor || 0}
       />
 
