@@ -177,12 +177,24 @@ export function AccountingSmartUpload({
         throw uploadError;
       }
       
+      console.log('[processDocument] Upload success, setting filePath:', {
+        docId: id,
+        fileName: file.name,
+        filePath,
+        timestamp: Date.now()
+      });
       updateDocument(id, { filePath });
       
       // 2. Analyze with unified AI service (same as Reception)
-      updateDocument(id, { status: 'analyzing' });
+      console.log('[processDocument] Starting analysis:', { docId: id, filePath });
+      updateDocument(id, { status: 'analyzing', filePath }); // Preservar filePath
       
       const result = await analyzeAccountingDocument(file, unitId);
+      console.log('[processDocument] Analysis complete:', {
+        docId: id,
+        filePath,
+        documentType: result.documentType
+      });
       
       // 3. Determine document type and convert result
       const docType = result.documentType;
@@ -190,37 +202,45 @@ export function AccountingSmartUpload({
       if (isTaxDocument(docType)) {
         const taxResult = convertToTaxResult(result);
         if (taxResult) {
+          console.log('[processDocument] Tax doc ready, preserving filePath:', { docId: id, filePath, taxType: taxResult.tipo_documento });
           updateDocument(id, { 
             status: 'ready', 
             type: 'tax',
             analysisResult: result,
             taxResult,
+            filePath, // CORREÇÃO: Preservar filePath
           });
           updateAIStatus(); // AI is working
         } else {
+          console.log('[processDocument] Tax doc manual (no taxResult), preserving filePath:', { docId: id, filePath });
           updateDocument(id, { 
             status: 'manual', 
             type: 'other',
             analysisResult: result,
             errorMessage: 'Tipo de guia não identificado. Preencha manualmente.',
+            filePath, // CORREÇÃO: Preservar filePath
           });
         }
       } else if (isPayrollDocument(docType)) {
         const payrollResult = convertToPayrollResult(result);
+        console.log('[processDocument] Payroll doc ready, preserving filePath:', { docId: id, filePath });
         updateDocument(id, { 
           status: 'ready', 
           type: 'payroll',
           analysisResult: result,
           payrollResult,
+          filePath, // CORREÇÃO: Preservar filePath
         });
         updateAIStatus(); // AI is working
       } else {
         // Unknown document type - still show result but as manual
+        console.log('[processDocument] Unknown doc type, preserving filePath:', { docId: id, filePath, docType });
         updateDocument(id, { 
           status: 'manual', 
           type: 'other',
           analysisResult: result,
           errorMessage: `Documento identificado como "${result.documentType}". Preencha os campos manualmente.`,
+          filePath, // CORREÇÃO: Preservar filePath
         });
       }
     } catch (error: any) {
@@ -345,15 +365,21 @@ export function AccountingSmartUpload({
     
     setCreatingPayableFor(doc.id);
     
-    // Debug: Log document state before processing
-    console.log('[handleTaxApply] Processing document:', {
+    // Debug: Log complete document state before processing
+    console.log('[handleTaxApply] Full document state:', JSON.stringify({
       id: doc.id,
       fileName: doc.fileName,
-      hasAnalysisResult: !!doc.analysisResult,
-      hasFilePath: !!doc.filePath,
       filePath: doc.filePath,
-      taxResult: doc.taxResult,
-    });
+      status: doc.status,
+      type: doc.type,
+      hasAnalysisResult: !!doc.analysisResult,
+      hasTaxResult: !!doc.taxResult,
+      taxResultDetails: doc.taxResult ? {
+        tipo_documento: doc.taxResult.tipo_documento,
+        valor: doc.taxResult.valor,
+        competencia: doc.taxResult.competencia,
+      } : null,
+    }, null, 2));
     
     try {
       // 1. First, create the payable (if possible)
