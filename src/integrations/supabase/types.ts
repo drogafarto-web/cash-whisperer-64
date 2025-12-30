@@ -410,6 +410,8 @@ export type Database = {
           id: string
           mes: number
           mime_type: string | null
+          payable_id: string | null
+          payable_status: string | null
           submission_id: string | null
           tipo: string
           unit_id: string | null
@@ -426,6 +428,8 @@ export type Database = {
           id?: string
           mes: number
           mime_type?: string | null
+          payable_id?: string | null
+          payable_status?: string | null
           submission_id?: string | null
           tipo: string
           unit_id?: string | null
@@ -442,12 +446,21 @@ export type Database = {
           id?: string
           mes?: number
           mime_type?: string | null
+          payable_id?: string | null
+          payable_status?: string | null
           submission_id?: string | null
           tipo?: string
           unit_id?: string | null
           valor?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "accounting_lab_documents_payable_id_fkey"
+            columns: ["payable_id"]
+            isOneToOne: false
+            referencedRelation: "payables"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "accounting_lab_documents_submission_id_fkey"
             columns: ["submission_id"]

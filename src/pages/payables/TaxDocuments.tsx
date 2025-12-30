@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Calculator, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { TaxDocumentUpload } from '@/components/payables/TaxDocumentUpload';
 import { TaxDocumentConfirmModal, ConfirmData } from '@/components/payables/TaxDocumentConfirmModal';
-import { TaxDocumentsList } from '@/components/payables/TaxDocumentsList';
+import { TaxDocumentsList, TaxDocument } from '@/components/payables/TaxDocumentsList';
+import { TaxDocumentsConsistencyCard } from '@/components/accounting/TaxDocumentsConsistencyCard';
+import { ReprocessDocumentModal } from '@/components/payables/ReprocessDocumentModal';
 import { TaxDocumentOcrResult, TAX_DOCUMENT_LABELS } from '@/types/payables';
 import { createPayable } from '@/features/payables/api/payables.api';
 import { UnitSelector } from '@/components/UnitSelector';
@@ -22,6 +24,10 @@ export default function TaxDocumentsPage() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
   
+  // Reprocess modal state
+  const [reprocessModalOpen, setReprocessModalOpen] = useState(false);
+  const [documentToReprocess, setDocumentToReprocess] = useState<TaxDocument | null>(null);
+  
   // Refresh trigger for list
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -30,6 +36,15 @@ export default function TaxDocumentsPage() {
     setUploadedFile(file);
     setUploadedFilePath(filePath);
     setIsModalOpen(true);
+  };
+
+  const handleReprocessDocument = (doc: TaxDocument) => {
+    setDocumentToReprocess(doc);
+    setReprocessModalOpen(true);
+  };
+
+  const handleReprocessSuccess = () => {
+    setRefreshKey(prev => prev + 1);
   };
 
   const handleConfirm = async (shouldCreatePayable: boolean, data: ConfirmData) => {
@@ -48,8 +63,8 @@ export default function TaxDocumentsPage() {
         fileUrl = urlData?.publicUrl || '';
       }
 
-      // Save document to accounting_lab_documents
-      const { error: docError } = await supabase
+      // Save document to accounting_lab_documents with status tracking
+      const { data: insertedDoc, error: docError } = await supabase
         .from('accounting_lab_documents')
         .insert({
           tipo: data.tipo_documento,
@@ -61,7 +76,10 @@ export default function TaxDocumentsPage() {
           file_path: uploadedFilePath || '',
           unit_id: data.unitId,
           created_by: profile?.id,
-        });
+          payable_status: shouldCreatePayable ? 'pending' : 'skipped',
+        })
+        .select('id')
+        .single();
 
       if (docError) {
         throw new Error(`Erro ao salvar documento: ${docError.message}`);
@@ -69,31 +87,52 @@ export default function TaxDocumentsPage() {
 
       // Create payable if requested
       if (shouldCreatePayable) {
-        await createPayable(
-          {
-            beneficiario: data.beneficiario || TAX_DOCUMENT_LABELS[data.tipo_documento],
-            beneficiario_cnpj: data.cnpj || undefined,
-            valor: data.valor,
-            vencimento: data.vencimento,
-            linha_digitavel: data.linha_digitavel || undefined,
-            codigo_barras: data.codigo_barras || undefined,
-            description: `${TAX_DOCUMENT_LABELS[data.tipo_documento]} - Comp: ${mes}/${ano}`,
-            tipo: 'boleto',
-            unit_id: data.unitId || undefined,
-            category_id: data.categoryId || undefined,
-          },
-          uploadedFilePath || undefined,
-          uploadedFile?.name
-        );
+        try {
+          const payable = await createPayable(
+            {
+              beneficiario: data.beneficiario || TAX_DOCUMENT_LABELS[data.tipo_documento],
+              beneficiario_cnpj: data.cnpj || undefined,
+              valor: data.valor,
+              vencimento: data.vencimento,
+              linha_digitavel: data.linha_digitavel || undefined,
+              codigo_barras: data.codigo_barras || undefined,
+              description: `${TAX_DOCUMENT_LABELS[data.tipo_documento]} - Comp: ${mes}/${ano}`,
+              tipo: 'boleto',
+              unit_id: data.unitId || undefined,
+              category_id: data.categoryId || undefined,
+            },
+            uploadedFilePath || undefined,
+            uploadedFile?.name
+          );
 
-        // If PIX key exists, update the payable with it
-        if (data.pix_key) {
-          // Note: createPayable doesn't support pix_key directly, 
-          // we'd need to update after creation or modify the API
-          console.log('PIX key available:', data.pix_key, data.pix_tipo);
+          // Update document with payable reference
+          if (payable && insertedDoc?.id) {
+            await supabase
+              .from('accounting_lab_documents')
+              .update({
+                payable_id: payable.id,
+                payable_status: 'created'
+              })
+              .eq('id', insertedDoc.id);
+          }
+
+          // If PIX key exists, update the payable with it
+          if (data.pix_key) {
+            console.log('PIX key available:', data.pix_key, data.pix_tipo);
+          }
+
+          toast.success('Documento salvo e Conta a Pagar criada!');
+        } catch (payableError) {
+          // Update document status to failed
+          if (insertedDoc?.id) {
+            await supabase
+              .from('accounting_lab_documents')
+              .update({ payable_status: 'failed' })
+              .eq('id', insertedDoc.id);
+          }
+          console.error('Error creating payable:', payableError);
+          toast.warning('Documento salvo, mas falha ao criar Conta a Pagar. Use o botão Reprocessar.');
         }
-
-        toast.success('Documento salvo e Conta a Pagar criada!');
       } else {
         toast.success('Documento salvo com sucesso!');
       }
@@ -130,6 +169,12 @@ export default function TaxDocumentsPage() {
             <UnitSelector value={unitId} onChange={setUnitId} />
           </div>
         </div>
+
+        {/* Consistency Report Card */}
+        <TaxDocumentsConsistencyCard 
+          unitId={unitId}
+          onReprocessDocument={handleReprocessDocument}
+        />
 
         {/* Upload Zone */}
         <TaxDocumentUpload 
@@ -191,6 +236,7 @@ export default function TaxDocumentsPage() {
           key={refreshKey}
           unitId={unitId} 
           limit={10}
+          onReprocessDocument={handleReprocessDocument}
         />
 
         {/* Confirmation Modal */}
@@ -202,6 +248,14 @@ export default function TaxDocumentsPage() {
           filePath={uploadedFilePath}
           unitId={unitId}
           onConfirm={handleConfirm}
+        />
+
+        {/* Reprocess Modal */}
+        <ReprocessDocumentModal
+          open={reprocessModalOpen}
+          onOpenChange={setReprocessModalOpen}
+          document={documentToReprocess}
+          onSuccess={handleReprocessSuccess}
         />
       </div>
     </AppLayout>

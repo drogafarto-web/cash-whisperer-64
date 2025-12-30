@@ -16,6 +16,7 @@ import {
   Receipt,
   ExternalLink,
   FileText,
+  RefreshCw,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
@@ -90,6 +91,11 @@ export function BatchApplyResultModal({
   const handleViewPayables = () => {
     onOpenChange(false);
     navigate('/payables/tax-documents');
+  };
+
+  const handleReprocessFailures = () => {
+    onOpenChange(false);
+    navigate('/payables/tax-documents?filter=pending');
   };
 
   return (
@@ -196,6 +202,12 @@ export function BatchApplyResultModal({
         </ScrollArea>
         
         <DialogFooter className="flex-col sm:flex-row gap-2">
+          {(result.payablesSkipped ?? 0) > 0 && (
+            <Button variant="outline" onClick={handleReprocessFailures} className="gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Reprocessar Falhas
+            </Button>
+          )}
           {result.payablesCreated > 0 && (
             <Button variant="outline" onClick={handleViewPayables} className="gap-2">
               <ExternalLink className="h-4 w-4" />
