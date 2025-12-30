@@ -292,7 +292,7 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
           receivable_component: receivableValue,
           unit_id: record.unitId || unitId,
           payment_status: 'PENDENTE',
-          status: 'pending',
+          status: 'NORMAL',
           gross_amount: record.valorBruto,
           net_amount: record.valorPago,
         };
