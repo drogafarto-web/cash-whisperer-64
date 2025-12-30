@@ -27,6 +27,7 @@ import {
   AnalyzedDocResult,
   isTaxDocument,
   isPayrollDocument,
+  createPayableFromOcr,
 } from '@/services/accountingOcrService';
 
 type TaxType = 'das' | 'darf' | 'gps' | 'inss' | 'fgts' | 'iss';
@@ -54,6 +55,7 @@ interface AccountingSmartUploadProps {
   mes: number;
   onTaxApply?: (taxType: TaxType, valor: number, vencimento: string | null) => void;
   onPayrollApply?: (data: { total_folha: number; encargos: number; prolabore: number; num_funcionarios: number }) => void;
+  onPayableCreated?: (payableId: string) => void;
 }
 
 // Map document types to TaxType
@@ -73,10 +75,12 @@ export function AccountingSmartUpload({
   mes,
   onTaxApply,
   onPayrollApply,
+  onPayableCreated,
 }: AccountingSmartUploadProps) {
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [aiStatus, setAiStatus] = useState<AIStatus>('available');
+  const [creatingPayableFor, setCreatingPayableFor] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
 
@@ -356,7 +360,44 @@ export function AccountingSmartUpload({
     setDocuments((prev) => prev.filter((doc) => doc.id !== id));
   };
 
-  const pendingCount = documents.filter((d) => 
+  const handleCreatePayable = async (doc: UploadedDocument) => {
+    if (!doc.analysisResult || !doc.filePath) {
+      toast.error('Dados insuficientes para criar conta a pagar');
+      return;
+    }
+    
+    setCreatingPayableFor(doc.id);
+    
+    try {
+      const taxType = doc.taxResult?.tipo_documento?.toUpperCase() || 'fiscal';
+      const description = `Guia ${taxType} - ${mes.toString().padStart(2, '0')}/${ano}`;
+      
+      const result = await createPayableFromOcr(
+        doc.analysisResult,
+        unitId,
+        doc.filePath,
+        doc.fileName,
+        { description }
+      );
+      
+      if (result.success) {
+        toast.success('Conta a pagar criada com sucesso!');
+        updateDocument(doc.id, { status: 'applied' });
+        onPayableCreated?.(result.id!);
+      } else if (result.error === 'duplicate') {
+        toast.warning('Já existe uma conta a pagar com esses dados.');
+      } else {
+        toast.error('Erro ao criar conta a pagar: ' + result.error);
+      }
+    } catch (error) {
+      console.error('Error creating payable:', error);
+      toast.error('Erro ao criar conta a pagar');
+    } finally {
+      setCreatingPayableFor(null);
+    }
+  };
+
+  const pendingCount = documents.filter((d) =>
     ['queued', 'uploading', 'analyzing'].includes(d.status)
   ).length;
 
@@ -542,6 +583,8 @@ export function AccountingSmartUpload({
                 fileName={doc.fileName}
                 status={doc.status as 'processing' | 'ready' | 'applied' | 'error'}
                 onApply={() => handleTaxApply(doc)}
+                onCreatePayable={() => handleCreatePayable(doc)}
+                isCreatingPayable={creatingPayableFor === doc.id}
                 onRemove={() => handleRemove(doc.id)}
               />
             ) : (
