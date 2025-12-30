@@ -30,6 +30,7 @@ import {
   UserCog,
   MonitorSmartphone,
   Shield,
+  ListChecks,
 } from 'lucide-react';
 import { AppRole } from '@/types/database';
 
@@ -151,6 +152,7 @@ export const navigationGroups: NavGroup[] = [
       { name: 'Notas Fornecedor', href: '/payables/supplier-invoices', icon: FileInput, roles: ['admin', 'contabilidade', 'financeiro'] },
       { name: 'Boletos', href: '/payables/boletos', icon: Barcode, roles: ['admin', 'contabilidade', 'gestor_unidade', 'financeiro'] },
       { name: 'Conciliação', href: '/payables/reconciliation', icon: GitMerge, roles: ['admin', 'contabilidade', 'financeiro'] },
+      { name: 'Gestão em Massa', href: '/payables/bulk-management', icon: ListChecks, roles: ['admin', 'contabilidade', 'financeiro'] },
     ],
   },
   {
