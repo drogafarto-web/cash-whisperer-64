@@ -3,11 +3,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Upload, CheckCircle2, Loader2, FileSpreadsheet, AlertTriangle } from 'lucide-react';
-import { notifySuccess, notifyError } from '@/lib/notify';
+import { ArrowLeft, Upload, CheckCircle2, Loader2, FileSpreadsheet, AlertTriangle, Ban } from 'lucide-react';
+import { notifySuccess, notifyError, notifyWarning } from '@/lib/notify';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { parseLisXls, ParseResult } from '@/utils/lisImport';
+import { parseLisXls, ParseResult, LisRecord } from '@/utils/lisImport';
 import { format } from 'date-fns';
 
 // ID da categoria "Recebimento de Clientes" 
@@ -30,6 +30,8 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
   const [importSuccess, setImportSuccess] = useState(false);
   const [importedCount, setImportedCount] = useState(0);
   const [unitAccounts, setUnitAccounts] = useState<Record<string, string>>({});
+  const [duplicateCount, setDuplicateCount] = useState(0);
+  const [recordsWithDuplicates, setRecordsWithDuplicates] = useState<LisRecord[]>([]);
 
   const loadUnitAccounts = async () => {
     const { data } = await supabase
@@ -57,6 +59,35 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
     return {};
   };
 
+  // Verificar duplicatas em lis_closure_items
+  const checkDuplicates = async (records: LisRecord[]): Promise<LisRecord[]> => {
+    if (records.length === 0) return [];
+
+    // Extrair datas e códigos únicos
+    const dates = [...new Set(records.map(r => r.data))];
+    const codes = [...new Set(records.map(r => r.codigo))];
+
+    // Buscar registros existentes
+    const { data: existingItems } = await supabase
+      .from('lis_closure_items')
+      .select('lis_code, date, unit_id')
+      .in('date', dates)
+      .in('lis_code', codes);
+
+    // Criar set de chaves existentes (unit_id + date + lis_code)
+    const existingKeys = new Set(
+      (existingItems || []).map(item => 
+        `${item.unit_id || unitId}|${item.date}|${item.lis_code}`
+      )
+    );
+
+    // Marcar registros como duplicados
+    return records.map(record => ({
+      ...record,
+      isDuplicate: existingKeys.has(`${record.unitId || unitId}|${record.data}|${record.codigo}`)
+    }));
+  };
+
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -79,15 +110,34 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
 
     setIsLoading(true);
     setFileName(file.name);
+    setDuplicateCount(0);
+    setRecordsWithDuplicates([]);
 
     try {
       await loadUnitAccounts();
       const buffer = await file.arrayBuffer();
       const result = parseLisXls(buffer);
-      setParseResult(result);
       
-      if (result.validRecords > 0) {
-        notifySuccess('Arquivo processado', `${result.validRecords} registros válidos encontrados.`);
+      // Verificar duplicatas
+      const validRecords = result.records.filter(r => !r.error && r.valorPago > 0);
+      const recordsChecked = await checkDuplicates(validRecords);
+      
+      const duplicates = recordsChecked.filter(r => r.isDuplicate).length;
+      const newRecords = recordsChecked.filter(r => !r.isDuplicate).length;
+      
+      setRecordsWithDuplicates(recordsChecked);
+      setDuplicateCount(duplicates);
+      setParseResult({
+        ...result,
+        validRecords: newRecords, // Apenas registros novos
+      });
+      
+      if (duplicates > 0 && newRecords === 0) {
+        notifyWarning('Todos duplicados', `Todos os ${duplicates} registros já foram importados anteriormente.`);
+      } else if (duplicates > 0) {
+        notifyWarning('Duplicatas encontradas', `${duplicates} registros já importados serão ignorados. ${newRecords} novos serão importados.`);
+      } else if (newRecords > 0) {
+        notifySuccess('Arquivo processado', `${newRecords} registros válidos encontrados.`);
       } else {
         notifyError('Sem registros', 'Nenhum registro válido encontrado no arquivo.');
       }
@@ -102,14 +152,53 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
   const handleImport = async () => {
     if (!user || !parseResult) return;
 
+    // Filtrar apenas registros novos (não duplicados)
+    const newRecords = recordsWithDuplicates.filter(r => !r.isDuplicate && !r.error && r.valorPago > 0);
+    
+    if (newRecords.length === 0) {
+      notifyWarning('Nada a importar', 'Todos os registros já foram importados anteriormente.');
+      return;
+    }
+
     setIsImporting(true);
 
     try {
       const accounts = Object.keys(unitAccounts).length > 0 ? unitAccounts : await loadUnitAccounts();
       
-      const validRecords = parseResult.records.filter(r => !r.error && r.valorPago > 0);
-      
-      const transactions = validRecords.map((record) => {
+      // PRIMEIRO: Criar registros em lis_closure_items (tem constraint única)
+      const lisClosureItems = newRecords.map((record) => {
+        const cashValue = record.paymentMethod === 'DINHEIRO' ? record.valorPago : 0;
+        const receivableValue = record.paymentMethod !== 'DINHEIRO' ? record.valorPago : 0;
+
+        return {
+          lis_code: record.codigo,
+          date: record.data,
+          amount: record.valorPago,
+          payment_method: record.paymentMethod,
+          patient_name: record.paciente,
+          convenio: record.convenio,
+          cash_component: cashValue,
+          receivable_component: receivableValue,
+          unit_id: record.unitId || unitId,
+          payment_status: 'PENDENTE',
+          status: 'pending',
+          gross_amount: record.valorBruto,
+          net_amount: record.valorPago,
+        };
+      });
+
+      const { error: lisError } = await supabase
+        .from('lis_closure_items')
+        .insert(lisClosureItems);
+
+      if (lisError) {
+        // Se falhar aqui, nenhuma transaction foi criada ainda
+        console.error('Erro ao inserir lis_closure_items:', lisError);
+        throw new Error('Erro ao inserir itens de fechamento. Verifique se há duplicatas.');
+      }
+
+      // SEGUNDO: Criar transactions (após sucesso do lis_closure_items)
+      const transactions = newRecords.map((record) => {
         let accountId = record.unitId ? accounts[record.unitId] : null;
         if (!accountId) {
           accountId = accounts['__fallback__'] || Object.values(accounts)[0];
@@ -137,40 +226,12 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
 
       if (txError) throw txError;
 
-      // Criar registros em lis_closure_items
-      const lisClosureItems = validRecords.map((record) => {
-        const cashValue = record.paymentMethod === 'DINHEIRO' ? record.valorPago : 0;
-        const receivableValue = record.paymentMethod !== 'DINHEIRO' ? record.valorPago : 0;
-
-        return {
-          lis_code: record.codigo,
-          date: record.data,
-          amount: record.valorPago,
-          payment_method: record.paymentMethod,
-          patient_name: record.paciente,
-          convenio: record.convenio,
-          cash_component: cashValue,
-          receivable_component: receivableValue,
-          unit_id: record.unitId || unitId,
-          payment_status: 'PENDENTE',
-          status: 'pending',
-          gross_amount: record.valorBruto,
-          net_amount: record.valorPago,
-        };
-      });
-
-      const { error: lisError } = await supabase
-        .from('lis_closure_items')
-        .insert(lisClosureItems);
-
-      if (lisError) throw lisError;
-
-      setImportedCount(validRecords.length);
+      setImportedCount(newRecords.length);
       setImportSuccess(true);
-      notifySuccess('Importação concluída', `${validRecords.length} registros importados com sucesso!`);
+      notifySuccess('Importação concluída', `${newRecords.length} registros importados com sucesso!`);
     } catch (error) {
       console.error('Erro na importação:', error);
-      notifyError('Erro na importação', 'Não foi possível importar os dados.');
+      notifyError('Erro na importação', error instanceof Error ? error.message : 'Não foi possível importar os dados.');
     } finally {
       setIsImporting(false);
     }
@@ -183,6 +244,9 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
         <CheckCircle2 className="h-24 w-24 text-green-500" />
         <h1 className="text-3xl font-bold">Movimento Importado!</h1>
         <p className="text-xl text-muted-foreground">{importedCount} registros processados</p>
+        {duplicateCount > 0 && (
+          <p className="text-muted-foreground">{duplicateCount} registros duplicados foram ignorados</p>
+        )}
         <Button size="lg" className="h-14 text-lg px-8" onClick={onBack}>
           Voltar ao Painel Recepção
         </Button>
@@ -245,16 +309,31 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
 
             {parseResult && (
               <div className="p-4 bg-muted rounded-lg space-y-2">
-                <div className="flex items-center gap-2">
-                  {parseResult.validRecords > 0 ? (
+                {parseResult.validRecords > 0 ? (
+                  <div className="flex items-center gap-2">
                     <CheckCircle2 className="h-5 w-5 text-green-500" />
-                  ) : (
-                    <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                  )}
-                  <span className="font-medium">
-                    {parseResult.validRecords} registros válidos
-                  </span>
-                </div>
+                    <span className="font-medium">
+                      {parseResult.validRecords} novos registros para importar
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Ban className="h-5 w-5 text-destructive" />
+                    <span className="font-medium text-destructive">
+                      Nenhum registro novo para importar
+                    </span>
+                  </div>
+                )}
+                
+                {duplicateCount > 0 && (
+                  <div className="flex items-center gap-2 text-amber-600">
+                    <AlertTriangle className="h-5 w-5" />
+                    <span className="text-sm">
+                      {duplicateCount} registros já importados (serão ignorados)
+                    </span>
+                  </div>
+                )}
+                
                 {parseResult.invalidRecords > 0 && (
                   <p className="text-sm text-muted-foreground">
                     {parseResult.invalidRecords} registros com erro/ignorados
