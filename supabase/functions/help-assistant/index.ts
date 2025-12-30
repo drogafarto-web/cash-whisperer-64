@@ -1,4 +1,3 @@
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -98,16 +97,21 @@ INSTRUÇÕES:
 - Mantenha respostas concisas mas completas`;
 
 serve(async (req) => {
+  console.log('[help-assistant] Request received:', req.method);
+  
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const { messages, user_context } = await req.json();
+    console.log('[help-assistant] Messages count:', messages?.length);
+    console.log('[help-assistant] User context:', JSON.stringify(user_context));
     
-    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openAIApiKey) {
-      throw new Error('OPENAI_API_KEY not configured');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      console.error('[help-assistant] LOVABLE_API_KEY not configured');
+      throw new Error('LOVABLE_API_KEY not configured');
     }
 
     // Build context-aware system prompt
@@ -119,14 +123,16 @@ serve(async (req) => {
 - Unidade: ${user_context.unit || 'Não especificada'}`;
     }
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    console.log('[help-assistant] Calling Lovable AI Gateway...');
+    
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'google/gemini-2.5-flash',
         messages: [
           { role: 'system', content: SYSTEM_PROMPT + contextInfo },
           ...messages
@@ -137,12 +143,35 @@ serve(async (req) => {
       }),
     });
 
+    console.log('[help-assistant] AI Gateway response status:', response.status);
+
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('OpenAI API error:', response.status, errorText);
-      throw new Error(`OpenAI API error: ${response.status}`);
+      console.error('[help-assistant] AI Gateway error:', response.status, errorText);
+      
+      if (response.status === 429) {
+        return new Response(JSON.stringify({
+          error: 'Limite de requisições excedido. Tente novamente em alguns minutos.'
+        }), {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      if (response.status === 402) {
+        return new Response(JSON.stringify({
+          error: 'Créditos de IA esgotados. Contate o administrador.'
+        }), {
+          status: 402,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      throw new Error(`AI Gateway error: ${response.status}`);
     }
 
+    console.log('[help-assistant] Streaming response to client...');
+    
     // Stream the response
     return new Response(response.body, {
       headers: { 
@@ -153,7 +182,7 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('Error in help-assistant function:', error);
+    console.error('[help-assistant] Error:', error);
     
     return new Response(JSON.stringify({
       error: 'Desculpe, não consegui processar sua pergunta. Tente novamente.'
