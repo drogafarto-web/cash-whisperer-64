@@ -126,10 +126,11 @@ async function analyzeAccountingImage(
   let base64: string;
   let mimeType: string;
 
-  // Se for PDF, converter para imagem
+  // Se for PDF, converter para imagem com maior resolução para melhor OCR
   if (file.type === 'application/pdf') {
-    console.log('Converting PDF to PNG for OCR...');
-    const pngBlob = await convertPdfToImage(file, 2);
+    console.log('Converting PDF to PNG for OCR with scale=3 for better value extraction...');
+    // Scale 3 para melhor leitura de valores e números pequenos (DANFEs densas)
+    const pngBlob = await convertPdfToImage(file, 3);
     base64 = await blobToBase64(pngBlob);
     mimeType = 'image/png';
   } else {
