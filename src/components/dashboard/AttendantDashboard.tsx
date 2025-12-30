@@ -92,7 +92,7 @@ export function AttendantDashboard() {
         .from('payables')
         .select('id', { count: 'exact', head: true })
         .eq('unit_id', unit.id)
-        .eq('status', 'pendente');
+        .in('status', ['pendente', 'PENDENTE']);
 
       setPendingBoletosCount(boletosCount ?? 0);
 
