@@ -26,6 +26,7 @@ interface BoletoNfLinkModalProps {
   onOpenChange: (open: boolean) => void;
   payableId: string;
   beneficiario?: string;
+  beneficiarioCnpj?: string;
   valor?: number;
   onCreateNewNf?: () => void;
 }
@@ -35,6 +36,7 @@ export function BoletoNfLinkModal({
   onOpenChange,
   payableId,
   beneficiario,
+  beneficiarioCnpj,
   valor,
   onCreateNewNf,
 }: BoletoNfLinkModalProps) {
@@ -98,11 +100,21 @@ export function BoletoNfLinkModal({
     },
   });
 
+  // Helper to clean CNPJ for comparison
+  const cleanCnpj = (cnpj: string | null | undefined) => cnpj?.replace(/\D/g, '') || '';
+
   // Calculate match score for sorting
   const getSortedInvoices = () => {
     return [...invoices].sort((a, b) => {
       let scoreA = 0;
       let scoreB = 0;
+
+      // Highest priority: exact CNPJ match
+      if (beneficiarioCnpj) {
+        const cleanBenefCnpj = cleanCnpj(beneficiarioCnpj);
+        if (cleanCnpj(a.supplier_cnpj) === cleanBenefCnpj) scoreA += 200;
+        if (cleanCnpj(b.supplier_cnpj) === cleanBenefCnpj) scoreB += 200;
+      }
 
       // Prioritize aguardando_boleto status
       if (a.status === 'aguardando_boleto') scoreA += 100;
@@ -128,6 +140,12 @@ export function BoletoNfLinkModal({
 
       return scoreB - scoreA;
     });
+  };
+
+  // Check if invoice has matching CNPJ
+  const hasCnpjMatch = (invoiceCnpj: string | null | undefined) => {
+    if (!beneficiarioCnpj || !invoiceCnpj) return false;
+    return cleanCnpj(invoiceCnpj) === cleanCnpj(beneficiarioCnpj);
   };
 
   const sortedInvoices = getSortedInvoices();
@@ -194,10 +212,13 @@ export function BoletoNfLinkModal({
                     disabled={linkMutation.isPending}
                   >
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-sm truncate">
                           {invoice.supplier_name}
                         </span>
+                        {hasCnpjMatch(invoice.supplier_cnpj) && (
+                          <Badge className="bg-green-500 text-xs">CNPJ Compatível</Badge>
+                        )}
                         {invoice.status === 'aguardando_boleto' && (
                           <Badge className="bg-amber-500 text-xs">Aguardando Boleto</Badge>
                         )}
