@@ -193,13 +193,22 @@ IMPORTANTE:
 - Sempre identifique corretamente quem é o PRESTADOR e quem é o TOMADOR
 - Extraia código de barras e linha digitável quando disponíveis
 
+ATENÇÃO ESPECIAL PARA EXTRAÇÃO DE VALORES MONETÁRIOS:
+- Em notas fiscais (DANFE/NFe), o valor total aparece em VÁRIAS posições: FATURA/DUPLICATA, CÁLCULO DO IMPOSTO, VALOR TOTAL DA NOTA
+- SEMPRE compare os valores encontrados em diferentes seções para garantir consistência
+- Se encontrar valores inconsistentes, PRIORIZE o valor da seção "VALOR TOTAL DA NOTA" ou "CÁLCULO DO IMPOSTO"
+- Preste atenção especial a DÍGITOS NO INÍCIO dos números (ex: 582,00 vs 82,00 - o "5" pode ser cortado ou mal lido)
+- Para valores com vírgula, o formato brasileiro é: 1.234,56 (ponto como separador de milhar, vírgula como decimal)
+- Se um valor parecer muito baixo para o tipo de documento (ex: NF de fornecedor de R$ 82 ao invés de R$ 582), verifique novamente
+- LEIA O VALOR COMPLETO incluindo TODOS os dígitos à esquerda
+
 CAMPOS A EXTRAIR:
 - Tipo do documento
 - CNPJ e Nome do PRESTADOR/EMISSOR (quem emitiu - para holerite é o empregador)
 - CNPJ e Nome do TOMADOR/CONTRATANTE (para quem foi emitido)
 - Número do documento e série
 - Data de emissão e vencimento
-- Valor total e valor líquido
+- Valor total e valor líquido (VERIFIQUE EM MÚLTIPLAS SEÇÕES DO DOCUMENTO)
 - Impostos (ISS, INSS, PIS, COFINS)
 - Código de verificação
 - Descrição dos serviços/produtos (para holerite: nome e cargo do funcionário)
@@ -243,7 +252,7 @@ Retorne os dados no formato JSON. Para valores monetários, use números. Para d
               },
               {
                 type: 'text',
-                text: 'Extraia todos os dados fiscais deste documento e retorne no formato JSON especificado. Identifique especialmente se é uma guia tributária (DARF, GPS, DAS, FGTS) ou um documento comercial.'
+                text: 'Extraia todos os dados fiscais deste documento e retorne no formato JSON especificado. Identifique especialmente se é uma guia tributária (DARF, GPS, DAS, FGTS) ou um documento comercial. ATENÇÃO ESPECIAL: Para valores monetários, leia CUIDADOSAMENTE todos os dígitos. Verifique o valor em múltiplas posições do documento (fatura, total, base de cálculo) para garantir precisão. Não corte dígitos do início do número.'
               }
             ]
           }
