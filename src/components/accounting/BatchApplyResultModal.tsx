@@ -26,12 +26,14 @@ export interface BatchResultItem {
   status: 'success' | 'duplicate' | 'error';
   fileName: string;
   errorMessage?: string;
+  payableSkipped?: boolean;
 }
 
 export interface BatchApplyResult {
   applied: BatchResultItem[];
   totalApplied: number;
   payablesCreated: number;
+  payablesSkipped?: number;
   duplicatesFound: number;
   errorsCount: number;
 }
@@ -53,8 +55,11 @@ export function BatchApplyResultModal({
   
   const successCount = result.applied.filter(r => r.status === 'success').length;
   
-  const getStatusIcon = (status: BatchResultItem['status']) => {
-    switch (status) {
+  const getStatusIcon = (item: BatchResultItem) => {
+    if (item.payableSkipped) {
+      return <AlertTriangle className="h-4 w-4 text-orange-500" />;
+    }
+    switch (item.status) {
       case 'success':
         return <CheckCircle2 className="h-4 w-4 text-green-600" />;
       case 'duplicate':
@@ -64,8 +69,15 @@ export function BatchApplyResultModal({
     }
   };
   
-  const getStatusBadge = (status: BatchResultItem['status']) => {
-    switch (status) {
+  const getStatusBadge = (item: BatchResultItem) => {
+    if (item.payableSkipped) {
+      return (
+        <Badge variant="outline" className="border-orange-500 text-orange-600 text-xs">
+          Só painel
+        </Badge>
+      );
+    }
+    switch (item.status) {
       case 'success':
         return <Badge className="bg-green-600">Aplicado</Badge>;
       case 'duplicate':
@@ -120,8 +132,14 @@ export function BatchApplyResultModal({
         </div>
         
         {/* Warnings */}
-        {(result.duplicatesFound > 0 || result.errorsCount > 0) && (
+        {(result.duplicatesFound > 0 || result.errorsCount > 0 || (result.payablesSkipped ?? 0) > 0) && (
           <div className="flex gap-2 flex-wrap">
+            {(result.payablesSkipped ?? 0) > 0 && (
+              <Badge variant="outline" className="gap-1 border-orange-500 text-orange-600">
+                <AlertTriangle className="h-3 w-3" />
+                {result.payablesSkipped} sem conta a pagar (arquivo ausente)
+              </Badge>
+            )}
             {result.duplicatesFound > 0 && (
               <Badge variant="outline" className="gap-1 border-amber-500 text-amber-600">
                 <AlertTriangle className="h-3 w-3" />
@@ -146,7 +164,7 @@ export function BatchApplyResultModal({
                 className="flex items-center justify-between p-2 bg-muted/50 rounded-lg text-sm"
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  {getStatusIcon(item.status)}
+                  {getStatusIcon(item)}
                   <div className="min-w-0">
                     <span className="font-medium">{item.type.toUpperCase()}</span>
                     <p className="text-xs text-muted-foreground truncate max-w-[150px]">
@@ -158,7 +176,7 @@ export function BatchApplyResultModal({
                   <span className="font-medium whitespace-nowrap">
                     {formatCurrency(item.valor)}
                   </span>
-                  {getStatusBadge(item.status)}
+                  {getStatusBadge(item)}
                 </div>
               </div>
             ))}
