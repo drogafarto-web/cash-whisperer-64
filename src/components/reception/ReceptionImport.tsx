@@ -1,9 +1,9 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Upload, CheckCircle2, Loader2, FileSpreadsheet, AlertTriangle, Ban } from 'lucide-react';
+import { ArrowLeft, Upload, CheckCircle2, Loader2, FileSpreadsheet, AlertTriangle, Ban, Layers } from 'lucide-react';
 import { notifySuccess, notifyError, notifyWarning } from '@/lib/notify';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -16,6 +16,85 @@ const CATEGORY_RECEBIMENTO_CLIENTES = '7ee0b99b-92a7-4e8f-bd71-337dbf0baf7e';
 interface ReceptionImportProps {
   onBack: () => void;
   unitId: string | null;
+}
+
+// Tipo para registro consolidado com campos extras
+interface ConsolidatedRecord extends LisRecord {
+  consolidatedCount: number;
+  // Campos calculados para consolidação
+  consolidatedCashComponent?: number;
+  consolidatedReceivableComponent?: number;
+  consolidatedPaymentMethod?: string; // Pode ser 'MISTO' 
+}
+
+/**
+ * Consolida registros duplicados DENTRO do mesmo arquivo
+ * Agrupa por (unitId, data, codigo) e soma valores
+ */
+function consolidateInFileRecords(records: LisRecord[], defaultUnitId: string | null): ConsolidatedRecord[] {
+  const groupedMap = new Map<string, LisRecord[]>();
+  
+  // Agrupar por chave única
+  for (const record of records) {
+    const key = `${record.unitId || defaultUnitId}|${record.data}|${record.codigo}`;
+    const group = groupedMap.get(key) || [];
+    group.push(record);
+    groupedMap.set(key, group);
+  }
+  
+  // Consolidar cada grupo
+  const consolidated: ConsolidatedRecord[] = [];
+  
+  for (const [_key, group] of groupedMap) {
+    if (group.length === 1) {
+      // Sem duplicata interna
+      consolidated.push({ ...group[0], consolidatedCount: 1 });
+    } else {
+      // Consolidar múltiplos registros
+      const first = group[0];
+      
+      // Somar valores
+      const valorPago = group.reduce((sum, r) => sum + (r.valorPago || 0), 0);
+      const valorBruto = group.reduce((sum, r) => sum + (r.valorBruto || 0), 0);
+      const valorDesconto = group.reduce((sum, r) => sum + (r.valorDesconto || 0), 0);
+      const valorAcrescimo = group.reduce((sum, r) => sum + (r.valorAcrescimo || 0), 0);
+      
+      // Verificar se métodos de pagamento são diferentes
+      const paymentMethods = [...new Set(group.map(r => r.paymentMethod))];
+      let consolidatedPaymentMethod = first.paymentMethod as string;
+      let consolidatedCashComponent = 0;
+      let consolidatedReceivableComponent = 0;
+      
+      if (paymentMethods.length > 1) {
+        // Métodos diferentes: consolidar como MISTO
+        consolidatedPaymentMethod = 'MISTO';
+        consolidatedCashComponent = group
+          .filter(r => r.paymentMethod === 'DINHEIRO')
+          .reduce((sum, r) => sum + (r.valorPago || 0), 0);
+        consolidatedReceivableComponent = group
+          .filter(r => r.paymentMethod !== 'DINHEIRO')
+          .reduce((sum, r) => sum + (r.valorPago || 0), 0);
+      } else {
+        // Mesmo método
+        consolidatedCashComponent = first.paymentMethod === 'DINHEIRO' ? valorPago : 0;
+        consolidatedReceivableComponent = first.paymentMethod !== 'DINHEIRO' ? valorPago : 0;
+      }
+      
+      consolidated.push({
+        ...first,
+        valorPago,
+        valorBruto,
+        valorDesconto,
+        valorAcrescimo,
+        consolidatedPaymentMethod,
+        consolidatedCashComponent,
+        consolidatedReceivableComponent,
+        consolidatedCount: group.length,
+      });
+    }
+  }
+  
+  return consolidated;
 }
 
 export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
@@ -31,7 +110,8 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
   const [importedCount, setImportedCount] = useState(0);
   const [unitAccounts, setUnitAccounts] = useState<Record<string, string>>({});
   const [duplicateCount, setDuplicateCount] = useState(0);
-  const [recordsWithDuplicates, setRecordsWithDuplicates] = useState<LisRecord[]>([]);
+  const [consolidatedInFileCount, setConsolidatedInFileCount] = useState(0);
+  const [recordsToImport, setRecordsToImport] = useState<ConsolidatedRecord[]>([]);
 
   const loadUnitAccounts = async () => {
     const { data } = await supabase
@@ -59,29 +139,25 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
     return {};
   };
 
-  // Verificar duplicatas em lis_closure_items
-  const checkDuplicates = async (records: LisRecord[]): Promise<LisRecord[]> => {
+  // Verificar duplicatas em lis_closure_items (contra o banco)
+  const checkDuplicatesInDb = async (records: ConsolidatedRecord[]): Promise<ConsolidatedRecord[]> => {
     if (records.length === 0) return [];
 
-    // Extrair datas e códigos únicos
     const dates = [...new Set(records.map(r => r.data))];
     const codes = [...new Set(records.map(r => r.codigo))];
 
-    // Buscar registros existentes
     const { data: existingItems } = await supabase
       .from('lis_closure_items')
       .select('lis_code, date, unit_id')
       .in('date', dates)
       .in('lis_code', codes);
 
-    // Criar set de chaves existentes (unit_id + date + lis_code)
     const existingKeys = new Set(
       (existingItems || []).map(item => 
         `${item.unit_id || unitId}|${item.date}|${item.lis_code}`
       )
     );
 
-    // Marcar registros como duplicados
     return records.map(record => ({
       ...record,
       isDuplicate: existingKeys.has(`${record.unitId || unitId}|${record.data}|${record.codigo}`)
@@ -111,33 +187,54 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
     setIsLoading(true);
     setFileName(file.name);
     setDuplicateCount(0);
-    setRecordsWithDuplicates([]);
+    setConsolidatedInFileCount(0);
+    setRecordsToImport([]);
 
     try {
       await loadUnitAccounts();
       const buffer = await file.arrayBuffer();
       const result = parseLisXls(buffer);
       
-      // Verificar duplicatas
+      // 1. Filtrar registros válidos
       const validRecords = result.records.filter(r => !r.error && r.valorPago > 0);
-      const recordsChecked = await checkDuplicates(validRecords);
       
-      const duplicates = recordsChecked.filter(r => r.isDuplicate).length;
-      const newRecords = recordsChecked.filter(r => !r.isDuplicate).length;
+      // 2. NOVA ETAPA: Consolidar duplicatas DENTRO do arquivo
+      const consolidatedRecords = consolidateInFileRecords(validRecords, unitId);
+      const inFileConsolidatedCount = validRecords.length - consolidatedRecords.length;
+      setConsolidatedInFileCount(inFileConsolidatedCount);
       
-      setRecordsWithDuplicates(recordsChecked);
-      setDuplicateCount(duplicates);
+      // 3. Verificar duplicatas CONTRA O BANCO
+      const recordsChecked = await checkDuplicatesInDb(consolidatedRecords);
+      
+      const dbDuplicates = recordsChecked.filter(r => r.isDuplicate).length;
+      const newRecords = recordsChecked.filter(r => !r.isDuplicate);
+      
+      setRecordsToImport(newRecords);
+      setDuplicateCount(dbDuplicates);
       setParseResult({
         ...result,
-        validRecords: newRecords, // Apenas registros novos
+        validRecords: newRecords.length,
       });
       
-      if (duplicates > 0 && newRecords === 0) {
-        notifyWarning('Todos duplicados', `Todos os ${duplicates} registros já foram importados anteriormente.`);
-      } else if (duplicates > 0) {
-        notifyWarning('Duplicatas encontradas', `${duplicates} registros já importados serão ignorados. ${newRecords} novos serão importados.`);
-      } else if (newRecords > 0) {
-        notifySuccess('Arquivo processado', `${newRecords} registros válidos encontrados.`);
+      // Feedback ao usuário
+      if (inFileConsolidatedCount > 0) {
+        console.log(`Consolidação: ${inFileConsolidatedCount} linhas duplicadas no arquivo foram mescladas.`);
+      }
+      
+      if (dbDuplicates > 0 && newRecords.length === 0) {
+        notifyWarning('Todos duplicados', `Todos os registros já foram importados anteriormente.`);
+      } else if (dbDuplicates > 0 || inFileConsolidatedCount > 0) {
+        let msg = '';
+        if (inFileConsolidatedCount > 0) {
+          msg += `${inFileConsolidatedCount} linhas repetidas consolidadas. `;
+        }
+        if (dbDuplicates > 0) {
+          msg += `${dbDuplicates} já importados (ignorados). `;
+        }
+        msg += `${newRecords.length} novos para importar.`;
+        notifyWarning('Duplicatas tratadas', msg);
+      } else if (newRecords.length > 0) {
+        notifySuccess('Arquivo processado', `${newRecords.length} registros prontos para importar.`);
       } else {
         notifyError('Sem registros', 'Nenhum registro válido encontrado no arquivo.');
       }
@@ -152,10 +249,8 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
   const handleImport = async () => {
     if (!user || !parseResult) return;
 
-    // Filtrar apenas registros novos (não duplicados)
-    const newRecords = recordsWithDuplicates.filter(r => !r.isDuplicate && !r.error && r.valorPago > 0);
-    
-    if (newRecords.length === 0) {
+    // Usar registros já consolidados e verificados
+    if (recordsToImport.length === 0) {
       notifyWarning('Nada a importar', 'Todos os registros já foram importados anteriormente.');
       return;
     }
@@ -166,15 +261,17 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
       const accounts = Object.keys(unitAccounts).length > 0 ? unitAccounts : await loadUnitAccounts();
       
       // PRIMEIRO: Criar registros em lis_closure_items (tem constraint única)
-      const lisClosureItems = newRecords.map((record) => {
-        const cashValue = record.paymentMethod === 'DINHEIRO' ? record.valorPago : 0;
-        const receivableValue = record.paymentMethod !== 'DINHEIRO' ? record.valorPago : 0;
+      const lisClosureItems = recordsToImport.map((record) => {
+        // Usar valores consolidados se disponíveis, senão calcular
+        const cashValue = record.consolidatedCashComponent ?? (record.paymentMethod === 'DINHEIRO' ? record.valorPago : 0);
+        const receivableValue = record.consolidatedReceivableComponent ?? (record.paymentMethod !== 'DINHEIRO' ? record.valorPago : 0);
+        const paymentMethodStr = record.consolidatedPaymentMethod ?? record.paymentMethod;
 
         return {
           lis_code: record.codigo,
           date: record.data,
           amount: record.valorPago,
-          payment_method: record.paymentMethod,
+          payment_method: paymentMethodStr,
           patient_name: record.paciente,
           convenio: record.convenio,
           cash_component: cashValue,
@@ -192,17 +289,20 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
         .insert(lisClosureItems);
 
       if (lisError) {
-        // Se falhar aqui, nenhuma transaction foi criada ainda
         console.error('Erro ao inserir lis_closure_items:', lisError);
         throw new Error('Erro ao inserir itens de fechamento. Verifique se há duplicatas.');
       }
 
       // SEGUNDO: Criar transactions (após sucesso do lis_closure_items)
-      const transactions = newRecords.map((record) => {
+      const transactions = recordsToImport.map((record) => {
         let accountId = record.unitId ? accounts[record.unitId] : null;
         if (!accountId) {
           accountId = accounts['__fallback__'] || Object.values(accounts)[0];
         }
+
+        const desc = record.consolidatedCount > 1 
+          ? `[LIS ${record.codigo}] ${record.paciente} - ${record.convenio} (${record.consolidatedCount} lançamentos)`
+          : `[LIS ${record.codigo}] ${record.paciente} - ${record.convenio}`;
 
         return {
           date: record.data,
@@ -212,7 +312,7 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
           account_id: accountId,
           category_id: CATEGORY_RECEBIMENTO_CLIENTES,
           unit_id: record.unitId || unitId,
-          description: `[LIS ${record.codigo}] ${record.paciente} - ${record.convenio}`,
+          description: desc,
           status: 'APROVADO',
           approved_by: user.id,
           approved_at: new Date().toISOString(),
@@ -226,9 +326,9 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
 
       if (txError) throw txError;
 
-      setImportedCount(newRecords.length);
+      setImportedCount(recordsToImport.length);
       setImportSuccess(true);
-      notifySuccess('Importação concluída', `${newRecords.length} registros importados com sucesso!`);
+      notifySuccess('Importação concluída', `${recordsToImport.length} registros importados com sucesso!`);
     } catch (error) {
       console.error('Erro na importação:', error);
       notifyError('Erro na importação', error instanceof Error ? error.message : 'Não foi possível importar os dados.');
@@ -325,6 +425,15 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
                   </div>
                 )}
                 
+                {consolidatedInFileCount > 0 && (
+                  <div className="flex items-center gap-2 text-blue-600">
+                    <Layers className="h-5 w-5" />
+                    <span className="text-sm">
+                      {consolidatedInFileCount} linhas repetidas consolidadas automaticamente
+                    </span>
+                  </div>
+                )}
+
                 {duplicateCount > 0 && (
                   <div className="flex items-center gap-2 text-amber-600">
                     <AlertTriangle className="h-5 w-5" />
