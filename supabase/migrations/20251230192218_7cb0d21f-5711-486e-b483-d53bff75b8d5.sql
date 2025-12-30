@@ -1,0 +1,1 @@
+ALTER TABLE payables DROP CONSTRAINT IF EXISTS payables_boleto_requires_invoice;
