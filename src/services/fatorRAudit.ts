@@ -42,10 +42,27 @@ export interface TransactionWithCategory {
   } | null;
 }
 
+export interface PayableForFatorR {
+  id: string;
+  vencimento: string;
+  valor: number;
+  paid_amount?: number | null;
+  beneficiario?: string | null;
+  status: string;
+  matched_transaction_id?: string | null;
+  category?: {
+    id: string;
+    name: string;
+    tax_group: string | null;
+    entra_fator_r?: boolean;
+  } | null;
+}
+
 export function auditFatorR(
   transactions: TransactionWithCategory[],
   categories: Category[],
-  referenceMonth: string
+  referenceMonth: string,
+  payables?: PayableForFatorR[]
 ): FatorRAuditResult {
   const endDate = endOfMonth(new Date(referenceMonth + '-01'));
   const startDate = startOfMonth(subMonths(endDate, 11));
@@ -123,6 +140,66 @@ export function auditFatorR(
       }
     }
   });
+
+  // Processar payables pagos (folha, impostos, etc.)
+  // Evitar duplicidade: só incluir payables que NÃO têm matched_transaction_id
+  if (payables) {
+    payables.forEach((payable) => {
+      // Se o payable já está vinculado a uma transaction, pular para evitar duplicidade
+      if (payable.matched_transaction_id) return;
+      
+      // Só processar pagos
+      if (!['pago', 'PAGO'].includes(payable.status)) return;
+      
+      const dateValue = payable.vencimento;
+      if (!dateValue) return;
+      
+      const monthKey = format(new Date(dateValue), 'yyyy-MM');
+      const monthData = monthsMap.get(monthKey);
+      if (!monthData) return;
+      
+      const amount = Math.abs(Number(payable.paid_amount || payable.valor || 0));
+      const category = payable.category;
+      const fullCategory = category?.id ? categoriesMap.get(category.id) : null;
+      const taxGroup = category?.tax_group;
+      const entraFatorR = fullCategory?.entra_fator_r ?? category?.entra_fator_r ?? false;
+      
+      // Só processar despesas de PESSOAL
+      if (taxGroup === 'PESSOAL') {
+        monthData.categoriasDetalhadas.push({
+          categoryId: category?.id || 'unknown',
+          categoryName: category?.name || payable.beneficiario || 'Desconhecida',
+          entraFatorR,
+          valor: amount,
+        });
+        
+        if (entraFatorR) {
+          const catName = category?.name?.toLowerCase() || '';
+          const beneficiario = (payable.beneficiario || '').toLowerCase();
+          
+          if (catName.includes('pró-labore') || catName.includes('pro-labore') ||
+              beneficiario.includes('prolabore') || beneficiario.includes('pró-labore')) {
+            monthData.folhaProlabore += amount;
+          } else if (
+            catName.includes('inss') || catName.includes('fgts') || 
+            catName.includes('encargo') || catName.includes('patronal') ||
+            beneficiario.includes('inss') || beneficiario.includes('fgts') || beneficiario.includes('gps')
+          ) {
+            monthData.folhaEncargos += amount;
+          } else {
+            monthData.folhaSalarios += amount;
+          }
+          monthData.folhaTotal += amount;
+        } else {
+          monthData.folhaNaoFatorR += amount;
+        }
+        
+        if (fullCategory && fullCategory.entra_fator_r === null) {
+          categoriasNaoMapeadas.add(category?.name || payable.beneficiario || 'Desconhecida');
+        }
+      }
+    });
+  }
 
   // Calcular totais
   const meses = Array.from(monthsMap.values());

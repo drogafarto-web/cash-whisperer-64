@@ -412,20 +412,48 @@ export async function createPayableFromOcr(
 
     // Determinar beneficiário para guias tributárias e folha de pagamento
     let beneficiario = result.issuerName || 'FORNECEDOR NÃO IDENTIFICADO';
+    let categoryName: string | null = null;
+    
     if (isTaxDocument(result.documentType)) {
       const docLabel = DOCUMENT_TYPE_LABELS[result.documentType] || result.documentType.toUpperCase();
       beneficiario = `${docLabel} - Receita Federal`;
       if (result.documentType === 'gps') {
         beneficiario = 'GPS - Previdência Social';
+        categoryName = 'GPS - INSS Patronal';
       } else if (result.documentType === 'fgts') {
         beneficiario = 'FGTS - Caixa Econômica Federal';
+        categoryName = 'FGTS';
       } else if (result.documentType === 'das') {
         beneficiario = 'DAS - Simples Nacional';
+        categoryName = 'DAS - Simples Nacional';
+      } else if (result.documentType === 'darf') {
+        beneficiario = 'DARF - Receita Federal';
+        categoryName = 'DARF - IRRF';
+      } else if (result.documentType === 'inss_guia') {
+        beneficiario = 'INSS - Receita Federal';
+        categoryName = 'GPS - INSS Patronal';
       }
     } else if (isPayrollDocument(result.documentType)) {
       // Para holerites, o beneficiário é o funcionário (na descrição)
       // O issuerName é a empresa, então mantemos como beneficiário do payable
       beneficiario = result.description || result.issuerName || 'Folha de Pagamento';
+      categoryName = 'Salários e Ordenados';
+    }
+
+    // Buscar category_id se temos um nome de categoria
+    let categoryId: string | null = null;
+    if (categoryName) {
+      const { data: categoryData } = await supabase
+        .from('categories')
+        .select('id')
+        .eq('name', categoryName)
+        .eq('active', true)
+        .limit(1)
+        .maybeSingle();
+      
+      if (categoryData) {
+        categoryId = categoryData.id;
+      }
     }
 
     // Usar valor editado se disponível
@@ -448,6 +476,7 @@ export async function createPayableFromOcr(
       file_bucket: 'accounting-documents',
       ocr_confidence: typeof result.confidence === 'number' ? Number(result.confidence.toFixed(3)) : null,
       intended_payment_method: extras?.paymentMethod || null,
+      category_id: categoryId,
     };
 
     // Adicionar campos de edição OCR se o valor foi corrigido
