@@ -441,6 +441,27 @@ export function AccountingSmartUpload({
       const valorDoc = doc.analysisResult?.totalValue || doc.taxResult?.valor || 0;
       const vencimentoDoc = doc.analysisResult?.dueDate || doc.taxResult?.vencimento || 'N/A';
       
+      // CHECK FOR DUPLICATE IN accounting_lab_documents FIRST
+      const docAno = competencia?.ano || ano;
+      const docMes = competencia?.mes || mes;
+      
+      const { data: existingLabDoc } = await supabase
+        .from('accounting_lab_documents')
+        .select('id, valor, created_at')
+        .eq('unit_id', unitId)
+        .eq('tipo', taxType)
+        .eq('valor', valorDoc)
+        .eq('mes', docMes)
+        .eq('ano', docAno)
+        .maybeSingle();
+      
+      if (existingLabDoc) {
+        toast.warning(`Este ${taxType.toUpperCase()} (R$ ${valorDoc.toFixed(2)}) já foi cadastrado em ${docMes.toString().padStart(2, '0')}/${docAno}.`);
+        updateDocument(doc.id, { status: 'error', errorMessage: 'Documento duplicado em accounting_lab_documents' });
+        setCreatingPayableFor(null);
+        return; // BLOCK insertion
+      }
+      
       let insertedDocId: string | null = null;
       try {
         const { data: insertedDoc } = await supabase.from('accounting_lab_documents').insert({
@@ -462,8 +483,8 @@ export function AccountingSmartUpload({
         console.error('[handleTaxApply] Error inserting tax document:', {
           error: errorMessage,
           tipo: taxType,
-          ano: competencia?.ano || ano,
-          mes: competencia?.mes || mes,
+          ano: docAno,
+          mes: docMes,
         });
         
         // Show AI-powered error explanation

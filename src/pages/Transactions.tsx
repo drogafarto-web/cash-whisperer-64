@@ -73,7 +73,7 @@ export default function Transactions() {
         .select(`
           *,
           category:categories(*),
-          account:accounts(*),
+          account:accounts!transactions_account_id_fkey(*),
           partner:partners(*),
           unit:units(*),
           documents(*)
