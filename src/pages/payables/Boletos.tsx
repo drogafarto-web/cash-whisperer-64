@@ -21,7 +21,7 @@ import {
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
-
+import { AIErrorExplanation } from '@/components/ui/AIErrorExplanation';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -83,6 +83,9 @@ export default function BoletosPage() {
 
   // NF Link modal state
   const [payableToLink, setPayableToLink] = useState<PayableWithAccount | null>(null);
+
+  // AI Error state
+  const [aiError, setAiError] = useState<{ message: string; context?: Record<string, any> } | null>(null);
 
   // Fetch data with API filters
   const { data: allPayables = [], isLoading } = usePayablesWithPaymentData({
@@ -765,6 +768,18 @@ export default function BoletosPage() {
         beneficiario={payableToLink?.beneficiario || ''}
         valor={payableToLink?.valor || 0}
       />
+
+      {/* AI Error Explanation */}
+      {aiError && (
+        <div className="fixed bottom-20 right-4 max-w-md z-40">
+          <AIErrorExplanation
+            error={aiError.message}
+            context={aiError.context}
+            useAI={true}
+            onDismiss={() => setAiError(null)}
+          />
+        </div>
+      )}
     </AppLayout>
   );
 }

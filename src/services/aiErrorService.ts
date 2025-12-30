@@ -28,15 +28,39 @@ const LOCAL_ERROR_MAP: Record<string, ErrorExplanation> = {
     severity: 'error'
   },
   'duplicate key': {
-    title: 'Documento já existe',
-    explanation: 'Um documento com estas características já foi cadastrado.',
-    suggestion: 'Verifique se você já não fez este upload anteriormente.',
+    title: 'Registro já existe',
+    explanation: 'Um registro idêntico já foi cadastrado no sistema.',
+    suggestion: 'Verifique se você já não fez este cadastro anteriormente.',
     severity: 'warning'
+  },
+  'invalid input syntax for type uuid': {
+    title: 'Campo obrigatório não preenchido',
+    explanation: 'Um campo de identificação está vazio ou com formato inválido.',
+    suggestion: 'Preencha todos os campos obrigatórios e tente novamente.',
+    severity: 'error'
   },
   'row-level security': {
     title: 'Sem permissão',
     explanation: 'Você não tem permissão para realizar esta ação.',
     suggestion: 'Verifique se está na unidade correta ou contate o administrador.',
+    severity: 'error'
+  },
+  'violates check constraint': {
+    title: 'Valor inválido',
+    explanation: 'Um dos valores informados não é permitido pelo sistema.',
+    suggestion: 'Verifique os dados informados e corrija valores inválidos.',
+    severity: 'error'
+  },
+  'date/time': {
+    title: 'Data inválida',
+    explanation: 'O formato da data não é reconhecido pelo sistema.',
+    suggestion: 'Use o formato DD/MM/AAAA para as datas.',
+    severity: 'error'
+  },
+  'out of range': {
+    title: 'Data fora do intervalo',
+    explanation: 'A data informada está fora do período aceito.',
+    suggestion: 'Verifique se a data está correta e dentro do período permitido.',
     severity: 'error'
   },
   'storage': {
@@ -50,6 +74,18 @@ const LOCAL_ERROR_MAP: Record<string, ErrorExplanation> = {
     explanation: 'Não foi possível conectar ao servidor.',
     suggestion: 'Verifique sua conexão com a internet e tente novamente.',
     severity: 'error'
+  },
+  'formato de arquivo': {
+    title: 'Arquivo não suportado',
+    explanation: 'O tipo de arquivo enviado não é aceito.',
+    suggestion: 'Use arquivos XLS, XLSX ou PDF conforme a tela.',
+    severity: 'error'
+  },
+  'nenhum registro': {
+    title: 'Nenhum dado encontrado',
+    explanation: 'O arquivo não contém registros válidos para importação.',
+    suggestion: 'Verifique se o arquivo está no formato correto do LIS.',
+    severity: 'warning'
   }
 };
 

@@ -4,12 +4,14 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Upload, CheckCircle2, Loader2, FileSpreadsheet, AlertTriangle, Ban, Layers, Eye } from 'lucide-react';
-import { notifySuccess, notifyError, notifyWarning } from '@/lib/notify';
+import { notifySuccess, notifyWarning } from '@/lib/notify';
+import { handleError } from '@/lib/errorHandler';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { parseLisXls, ParseResult, LisRecord } from '@/utils/lisImport';
 import { format } from 'date-fns';
 import { ImportPreviewModal } from './ImportPreviewModal';
+import { AIErrorExplanation } from '@/components/ui/AIErrorExplanation';
 
 // ID da categoria "Recebimento de Clientes" 
 const CATEGORY_RECEBIMENTO_CLIENTES = '7ee0b99b-92a7-4e8f-bd71-337dbf0baf7e';
@@ -107,6 +109,7 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
   const [recordsToImport, setRecordsToImport] = useState<ConsolidatedRecord[]>([]);
   const [recordsIgnored, setRecordsIgnored] = useState<ConsolidatedRecord[]>([]);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [aiError, setAiError] = useState<{ message: string; context?: Record<string, any> } | null>(null);
 
   const loadUnitAccounts = async () => {
     const { data } = await supabase
@@ -194,7 +197,7 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
       file.name.endsWith('.xlsx');
 
     if (!isValidType) {
-      notifyError('Arquivo inválido', 'Por favor, selecione um arquivo XLS ou XLSX.');
+      handleError(new Error('Formato de arquivo não suportado'), { screen: 'Importação LIS', action: 'validar_arquivo' });
       return;
     }
 
@@ -250,11 +253,19 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
       } else if (newRecords.length > 0) {
         notifySuccess('Arquivo processado', `${newRecords.length} registros prontos para importar.`);
       } else {
-        notifyError('Sem registros', 'Nenhum registro válido encontrado no arquivo.');
+        setAiError({ 
+          message: 'Nenhum registro válido encontrado no arquivo.',
+          context: { screen: 'Importação LIS', action: 'processar_arquivo' }
+        });
       }
     } catch (error) {
       console.error('Erro ao processar arquivo:', error);
-      notifyError('Erro ao processar', 'Não foi possível ler o arquivo.');
+      const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido';
+      setAiError({ 
+        message: errorMsg,
+        context: { screen: 'Importação LIS', action: 'processar_arquivo', fileName }
+      });
+      handleError(error, { screen: 'Importação LIS', action: 'processar_arquivo' });
     } finally {
       setIsLoading(false);
     }
@@ -351,11 +362,17 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
       console.error('Erro na importação:', error);
       const errorMsg = error instanceof Error ? error.message : 'Não foi possível importar os dados.';
       
+      setAiError({
+        message: errorMsg,
+        context: { screen: 'Importação LIS', action: 'importar_registros', recordCount: recordsToImport.length }
+      });
+      
       // Detectar erro de data e mostrar mensagem mais clara
       if (errorMsg.includes('date/time') || errorMsg.includes('out of range')) {
-        notifyError('Erro de data', 'Uma ou mais datas no arquivo estão em formato inválido. Verifique se as datas estão no formato DD/MM/AAAA.');
+        handleError(new Error('Uma ou mais datas no arquivo estão em formato inválido. Verifique se as datas estão no formato DD/MM/AAAA.'), 
+          { screen: 'Importação LIS', action: 'validar_data' });
       } else {
-        notifyError('Erro na importação', errorMsg);
+        handleError(error, { screen: 'Importação LIS', action: 'importar_registros' });
       }
     } finally {
       setIsImporting(false);
@@ -522,6 +539,18 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
         consolidatedCount={consolidatedInFileCount}
         isImporting={isImporting}
       />
+
+      {/* AI Error Explanation */}
+      {aiError && (
+        <div className="fixed bottom-20 right-4 max-w-md z-40">
+          <AIErrorExplanation
+            error={aiError.message}
+            context={aiError.context}
+            useAI={true}
+            onDismiss={() => setAiError(null)}
+          />
+        </div>
+      )}
     </div>
   );
 }
