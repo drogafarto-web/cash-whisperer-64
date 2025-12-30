@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { AccountingProcessingCard } from './AccountingProcessingCard';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -40,6 +41,7 @@ interface AccountingKioskHomeProps {
   competence: Date;
   onViewData: (section: AccountingSection) => void;
   onSendDocuments: () => void;
+  onSmartUpload: () => void;
   isAccountingRole?: boolean;
 }
 
@@ -77,6 +79,7 @@ export function AccountingKioskHome({
   competence, 
   onViewData, 
   onSendDocuments,
+  onSmartUpload,
   isAccountingRole = true,
 }: AccountingKioskHomeProps) {
   const navigate = useNavigate();
@@ -214,6 +217,9 @@ export function AccountingKioskHome({
           </div>
         </div>
       </div>
+
+      {/* Card de Processamento Inteligente no topo */}
+      <AccountingProcessingCard onProcess={onSmartUpload} />
 
       {/* Quick Access Section */}
       <div className="border-t pt-6">

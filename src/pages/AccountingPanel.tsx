@@ -6,6 +6,7 @@ import { Calculator, ChevronDown, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ShieldAlert } from 'lucide-react';
+import { toast } from 'sonner';
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -26,10 +27,11 @@ import { AccountingKioskHome, type AccountingSection } from '@/components/accoun
 import { AccountingViewData } from '@/components/accounting/AccountingViewData';
 import { AccountingSendDocuments } from '@/components/accounting/AccountingSendDocuments';
 import { AccountingDataForm } from '@/components/accounting/AccountingDataForm';
+import { AccountingSmartUpload } from '@/components/accounting/AccountingSmartUpload';
 import { canAccess, getPermissionLevel } from '@/lib/access-policy';
 import type { AppRole } from '@/types/database';
 
-type Step = 'home' | 'view-data' | 'edit-data' | 'send-documents';
+type Step = 'home' | 'view-data' | 'edit-data' | 'send-documents' | 'smart-upload';
 
 interface Unit {
   id: string;
@@ -103,6 +105,7 @@ function AccountingPanelContent({ isAccountingRole }: { isAccountingRole: boolea
     'view-data': 'Dados da Contabilidade',
     'edit-data': 'Editar Dados',
     'send-documents': 'Enviar Documentos',
+    'smart-upload': 'Processamento Inteligente',
   };
 
   return (
@@ -193,6 +196,7 @@ function AccountingPanelContent({ isAccountingRole }: { isAccountingRole: boolea
               setCurrentStep(isAccountingRole ? 'edit-data' : 'view-data');
             }}
             onSendDocuments={() => setCurrentStep('send-documents')}
+            onSmartUpload={() => setCurrentStep('smart-upload')}
             isAccountingRole={isAccountingRole}
           />
         )}
@@ -228,6 +232,27 @@ function AccountingPanelContent({ isAccountingRole }: { isAccountingRole: boolea
               setCurrentStep('home');
             }}
           />
+        )}
+
+        {currentStep === 'smart-upload' && selectedUnitId && (
+          <div className="space-y-6">
+            <Button variant="ghost" onClick={() => setCurrentStep('home')} className="gap-2">
+              ← Voltar
+            </Button>
+            <AccountingSmartUpload
+              unitId={selectedUnitId}
+              ano={competence.getFullYear()}
+              mes={competence.getMonth() + 1}
+              onTaxApply={(taxType, valor, vencimento) => {
+                console.log('Tax data applied:', { taxType, valor, vencimento });
+                toast.success(`${taxType.toUpperCase()} aplicado: R$ ${valor.toFixed(2)}`);
+              }}
+              onPayrollApply={(data) => {
+                console.log('Payroll data applied:', data);
+                toast.success('Dados de folha aplicados');
+              }}
+            />
+          </div>
         )}
       </main>
     </div>

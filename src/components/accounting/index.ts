@@ -16,3 +16,4 @@ export { ConsistencyValidation } from './ConsistencyValidation';
 export { AccountingBatchUpload } from './AccountingBatchUpload';
 export { TaxSummaryCard } from './TaxSummaryCard';
 export { TaxDueDateAlert, DueDateBadge } from './TaxDueDateAlert';
+export { AccountingProcessingCard } from './AccountingProcessingCard';
