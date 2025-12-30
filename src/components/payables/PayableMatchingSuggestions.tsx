@@ -3,6 +3,7 @@ import { AlertTriangle, Check, X, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -139,9 +140,9 @@ export function PayableMatchingSuggestions({
             {visibleMatches.length > 5 && (
               <p className="text-center text-sm text-muted-foreground">
                 +{visibleMatches.length - 5} outros matches encontrados.{' '}
-                <a href="/payables/reconciliation" className="text-primary underline">
+                <Link to="/payables/reconciliation" className="text-primary underline">
                   Ver todos
-                </a>
+                </Link>
               </p>
             )}
           </div>
