@@ -19,7 +19,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { AccountingOcrResultCard } from '@/components/accounting/AccountingOcrResultCard';
 import { PaymentDataModal } from '@/components/payables/PaymentDataModal';
-import { DocumentConfirmationModal, PaymentMethodType } from './DocumentConfirmationModal';
+import { DocumentConfirmationModal, PaymentMethodType, OcrEditInfo } from './DocumentConfirmationModal';
 import { 
   analyzeAccountingDocument, 
   createInvoiceFromOcr,
@@ -64,6 +64,14 @@ const MAX_CONCURRENT = 2;
 export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUploadProps) {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  
+  // Get current user on mount
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserId(data.user?.id || null);
+    });
+  }, []);
   
   const [documentQueue, setDocumentQueue] = useState<QueuedDocument[]>([]);
   const [ocrResults, setOcrResults] = useState<OcrResult[]>([]);
@@ -273,7 +281,7 @@ export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUpl
 
   const handleConfirmClassification = useCallback(async (
     confirmedType: 'revenue' | 'expense',
-    extras?: { description?: string; paymentMethod?: PaymentMethodType; needsReconciliation?: boolean }
+    extras?: { description?: string; paymentMethod?: PaymentMethodType; needsReconciliation?: boolean; ocrEdit?: OcrEditInfo }
   ) => {
     if (!confirmingDoc || !unitId || !confirmingDoc.result || !confirmingDoc.filePath) return;
 
@@ -327,7 +335,7 @@ export function ReceptionDocumentUpload({ onBack, unitId }: ReceptionDocumentUpl
           duplicateId = dupCheck.existingId;
           recordType = 'payable';
         } else {
-          const createResult = await createPayableFromOcr(result, unitId, filePath, file.name, extras);
+          const createResult = await createPayableFromOcr(result, unitId, filePath, file.name, extras, currentUserId || undefined);
           
           if (createResult.error === 'duplicate') {
             isDuplicate = true;
