@@ -403,9 +403,29 @@ export function AccountingSmartUpload({
         }).select('id').single();
         insertedDocId = insertedDoc?.id || null;
         console.log('[handleTaxApply] Tax document saved to accounting_lab_documents');
-      } catch (insertError) {
-        console.error('[handleTaxApply] Error inserting tax document:', insertError);
-        toast.warning('Documento salvo, mas pode não aparecer na lista de tributários.');
+      } catch (insertError: any) {
+        const errorMessage = insertError?.message || String(insertError);
+        console.error('[handleTaxApply] Error inserting tax document:', {
+          error: errorMessage,
+          tipo: taxType,
+          ano: competencia?.ano || ano,
+          mes: competencia?.mes || mes,
+        });
+        
+        // Mensagens específicas para cada tipo de erro de constraint
+        if (errorMessage.includes('ano_check')) {
+          toast.error(
+            `Ano da competência (${competencia?.ano || ano}) fora do intervalo permitido (2020-2099).`
+          );
+        } else if (errorMessage.includes('tipo_check')) {
+          toast.error(`Tipo de documento "${taxType}" não é suportado pelo sistema.`);
+        } else if (errorMessage.includes('mes_check')) {
+          toast.error(`Mês da competência (${competencia?.mes || mes}) inválido (deve ser 1-12).`);
+        } else {
+          toast.warning(
+            'Documento não foi salvo na lista de tributários. A conta a pagar ainda será criada se possível.'
+          );
+        }
       }
       
       // 2. Try to create the payable (if possible)
