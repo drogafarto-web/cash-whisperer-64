@@ -298,13 +298,17 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
         };
       });
 
+      // Usa upsert com ignoreDuplicates para simplesmente ignorar códigos duplicados
       const { error: lisError } = await supabase
         .from('lis_closure_items')
-        .insert(lisClosureItems);
+        .upsert(lisClosureItems, {
+          onConflict: 'unit_id,date,lis_code',
+          ignoreDuplicates: true
+        });
 
       if (lisError) {
         console.error('Erro ao inserir lis_closure_items:', lisError);
-        throw new Error('Erro ao inserir itens de fechamento. Verifique se há duplicatas.');
+        throw new Error('Erro ao inserir itens de fechamento.');
       }
 
       // SEGUNDO: Criar transactions (após sucesso do lis_closure_items)
