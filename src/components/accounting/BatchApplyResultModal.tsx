@@ -131,15 +131,27 @@ export function BatchApplyResultModal({
           </div>
         </div>
         
-        {/* Warnings */}
-        {(result.duplicatesFound > 0 || result.errorsCount > 0 || (result.payablesSkipped ?? 0) > 0) && (
+        {/* Critical Warning for Skipped Payables */}
+        {(result.payablesSkipped ?? 0) > 0 && (
+          <div className="p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-medium text-orange-700 dark:text-orange-400">
+                  {result.payablesSkipped} documento(s) sem conta a pagar
+                </p>
+                <p className="text-sm text-orange-600 dark:text-orange-500 mt-1">
+                  Os valores foram aplicados ao painel contábil, mas as contas a pagar não foram criadas 
+                  porque os arquivos não foram salvos corretamente. Considere reenviar estes documentos.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Other Warnings */}
+        {(result.duplicatesFound > 0 || result.errorsCount > 0) && (
           <div className="flex gap-2 flex-wrap">
-            {(result.payablesSkipped ?? 0) > 0 && (
-              <Badge variant="outline" className="gap-1 border-orange-500 text-orange-600">
-                <AlertTriangle className="h-3 w-3" />
-                {result.payablesSkipped} sem conta a pagar (arquivo ausente)
-              </Badge>
-            )}
             {result.duplicatesFound > 0 && (
               <Badge variant="outline" className="gap-1 border-amber-500 text-amber-600">
                 <AlertTriangle className="h-3 w-3" />
