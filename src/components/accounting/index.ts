@@ -17,3 +17,4 @@ export { AccountingBatchUpload } from './AccountingBatchUpload';
 export { TaxSummaryCard } from './TaxSummaryCard';
 export { TaxDueDateAlert, DueDateBadge } from './TaxDueDateAlert';
 export { AccountingProcessingCard } from './AccountingProcessingCard';
+export { BatchApplyResultModal } from './BatchApplyResultModal';
