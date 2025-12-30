@@ -97,14 +97,29 @@ export default function Auth() {
 
     setIsLoading(true);
     const { error } = await signIn(loginEmail, loginPassword);
-    setIsLoading(false);
 
     if (error) {
+      setIsLoading(false);
       if (error.message.includes('Invalid login credentials')) {
         toast.error('Email ou senha incorretos');
       } else {
         toast.error('Erro ao fazer login. Tente novamente.');
       }
+      return;
+    }
+
+    // Check if user must change password
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('must_change_password')
+      .eq('email', loginEmail.toLowerCase())
+      .single();
+
+    setIsLoading(false);
+
+    if (profile?.must_change_password) {
+      toast.info('Por favor, defina uma nova senha para continuar.');
+      navigate('/reset-password?force=true');
       return;
     }
 
