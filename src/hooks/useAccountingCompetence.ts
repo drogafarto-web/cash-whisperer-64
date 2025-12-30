@@ -421,3 +421,85 @@ export function useSubmitToAccounting() {
     },
   });
 }
+
+// ========================================
+// PROCESSED TAX DOCUMENTS (from Smart Upload)
+// ========================================
+
+export interface ProcessedTaxDocument {
+  id: string;
+  unit_id: string;
+  ano: number;
+  mes: number;
+  tipo: string;
+  file_name: string;
+  file_path: string;
+  valor: number | null;
+  descricao: string | null;
+  payable_status: string | null;
+  created_at: string;
+}
+
+// Fetch processed tax documents from Smart Upload
+export function useProcessedTaxDocuments(unitId: string | null, ano: number, mes: number) {
+  return useQuery({
+    queryKey: ['processed-tax-documents', unitId, ano, mes],
+    queryFn: async () => {
+      if (!unitId) return [];
+      
+      const { data, error } = await supabase
+        .from('accounting_lab_documents')
+        .select('*')
+        .eq('unit_id', unitId)
+        .eq('ano', ano)
+        .eq('mes', mes)
+        .in('tipo', ['das', 'darf', 'gps', 'inss', 'fgts', 'iss'])
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data as ProcessedTaxDocument[];
+    },
+    enabled: !!unitId && ano >= 2020,
+  });
+}
+
+// Aggregate processed documents by tax type (get latest for each type)
+export function aggregateProcessedTaxDocs(docs: ProcessedTaxDocument[] | undefined) {
+  if (!docs?.length) return {};
+  
+  const aggregated: Record<string, ProcessedTaxDocument> = {};
+  
+  docs.forEach(doc => {
+    // Keep only the most recent document for each type
+    if (!aggregated[doc.tipo]) {
+      aggregated[doc.tipo] = doc;
+    }
+  });
+  
+  return aggregated;
+}
+
+// Mark processed documents as synced after saving
+export function useMarkDocumentsSynced() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ unitId, ano, mes }: { unitId: string; ano: number; mes: number }) => {
+      const { error } = await supabase
+        .from('accounting_lab_documents')
+        .update({ payable_status: 'synced' })
+        .eq('unit_id', unitId)
+        .eq('ano', ano)
+        .eq('mes', mes)
+        .in('tipo', ['das', 'darf', 'gps', 'inss', 'fgts', 'iss']);
+      
+      if (error) throw error;
+      return true;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ 
+        queryKey: ['processed-tax-documents', variables.unitId, variables.ano, variables.mes] 
+      });
+    },
+  });
+}
