@@ -3,12 +3,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Upload, CheckCircle2, Loader2, FileSpreadsheet, AlertTriangle, Ban, Layers } from 'lucide-react';
+import { ArrowLeft, Upload, CheckCircle2, Loader2, FileSpreadsheet, AlertTriangle, Ban, Layers, Eye } from 'lucide-react';
 import { notifySuccess, notifyError, notifyWarning } from '@/lib/notify';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { parseLisXls, ParseResult, LisRecord } from '@/utils/lisImport';
 import { format } from 'date-fns';
+import { ImportPreviewModal } from './ImportPreviewModal';
 
 // ID da categoria "Recebimento de Clientes" 
 const CATEGORY_RECEBIMENTO_CLIENTES = '7ee0b99b-92a7-4e8f-bd71-337dbf0baf7e';
@@ -21,20 +22,20 @@ interface ReceptionImportProps {
 // Tipo para registro consolidado com campos extras
 interface ConsolidatedRecord extends LisRecord {
   consolidatedCount: number;
-  // Campos calculados para consolidação
   consolidatedCashComponent?: number;
   consolidatedReceivableComponent?: number;
-  consolidatedPaymentMethod?: string; // Pode ser 'MISTO' 
+  consolidatedPaymentMethod?: string;
+  // Campos de auditoria para duplicados (sobrescrevem LisRecord)
+  originalImportedAt?: string;
+  originalImportedBy?: string;
 }
 
 /**
  * Consolida registros duplicados DENTRO do mesmo arquivo
- * Agrupa por (unitId, data, codigo) e soma valores
  */
 function consolidateInFileRecords(records: LisRecord[], defaultUnitId: string | null): ConsolidatedRecord[] {
   const groupedMap = new Map<string, LisRecord[]>();
   
-  // Agrupar por chave única
   for (const record of records) {
     const key = `${record.unitId || defaultUnitId}|${record.data}|${record.codigo}`;
     const group = groupedMap.get(key) || [];
@@ -42,31 +43,24 @@ function consolidateInFileRecords(records: LisRecord[], defaultUnitId: string | 
     groupedMap.set(key, group);
   }
   
-  // Consolidar cada grupo
   const consolidated: ConsolidatedRecord[] = [];
   
   for (const [_key, group] of groupedMap) {
     if (group.length === 1) {
-      // Sem duplicata interna
       consolidated.push({ ...group[0], consolidatedCount: 1 });
     } else {
-      // Consolidar múltiplos registros
       const first = group[0];
-      
-      // Somar valores
       const valorPago = group.reduce((sum, r) => sum + (r.valorPago || 0), 0);
       const valorBruto = group.reduce((sum, r) => sum + (r.valorBruto || 0), 0);
       const valorDesconto = group.reduce((sum, r) => sum + (r.valorDesconto || 0), 0);
       const valorAcrescimo = group.reduce((sum, r) => sum + (r.valorAcrescimo || 0), 0);
       
-      // Verificar se métodos de pagamento são diferentes
       const paymentMethods = [...new Set(group.map(r => r.paymentMethod))];
       let consolidatedPaymentMethod = first.paymentMethod as string;
       let consolidatedCashComponent = 0;
       let consolidatedReceivableComponent = 0;
       
       if (paymentMethods.length > 1) {
-        // Métodos diferentes: consolidar como MISTO
         consolidatedPaymentMethod = 'MISTO';
         consolidatedCashComponent = group
           .filter(r => r.paymentMethod === 'DINHEIRO')
@@ -75,7 +69,6 @@ function consolidateInFileRecords(records: LisRecord[], defaultUnitId: string | 
           .filter(r => r.paymentMethod !== 'DINHEIRO')
           .reduce((sum, r) => sum + (r.valorPago || 0), 0);
       } else {
-        // Mesmo método
         consolidatedCashComponent = first.paymentMethod === 'DINHEIRO' ? valorPago : 0;
         consolidatedReceivableComponent = first.paymentMethod !== 'DINHEIRO' ? valorPago : 0;
       }
@@ -112,6 +105,8 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
   const [duplicateCount, setDuplicateCount] = useState(0);
   const [consolidatedInFileCount, setConsolidatedInFileCount] = useState(0);
   const [recordsToImport, setRecordsToImport] = useState<ConsolidatedRecord[]>([]);
+  const [recordsIgnored, setRecordsIgnored] = useState<ConsolidatedRecord[]>([]);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
 
   const loadUnitAccounts = async () => {
     const { data } = await supabase
@@ -139,29 +134,48 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
     return {};
   };
 
-  // Verificar duplicatas em lis_closure_items (contra o banco)
-  const checkDuplicatesInDb = async (records: ConsolidatedRecord[]): Promise<ConsolidatedRecord[]> => {
-    if (records.length === 0) return [];
+  // Verificar duplicatas e buscar metadados de auditoria
+  const checkDuplicatesInDb = async (records: ConsolidatedRecord[]): Promise<{ toImport: ConsolidatedRecord[], ignored: ConsolidatedRecord[] }> => {
+    if (records.length === 0) return { toImport: [], ignored: [] };
 
     const dates = [...new Set(records.map(r => r.data))];
     const codes = [...new Set(records.map(r => r.codigo))];
 
+    // Buscar registros existentes COM metadados de auditoria
     const { data: existingItems } = await supabase
       .from('lis_closure_items')
-      .select('lis_code, date, unit_id')
+      .select('lis_code, date, unit_id, created_at')
       .in('date', dates)
       .in('lis_code', codes);
 
-    const existingKeys = new Set(
-      (existingItems || []).map(item => 
-        `${item.unit_id || unitId}|${item.date}|${item.lis_code}`
-      )
+    // Mapear duplicatas com metadados
+    const existingMap = new Map(
+      (existingItems || []).map(item => [
+        `${item.unit_id || unitId}|${item.date}|${item.lis_code}`,
+        { createdAt: item.created_at }
+      ])
     );
 
-    return records.map(record => ({
-      ...record,
-      isDuplicate: existingKeys.has(`${record.unitId || unitId}|${record.data}|${record.codigo}`)
-    }));
+    const toImport: ConsolidatedRecord[] = [];
+    const ignored: ConsolidatedRecord[] = [];
+
+    for (const record of records) {
+      const key = `${record.unitId || unitId}|${record.data}|${record.codigo}`;
+      const existing = existingMap.get(key);
+      
+      if (existing) {
+        ignored.push({
+          ...record,
+          isDuplicate: true,
+          originalImportedAt: existing.createdAt || undefined,
+          originalImportedBy: 'Importação anterior',
+        });
+      } else {
+        toImport.push(record);
+      }
+    }
+
+    return { toImport, ignored };
   };
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -204,32 +218,32 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
       setConsolidatedInFileCount(inFileConsolidatedCount);
       
       // 3. Verificar duplicatas CONTRA O BANCO
-      const recordsChecked = await checkDuplicatesInDb(consolidatedRecords);
+      const { toImport, ignored } = await checkDuplicatesInDb(consolidatedRecords);
       
-      const dbDuplicates = recordsChecked.filter(r => r.isDuplicate).length;
-      const newRecords = recordsChecked.filter(r => !r.isDuplicate);
-      
-      setRecordsToImport(newRecords);
-      setDuplicateCount(dbDuplicates);
+      setRecordsToImport(toImport);
+      setRecordsIgnored(ignored);
+      setDuplicateCount(ignored.length);
       setParseResult({
         ...result,
-        validRecords: newRecords.length,
+        validRecords: toImport.length,
       });
+      
+      const newRecords = toImport;
       
       // Feedback ao usuário
       if (inFileConsolidatedCount > 0) {
         console.log(`Consolidação: ${inFileConsolidatedCount} linhas duplicadas no arquivo foram mescladas.`);
       }
       
-      if (dbDuplicates > 0 && newRecords.length === 0) {
+      if (ignored.length > 0 && newRecords.length === 0) {
         notifyWarning('Todos duplicados', `Todos os registros já foram importados anteriormente.`);
-      } else if (dbDuplicates > 0 || inFileConsolidatedCount > 0) {
+      } else if (ignored.length > 0 || inFileConsolidatedCount > 0) {
         let msg = '';
         if (inFileConsolidatedCount > 0) {
           msg += `${inFileConsolidatedCount} linhas repetidas consolidadas. `;
         }
-        if (dbDuplicates > 0) {
-          msg += `${dbDuplicates} já importados (ignorados). `;
+        if (ignored.length > 0) {
+          msg += `${ignored.length} já importados (ignorados). `;
         }
         msg += `${newRecords.length} novos para importar.`;
         notifyWarning('Duplicatas tratadas', msg);
@@ -453,22 +467,50 @@ export function ReceptionImport({ onBack, unitId }: ReceptionImportProps) {
 
             <Button
               size="lg"
-              className="w-full h-14 text-lg"
-              onClick={handleImport}
+              className="w-full h-14 text-lg gap-2"
+              onClick={() => setShowPreviewModal(true)}
               disabled={!parseResult || parseResult.validRecords === 0 || isImporting}
             >
-              {isImporting ? (
-                <>
-                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                  Importando...
-                </>
-              ) : (
-                'Importar Movimento'
-              )}
+              <Eye className="h-5 w-5" />
+              Revisar e Importar
             </Button>
           </div>
         </CardContent>
       </Card>
+
+      {/* Modal de Pré-Visualização */}
+      <ImportPreviewModal
+        open={showPreviewModal}
+        onClose={() => setShowPreviewModal(false)}
+        onConfirm={() => {
+          setShowPreviewModal(false);
+          handleImport();
+        }}
+        recordsToImport={recordsToImport.map(r => ({
+          codigo: r.codigo,
+          paciente: r.paciente,
+          convenio: r.convenio,
+          valorPago: r.valorPago,
+          paymentMethod: r.consolidatedPaymentMethod || r.paymentMethod,
+          unitId: r.unitId || unitId || '',
+          data: r.data,
+          consolidatedCount: r.consolidatedCount,
+        }))}
+        recordsIgnored={recordsIgnored.map(r => ({
+          codigo: r.codigo,
+          paciente: r.paciente,
+          convenio: r.convenio,
+          valorPago: r.valorPago,
+          paymentMethod: r.paymentMethod,
+          unitId: r.unitId || unitId || '',
+          data: r.data,
+          isDuplicate: true,
+          originalImportedAt: r.originalImportedAt,
+          originalImportedBy: r.originalImportedBy,
+        }))}
+        consolidatedCount={consolidatedInFileCount}
+        isImporting={isImporting}
+      />
     </div>
   );
 }
