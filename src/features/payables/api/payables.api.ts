@@ -206,7 +206,7 @@ export async function fetchPendingPayablesForReconciliation(unitId?: string) {
   let query = supabase
     .from('payables')
     .select('*')
-    .in('status', ['pendente', 'vencido'])
+    .in('status', ['pendente', 'vencido', 'PENDENTE', 'VENCIDO'])
     .is('matched_transaction_id', null)
     .is('matched_bank_item_id', null)
     .order('vencimento', { ascending: true });

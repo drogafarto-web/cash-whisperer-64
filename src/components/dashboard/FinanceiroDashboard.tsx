@@ -69,14 +69,14 @@ export function FinanceiroDashboard() {
       const { data: vencidos } = await supabase
         .from('payables')
         .select('valor')
-        .eq('status', 'pendente')
+        .in('status', ['pendente', 'PENDENTE'])
         .lt('vencimento', todayStart);
 
       // Fetch próximos 7 dias
       const { data: proximos } = await supabase
         .from('payables')
         .select('valor')
-        .eq('status', 'pendente')
+        .in('status', ['pendente', 'PENDENTE'])
         .gte('vencimento', todayStart)
         .lte('vencimento', in7days);
 
@@ -84,14 +84,14 @@ export function FinanceiroDashboard() {
       const { data: pagos } = await supabase
         .from('payables')
         .select('paid_amount')
-        .eq('status', 'pago')
+        .in('status', ['pago', 'PAGO'])
         .gte('paid_at', monthStart);
 
       // Fetch pending matches
       const { data: pending } = await supabase
         .from('payables')
         .select('id')
-        .eq('status', 'pendente')
+        .in('status', ['pendente', 'PENDENTE'])
         .not('matched_bank_item_id', 'is', null);
 
       setSummary({

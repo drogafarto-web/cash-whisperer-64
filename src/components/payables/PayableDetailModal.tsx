@@ -513,7 +513,7 @@ export function PayableDetailModal({
               )}
 
               {/* Payment Info (if paid) */}
-              {payable.status === 'pago' && payable.paid_at && (
+              {(payable.status === 'pago' || payable.status === 'PAGO') && payable.paid_at && (
                 <>
                   <Separator />
                   <div className="space-y-2">

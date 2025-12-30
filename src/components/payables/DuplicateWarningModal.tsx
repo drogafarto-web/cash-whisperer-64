@@ -61,13 +61,14 @@ export function DuplicateWarningModal({
   };
 
   const getStatusLabel = (status: string) => {
+    const normalizedStatus = status?.toLowerCase();
     const labels: Record<string, string> = {
       pendente: 'Pendente',
       pago: 'Pago',
       vencido: 'Vencido',
       cancelado: 'Cancelado',
     };
-    return labels[status] || status;
+    return labels[normalizedStatus] || status;
   };
 
   return (
@@ -119,9 +120,9 @@ export function DuplicateWarningModal({
                 <span className="text-muted-foreground">Status:</span>{' '}
                 <span className={cn(
                   'font-medium',
-                  duplicateCheck.existingData.status === 'pago' && 'text-emerald-600',
-                  duplicateCheck.existingData.status === 'pendente' && 'text-amber-600',
-                  duplicateCheck.existingData.status === 'vencido' && 'text-destructive'
+                  (duplicateCheck.existingData.status?.toUpperCase() === 'PAGO') && 'text-emerald-600',
+                  (duplicateCheck.existingData.status?.toUpperCase() === 'PENDENTE') && 'text-amber-600',
+                  (duplicateCheck.existingData.status?.toUpperCase() === 'VENCIDO') && 'text-destructive'
                 )}>
                   {getStatusLabel(duplicateCheck.existingData.status)}
                 </span>
