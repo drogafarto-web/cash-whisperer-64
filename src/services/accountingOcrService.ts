@@ -365,13 +365,22 @@ export async function createInvoiceFromOcr(
   }
 }
 
+// Interface para dados de edição OCR
+export interface OcrEditData {
+  ocrValueEdited: boolean;
+  ocrOriginalValue: number;
+  ocrEditReason: string;
+  editedValue: number;
+}
+
 // Cria payable (despesa) a partir do OCR
 export async function createPayableFromOcr(
   result: AnalyzedDocResult,
   unitId: string,
   filePath: string,
   fileName: string,
-  extras?: { description?: string; paymentMethod?: string }
+  extras?: { description?: string; paymentMethod?: string; ocrEdit?: OcrEditData },
+  userId?: string
 ): Promise<{ success: boolean; id?: string; error?: string; matchType?: string }> {
   try {
     // Verificar duplicidade priorizando codigo_barras e linha_digitavel
@@ -419,11 +428,16 @@ export async function createPayableFromOcr(
       beneficiario = result.description || result.issuerName || 'Folha de Pagamento';
     }
 
+    // Usar valor editado se disponível
+    const finalValue = extras?.ocrEdit?.ocrValueEdited 
+      ? extras.ocrEdit.editedValue 
+      : (result.totalValue || 0);
+
     const payableData: Record<string, any> = {
       unit_id: unitId,
       beneficiario,
       beneficiario_cnpj: normalizeCnpj(result.issuerCnpj),
-      valor: result.totalValue || 0,
+      valor: finalValue,
       vencimento,
       description: extras?.description || result.description || `Documento ${result.documentNumber || ''}`.trim(),
       document_number: result.documentNumber || null,
@@ -435,6 +449,15 @@ export async function createPayableFromOcr(
       ocr_confidence: typeof result.confidence === 'number' ? Number(result.confidence.toFixed(3)) : null,
       intended_payment_method: extras?.paymentMethod || null,
     };
+
+    // Adicionar campos de edição OCR se o valor foi corrigido
+    if (extras?.ocrEdit?.ocrValueEdited) {
+      payableData.ocr_original_value = extras.ocrEdit.ocrOriginalValue;
+      payableData.ocr_value_edited = true;
+      payableData.ocr_edit_reason = extras.ocrEdit.ocrEditReason;
+      payableData.ocr_edited_by = userId || null;
+      payableData.ocr_edited_at = new Date().toISOString();
+    }
 
     // Adicionar campos extras para guias tributárias (normalizados)
     if (result.codigoBarras) {

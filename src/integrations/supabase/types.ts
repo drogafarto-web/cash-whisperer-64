@@ -2050,6 +2050,11 @@ export type Database = {
           nf_exemption_reason: string | null
           nf_vinculacao_status: string | null
           ocr_confidence: number | null
+          ocr_edit_reason: string | null
+          ocr_edited_at: string | null
+          ocr_edited_by: string | null
+          ocr_original_value: number | null
+          ocr_value_edited: boolean | null
           paid_amount: number | null
           paid_at: string | null
           paid_method: string | null
@@ -2089,6 +2094,11 @@ export type Database = {
           nf_exemption_reason?: string | null
           nf_vinculacao_status?: string | null
           ocr_confidence?: number | null
+          ocr_edit_reason?: string | null
+          ocr_edited_at?: string | null
+          ocr_edited_by?: string | null
+          ocr_original_value?: number | null
+          ocr_value_edited?: boolean | null
           paid_amount?: number | null
           paid_at?: string | null
           paid_method?: string | null
@@ -2128,6 +2138,11 @@ export type Database = {
           nf_exemption_reason?: string | null
           nf_vinculacao_status?: string | null
           ocr_confidence?: number | null
+          ocr_edit_reason?: string | null
+          ocr_edited_at?: string | null
+          ocr_edited_by?: string | null
+          ocr_original_value?: number | null
+          ocr_value_edited?: boolean | null
           paid_amount?: number | null
           paid_at?: string | null
           paid_method?: string | null

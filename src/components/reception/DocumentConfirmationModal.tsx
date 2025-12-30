@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -35,18 +36,33 @@ import {
   QrCode,
   ArrowUpDown,
   BanknoteIcon,
+  Pencil,
+  Check,
+  X,
 } from 'lucide-react';
 import { AnalyzedDocResult, DOCUMENT_TYPE_LABELS, isTaxDocument } from '@/services/accountingOcrService';
 import { toast } from 'sonner';
 
 export type PaymentMethodType = 'dinheiro_caixa' | 'pix' | 'transferencia' | '';
 
+export interface OcrEditInfo {
+  ocrValueEdited: boolean;
+  ocrOriginalValue: number;
+  ocrEditReason: string;
+  editedValue: number;
+}
+
 interface DocumentConfirmationModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   result: AnalyzedDocResult;
   fileName: string;
-  onConfirm: (type: 'revenue' | 'expense', extras?: { description?: string; paymentMethod?: PaymentMethodType; needsReconciliation?: boolean }) => void;
+  onConfirm: (type: 'revenue' | 'expense', extras?: { 
+    description?: string; 
+    paymentMethod?: PaymentMethodType; 
+    needsReconciliation?: boolean;
+    ocrEdit?: OcrEditInfo;
+  }) => void;
   onCancel: () => void;
   isConfirming?: boolean;
 }
@@ -72,14 +88,35 @@ export function DocumentConfirmationModal({
   // Flag for revenue reconciliation - default to true
   const [needsReconciliation, setNeedsReconciliation] = useState(true);
 
+  // Value editing state
+  const originalValue = result.netValue || result.totalValue || 0;
+  const [isEditingValue, setIsEditingValue] = useState(false);
+  const [editedValue, setEditedValue] = useState<string>(originalValue.toString());
+  const [editReason, setEditReason] = useState('');
+  const [showEditError, setShowEditError] = useState(false);
+
+  // Reset editing state when modal opens/closes or result changes
+  useEffect(() => {
+    if (open) {
+      const val = result.netValue || result.totalValue || 0;
+      setEditedValue(val.toString());
+      setIsEditingValue(false);
+      setEditReason('');
+      setShowEditError(false);
+    }
+  }, [open, result]);
+
   const isRevenue = selectedType === 'revenue';
   const isExpense = selectedType === 'expense' || isTaxDoc;
   const confidencePercent = Math.round((result.confidence || 0) * 100);
   const isLowConfidence = confidencePercent < 70;
   const isUnknown = result.type === 'unknown';
 
+  const parsedEditedValue = parseFloat(editedValue.replace(',', '.')) || 0;
+  const valueWasEdited = Math.abs(parsedEditedValue - originalValue) > 0.01;
+
   const formatCurrency = (value: number | null) => {
-    if (!value) return '-';
+    if (!value && value !== 0) return '-';
     return new Intl.NumberFormat('pt-BR', { 
       style: 'currency', 
       currency: 'BRL' 
@@ -101,12 +138,49 @@ export function DocumentConfirmationModal({
     }
   };
 
+  const handleStartEditValue = () => {
+    setIsEditingValue(true);
+    setShowEditError(false);
+  };
+
+  const handleCancelEditValue = () => {
+    setEditedValue(originalValue.toString());
+    setIsEditingValue(false);
+    setEditReason('');
+    setShowEditError(false);
+  };
+
+  const handleConfirmEditValue = () => {
+    if (valueWasEdited && editReason.trim().length < 10) {
+      setShowEditError(true);
+      return;
+    }
+    setIsEditingValue(false);
+    setShowEditError(false);
+  };
+
   const handleConfirm = () => {
+    // Validate edit reason if value was changed
+    if (valueWasEdited && editReason.trim().length < 10) {
+      setShowEditError(true);
+      toast.error('Informe a justificativa da correção (mínimo 10 caracteres)');
+      return;
+    }
+
+    const ocrEdit: OcrEditInfo | undefined = valueWasEdited ? {
+      ocrValueEdited: true,
+      ocrOriginalValue: originalValue,
+      ocrEditReason: editReason.trim(),
+      editedValue: parsedEditedValue,
+    } : undefined;
+
     const extras = isExpense ? {
       description: serviceDescription || undefined,
       paymentMethod: paymentMethod || undefined,
+      ocrEdit,
     } : {
       needsReconciliation,
+      ocrEdit,
     };
     onConfirm(selectedType, extras);
   };
@@ -315,13 +389,95 @@ export function DocumentConfirmationModal({
                 </div>
               )}
 
-              {/* Value */}
-              <div className="flex items-center gap-2 text-sm">
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Valor:</span>
-                <span className="font-semibold">
-                  {formatCurrency(result.netValue || result.totalValue)}
-                </span>
+              {/* Value - Editable */}
+              <div className="flex items-start gap-2 text-sm">
+                <DollarSign className="h-4 w-4 text-muted-foreground mt-0.5" />
+                <div className="flex-1 space-y-2">
+                  {isEditingValue ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">R$</span>
+                        <Input
+                          type="text"
+                          value={editedValue}
+                          onChange={(e) => setEditedValue(e.target.value)}
+                          className="w-32 h-8"
+                          placeholder="0,00"
+                          autoFocus
+                        />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleConfirmEditValue}
+                          className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                        >
+                          <Check className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleCancelEditValue}
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Valor original OCR: {formatCurrency(originalValue)}
+                      </p>
+                      {valueWasEdited && (
+                        <div className="space-y-1">
+                          <Label className="text-xs">
+                            Justificativa da correção <span className="text-destructive">*</span>
+                          </Label>
+                          <Textarea
+                            value={editReason}
+                            onChange={(e) => {
+                              setEditReason(e.target.value);
+                              if (e.target.value.trim().length >= 10) {
+                                setShowEditError(false);
+                              }
+                            }}
+                            placeholder="Explique por que está corrigindo o valor (mínimo 10 caracteres)"
+                            rows={2}
+                            className={`resize-none text-sm ${showEditError ? 'border-destructive' : ''}`}
+                          />
+                          {showEditError && (
+                            <p className="text-xs text-destructive">
+                              Justificativa obrigatória (mínimo 10 caracteres)
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">Valor:</span>
+                      <span className={`font-semibold ${valueWasEdited ? 'text-amber-600' : ''}`}>
+                        {formatCurrency(parsedEditedValue)}
+                      </span>
+                      {valueWasEdited && (
+                        <Badge variant="outline" className="text-xs border-amber-500 text-amber-600">
+                          Corrigido
+                        </Badge>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleStartEditValue}
+                        className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                        title="Editar valor"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                  {valueWasEdited && !isEditingValue && editReason && (
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-medium">Motivo:</span> {editReason}
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Date */}
