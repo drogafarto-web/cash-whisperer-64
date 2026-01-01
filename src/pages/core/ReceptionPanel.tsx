@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { RequireFunction } from '@/components/auth/RequireFunction';
+import { RequireRole } from '@/components/auth/RequireRole';
 import { KioskBreadcrumb } from '@/components/layout/KioskBreadcrumb';
 import { useAuth } from '@/hooks/useAuth';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -200,8 +200,8 @@ function ReceptionPanelContent() {
 
 export default function ReceptionPanel() {
   return (
-    <RequireFunction functions={['atendimento', 'caixa', 'supervisao']}>
+    <RequireRole roles={['admin', 'secretaria', 'gestor_unidade']}>
       <ReceptionPanelContent />
-    </RequireFunction>
+    </RequireRole>
   );
 }
