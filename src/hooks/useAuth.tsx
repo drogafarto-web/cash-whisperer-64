@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode, useCallback 
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { AppRole, Profile, Unit } from '@/types/database';
+import { ROLE_IMPLICIT_FUNCTIONS } from '@/lib/role-permissions';
 
 // Types for profile units and functions
 interface ProfileUnit {
@@ -215,8 +216,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const hasFunction = useCallback((fn: OperationalFunction): boolean => {
     if (isAdmin) return true;
-    return userFunctions.includes(fn);
-  }, [userFunctions, isAdmin]);
+    // 1. Primeiro verifica functions explícitas do BD (profile_functions)
+    if (userFunctions.includes(fn)) return true;
+    // 2. Depois verifica functions implícitas do role
+    const implicitFunctions = role ? (ROLE_IMPLICIT_FUNCTIONS[role] || []) : [];
+    return implicitFunctions.includes(fn);
+  }, [userFunctions, role, isAdmin]);
 
   const hasPermission = (permission: string): boolean => {
     if (isAdmin) return true;
