@@ -49,6 +49,11 @@ import FiscalControl from "./pages/internal/FiscalControl";
 import ReceptionPanel from "./pages/core/ReceptionPanel";
 
 // ============================================
+// CORE PAGES - Fechamento de Caixa
+// ============================================
+import CashClosingSimple from "./pages/CashClosingSimple";
+
+// ============================================
 // FUTURE PAGES - Ativar após núcleo estável
 // ============================================
 import AccountingHistory from "./pages/AccountingHistory";
@@ -153,6 +158,9 @@ const App = () => (
               <Route path="/payables/bulk-management" element={<BulkManagement />} />
               <Route path="/payables/reconciliation" element={<PayablesReconciliation />} />
               <Route path="/pendencias" element={<Pendencias />} />
+              
+              {/* Fechamento de Caixa */}
+              <Route path="/cash-closing" element={<CashClosingSimple />} />
               
               {/* Relatórios */}
               <Route path="/reports/cash-closings" element={<CashClosingReport />} />
