@@ -54,6 +54,8 @@ import ReceptionPanel from "./pages/core/ReceptionPanel";
 // ============================================
 import CashClosingSimple from "./pages/CashClosingSimple";
 import EnvelopeCashClosing from "./pages/EnvelopeCashClosing";
+import TaxScenarios from "./pages/reports/TaxScenarios";
+import FiscalBase from "./pages/settings/FiscalBase";
 
 // ============================================
 // FUTURE PAGES - Ativar após núcleo estável
@@ -136,6 +138,7 @@ const App = () => (
               <Route path="/settings/categories" element={<Categories />} />
               <Route path="/settings/users" element={<Users />} />
               <Route path="/settings/tax-config" element={<TaxConfig />} />
+              <Route path="/settings/fiscal-base" element={<FiscalBase />} />
               
               {/* Sistema */}
               <Route path="/about" element={<About />} />
@@ -168,6 +171,7 @@ const App = () => (
               
               {/* Relatórios */}
               <Route path="/reports/cash-closings" element={<CashClosingReport />} />
+              <Route path="/reports/tax-scenarios" element={<TaxScenarios />} />
               <Route path="/reports/transactions" element={<TransactionsReport />} />
               <Route path="/reports/cashflow-projection" element={<CashflowProjection />} />
               <Route path="/reports/lis-closures" element={<LisClosuresReport />} />
