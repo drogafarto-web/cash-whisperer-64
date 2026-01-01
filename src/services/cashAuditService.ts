@@ -7,7 +7,9 @@ export type CashAuditAction =
   | 'card_confirmed'
   | 'cash_hub_viewed'
   | 'fiscal_control_viewed'
-  | 'fiscal_control_payment_created';
+  | 'fiscal_control_payment_created'
+  | 'bank_statement_uploaded'
+  | 'bank_statement_viewed';
 
 export interface AuditLogEntry {
   action: CashAuditAction;
@@ -193,6 +195,29 @@ export async function logFiscalControlAccess(params: {
     amount: params.amount,
     metadata: { 
       category_id: params.categoryId,
+      timestamp: new Date().toISOString()
+    },
+  });
+}
+
+/**
+ * Log bank statement actions
+ */
+export async function logBankStatementAction(params: {
+  userId: string;
+  action: 'uploaded' | 'viewed';
+  fileName?: string;
+  accountName?: string;
+}): Promise<void> {
+  await logCashAction({
+    action: params.action === 'uploaded' 
+      ? 'bank_statement_uploaded' 
+      : 'bank_statement_viewed',
+    user_id: params.userId,
+    unit_id: 'system',
+    metadata: { 
+      file_name: params.fileName,
+      account_name: params.accountName,
       timestamp: new Date().toISOString()
     },
   });

@@ -1541,6 +1541,7 @@ export type Database = {
         Row: {
           created_at: string | null
           file_name: string
+          file_url: string | null
           id: string
           imported_by: string
           imported_records: number
@@ -1553,6 +1554,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           file_name: string
+          file_url?: string | null
           id?: string
           imported_by: string
           imported_records?: number
@@ -1565,6 +1567,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           file_name?: string
+          file_url?: string | null
           id?: string
           imported_by?: string
           imported_records?: number

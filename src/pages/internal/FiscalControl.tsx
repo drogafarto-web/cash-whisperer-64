@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ShieldCheck, Plus, TrendingDown, Calendar, Loader2 } from 'lucide-react';
+import { ShieldCheck, Plus, TrendingDown, Calendar, Loader2, FileText } from 'lucide-react';
 
 import { RequireRole } from '@/components/auth/RequireRole';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -13,12 +13,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { logFiscalControlAccess } from '@/services/cashAuditService';
 import { FiscalConfirmModal } from './FiscalConfirmModal';
+import { BankStatementsTab } from './BankStatementsTab';
 import { formatCurrency } from '@/lib/formats';
 
 // ============================================
@@ -187,179 +189,202 @@ export default function FiscalControl() {
         <AppLayout>
           <div className="container mx-auto py-6 max-w-4xl space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <ShieldCheck className="h-8 w-8 text-primary" />
-                <div>
-                  <h1 className="text-2xl font-bold">Controle Fiscal Interno</h1>
-                  <p className="text-sm text-muted-foreground">
-                    Pagamentos fora do Fator R • Acesso restrito
-                  </p>
-                </div>
+            <div className="flex items-center gap-3">
+              <ShieldCheck className="h-8 w-8 text-primary" />
+              <div>
+                <h1 className="text-2xl font-bold">Controle Fiscal Interno</h1>
+                <p className="text-sm text-muted-foreground">
+                  Pagamentos fora do Fator R • Extratos Bancários • Acesso restrito
+                </p>
               </div>
-              <Button onClick={() => setShowForm(!showForm)} variant={showForm ? 'outline' : 'default'}>
-                <Plus className="h-4 w-4 mr-2" />
-                {showForm ? 'Cancelar' : 'Novo Lançamento'}
-              </Button>
             </div>
 
-            {/* Formulário de lançamento */}
-            {showForm && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Registrar Pagamento Informal</CardTitle>
-                  <CardDescription>
-                    Esses valores NÃO entrarão no cálculo do Fator R
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="category">Categoria *</Label>
-                        <Select value={categoryId} onValueChange={setCategoryId}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {INFORMAL_CATEGORIES.map((cat) => (
-                              <SelectItem key={cat.id} value={cat.id}>
-                                {cat.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="amount">Valor (R$) *</Label>
-                        <Input
-                          id="amount"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={amount}
-                          onChange={(e) => setAmount(e.target.value)}
-                          placeholder="0,00"
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="dueDate">Data *</Label>
-                        <Input
-                          id="dueDate"
-                          type="date"
-                          value={dueDate}
-                          onChange={(e) => setDueDate(e.target.value)}
-                        />
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="description">Observação</Label>
-                        <Textarea
-                          id="description"
-                          value={description}
-                          onChange={(e) => setDescription(e.target.value)}
-                          placeholder="Descrição opcional..."
-                          rows={1}
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="flex justify-end">
-                      <Button type="submit" disabled={createPayment.isPending}>
-                        {createPayment.isPending ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Salvando...
-                          </>
-                        ) : (
-                          'Registrar Pagamento'
-                        )}
-                      </Button>
-                    </div>
-                  </form>
-                </CardContent>
-              </Card>
-            )}
+            {/* Tabs */}
+            <Tabs defaultValue="informal" className="space-y-6">
+              <TabsList>
+                <TabsTrigger value="informal" className="gap-2">
+                  <TrendingDown className="h-4 w-4" />
+                  Pagamentos Informais
+                </TabsTrigger>
+                <TabsTrigger value="extratos" className="gap-2">
+                  <FileText className="h-4 w-4" />
+                  Extratos Bancários
+                </TabsTrigger>
+              </TabsList>
 
-            {/* Cards de resumo */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Total Acumulado
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-2">
-                    <TrendingDown className="h-5 w-5 text-destructive" />
-                    <span className="text-2xl font-bold">
-                      {formatCurrency(totalGeral)}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">
-                    Total de Lançamentos
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-muted-foreground" />
-                    <span className="text-2xl font-bold">
-                      {totalLancamentos}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+              {/* Tab: Pagamentos Informais */}
+              <TabsContent value="informal" className="space-y-6">
+                <div className="flex justify-end">
+                  <Button onClick={() => setShowForm(!showForm)} variant={showForm ? 'outline' : 'default'}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    {showForm ? 'Cancelar' : 'Novo Lançamento'}
+                  </Button>
+                </div>
 
-            {/* Dados agregados por mês */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Histórico Agregado</CardTitle>
-                <CardDescription>
-                  Totais mensais • Sem detalhes de beneficiários
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                  </div>
-                ) : aggregatedData && aggregatedData.length > 0 ? (
-                  <div className="space-y-2">
-                    {aggregatedData.map((item) => (
-                      <div
-                        key={item.month}
-                        className="flex items-center justify-between py-3 px-4 rounded-lg bg-muted/50"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">
-                            {format(new Date(item.month + '-01'), 'MMMM yyyy', { locale: ptBR })}
-                          </span>
-                          <span className="text-sm text-muted-foreground">
-                            ({item.count} lançamento{item.count !== 1 ? 's' : ''})
-                          </span>
+                {/* Formulário de lançamento */}
+                {showForm && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Registrar Pagamento Informal</CardTitle>
+                      <CardDescription>
+                        Esses valores NÃO entrarão no cálculo do Fator R
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <form onSubmit={handleSubmit} className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="category">Categoria *</Label>
+                            <Select value={categoryId} onValueChange={setCategoryId}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {INFORMAL_CATEGORIES.map((cat) => (
+                                  <SelectItem key={cat.id} value={cat.id}>
+                                    {cat.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="amount">Valor (R$) *</Label>
+                            <Input
+                              id="amount"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={amount}
+                              onChange={(e) => setAmount(e.target.value)}
+                              placeholder="0,00"
+                            />
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="dueDate">Data *</Label>
+                            <Input
+                              id="dueDate"
+                              type="date"
+                              value={dueDate}
+                              onChange={(e) => setDueDate(e.target.value)}
+                            />
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="description">Observação</Label>
+                            <Textarea
+                              id="description"
+                              value={description}
+                              onChange={(e) => setDescription(e.target.value)}
+                              placeholder="Descrição opcional..."
+                              rows={1}
+                            />
+                          </div>
                         </div>
-                        <span className="font-semibold text-destructive">
-                          {formatCurrency(item.total)}
+                        
+                        <div className="flex justify-end">
+                          <Button type="submit" disabled={createPayment.isPending}>
+                            {createPayment.isPending ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Salvando...
+                              </>
+                            ) : (
+                              'Registrar Pagamento'
+                            )}
+                          </Button>
+                        </div>
+                      </form>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Cards de resumo */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">
+                        Total Acumulado
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center gap-2">
+                        <TrendingDown className="h-5 w-5 text-destructive" />
+                        <span className="text-2xl font-bold">
+                          {formatCurrency(totalGeral)}
                         </span>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    Nenhum lançamento informal registrado ainda.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">
+                        Total de Lançamentos
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-5 w-5 text-muted-foreground" />
+                        <span className="text-2xl font-bold">
+                          {totalLancamentos}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Dados agregados por mês */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Histórico Agregado</CardTitle>
+                    <CardDescription>
+                      Totais mensais • Sem detalhes de beneficiários
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {isLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : aggregatedData && aggregatedData.length > 0 ? (
+                      <div className="space-y-2">
+                        {aggregatedData.map((item) => (
+                          <div
+                            key={item.month}
+                            className="flex items-center justify-between py-3 px-4 rounded-lg bg-muted/50"
+                          >
+                            <div className="flex items-center gap-3">
+                              <Calendar className="h-4 w-4 text-muted-foreground" />
+                              <span className="font-medium">
+                                {format(new Date(item.month + '-01'), 'MMMM yyyy', { locale: ptBR })}
+                              </span>
+                              <span className="text-sm text-muted-foreground">
+                                ({item.count} lançamento{item.count !== 1 ? 's' : ''})
+                              </span>
+                            </div>
+                            <span className="font-semibold text-destructive">
+                              {formatCurrency(item.total)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        Nenhum lançamento informal registrado ainda.
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Tab: Extratos Bancários */}
+              <TabsContent value="extratos">
+                <BankStatementsTab userId={user?.id || ''} />
+              </TabsContent>
+            </Tabs>
 
             {/* Aviso de segurança */}
             <div className="text-center text-xs text-muted-foreground">
