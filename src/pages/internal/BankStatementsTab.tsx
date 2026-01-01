@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Upload, FileText, Eye, Loader2, FolderOpen, Trash2 } from 'lucide-react';
@@ -11,80 +11,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
-import { supabase } from '@/integrations/supabase/client';
-import { logBankStatementAction } from '@/services/cashAuditService';
-import { formatCurrency } from '@/lib/formats';
-
-// Contas bancárias conhecidas
-const BANK_ACCOUNTS = [
-  { id: 'labclin-bb', name: 'LABCLIN LTDA - Banco do Brasil' },
-  { id: 'ton', name: 'Ton - Maquininha' },
-  { id: 'bruno-pf', name: 'Bruno de Andrade Pires - Pessoa Física' },
-];
-
-const STORAGE_BUCKET = 'accounting-documents';
-const STORAGE_FOLDER = 'bank-statements';
-
-interface StoredFile {
-  name: string;
-  id: string;
-  created_at: string;
-  metadata?: { size?: number };
-}
+import { useBankStatements, BANK_ACCOUNTS } from '@/hooks/useBankStatements';
 
 interface BankStatementsTabProps {
   userId: string;
 }
 
 export function BankStatementsTab({ userId }: BankStatementsTabProps) {
-  const [isUploading, setIsUploading] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [files, setFiles] = useState<StoredFile[]>([]);
+  const {
+    groupedFiles,
+    isLoading,
+    isUploading,
+    loadFiles,
+    uploadFile,
+    getSignedUrl,
+    deleteFile,
+  } = useBankStatements({ userId });
+
   const [selectedAccount, setSelectedAccount] = useState('');
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
   // Carregar arquivos existentes
   useEffect(() => {
     loadFiles();
-  }, []);
-
-  const loadFiles = async () => {
-    setIsLoading(true);
-    try {
-      const allFiles: StoredFile[] = [];
-      
-      // Listar arquivos de cada conta
-      for (const account of BANK_ACCOUNTS) {
-        const { data, error } = await supabase.storage
-          .from(STORAGE_BUCKET)
-          .list(`${STORAGE_FOLDER}/${account.id}`, {
-            limit: 50,
-            sortBy: { column: 'created_at', order: 'desc' },
-          });
-        
-        if (!error && data) {
-          allFiles.push(
-            ...data
-              .filter(f => !f.name.startsWith('.'))
-              .map(f => ({
-                ...f,
-                id: `${account.id}/${f.name}`,
-                accountId: account.id,
-                accountName: account.name,
-              }))
-          );
-        }
-      }
-      
-      setFiles(allFiles);
-    } catch (error) {
-      console.error('Erro ao carregar arquivos:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, [loadFiles]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -92,84 +43,22 @@ export function BankStatementsTab({ userId }: BankStatementsTabProps) {
       toast.error('Selecione uma conta bancária primeiro');
       return;
     }
-
-    setIsUploading(true);
-    try {
-      const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
-      const fileName = `${format(new Date(), 'yyyy-MM-dd_HH-mm')}.${ext}`;
-      const path = `${STORAGE_FOLDER}/${selectedAccount}/${fileName}`;
-
-      const { error } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .upload(path, file, { upsert: false });
-
-      if (error) throw error;
-
-      // Log da ação
-      await logBankStatementAction({
-        userId,
-        action: 'uploaded',
-        fileName,
-        accountName: BANK_ACCOUNTS.find(a => a.id === selectedAccount)?.name,
-      });
-
-      toast.success('Extrato arquivado com sucesso');
-      loadFiles();
-    } catch (error) {
-      console.error('Erro ao enviar arquivo:', error);
-      toast.error('Erro ao enviar arquivo');
-    } finally {
-      setIsUploading(false);
-      e.target.value = '';
-    }
+    await uploadFile(selectedAccount, file);
+    e.target.value = '';
   };
 
   const handleView = async (filePath: string) => {
-    try {
-      const { data, error } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .createSignedUrl(`${STORAGE_FOLDER}/${filePath}`, 3600); // 1 hora
-
-      if (error) throw error;
-
-      // Log da visualização
-      await logBankStatementAction({
-        userId,
-        action: 'viewed',
-        fileName: filePath.split('/').pop(),
-      });
-
-      setPreviewUrl(data.signedUrl);
-      setSelectedFile(filePath);
+    const url = await getSignedUrl(filePath);
+    if (url) {
+      setPreviewUrl(url);
       setShowPreview(true);
-    } catch (error) {
-      console.error('Erro ao visualizar arquivo:', error);
-      toast.error('Erro ao abrir arquivo');
     }
   };
 
   const handleDelete = async (filePath: string) => {
     if (!confirm('Tem certeza que deseja excluir este arquivo?')) return;
-    
-    try {
-      const { error } = await supabase.storage
-        .from(STORAGE_BUCKET)
-        .remove([`${STORAGE_FOLDER}/${filePath}`]);
-
-      if (error) throw error;
-
-      toast.success('Arquivo excluído');
-      loadFiles();
-    } catch (error) {
-      console.error('Erro ao excluir arquivo:', error);
-      toast.error('Erro ao excluir arquivo');
-    }
+    await deleteFile(filePath);
   };
-
-  const groupedFiles = BANK_ACCOUNTS.map(account => ({
-    ...account,
-    files: files.filter(f => f.id.startsWith(account.id)),
-  }));
 
   return (
     <div className="space-y-6">

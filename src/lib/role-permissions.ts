@@ -103,6 +103,7 @@ export const ROLE_ROUTE_ACCESS: Record<AppRole, string[]> = {
     '/accounting-panel',
     '/accounting-history',
     '/accounting-audit',
+    '/accounting/bank-statements',
     '/settings/fiscal-base',
     '/settings/data-2025',
     '/reports/tax-scenarios',
