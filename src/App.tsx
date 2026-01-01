@@ -157,6 +157,10 @@ const App = () => (
               <Route path="/about" element={<About />} />
               <Route path="/changelog" element={<Changelog />} />
 
+              {/* Portais Simplificados (Modo Quiosque) */}
+              <Route path="/portal/atendimento" element={<Navigate to="/reception-panel?mode=kiosk" replace />} />
+              <Route path="/portal/contabilidade" element={<Navigate to="/accounting-panel?mode=kiosk" replace />} />
+
               {/* ============================================ */}
               {/* FUTURE ROUTES - Ativar progressivamente */}
               {/* ============================================ */}
