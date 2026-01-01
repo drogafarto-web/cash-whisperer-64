@@ -71,6 +71,7 @@ export const navigationGroups: NavGroup[] = [
     icon: LayoutDashboard,
     items: [
       { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ['admin', 'secretaria', 'gestor_unidade', 'financeiro', 'contador'] },
+      { name: 'Quiosque', href: '/reception-panel', icon: MonitorSmartphone, roles: ['admin', 'secretaria', 'gestor_unidade'] },
       { name: 'Lançamentos', href: '/transactions', icon: Receipt, roles: ['admin', 'secretaria', 'contabilidade', 'gestor_unidade', 'financeiro'] },
       { name: 'Pendências', href: '/pendencias', icon: AlertCircle, roles: ['admin', 'contabilidade', 'gestor_unidade'] },
     ],
@@ -106,7 +107,6 @@ export const navigationGroups: NavGroup[] = [
       { name: 'Painel Contábil', href: '/accounting-panel', icon: Calculator, roles: ['admin', 'contabilidade', 'financeiro', 'contador'] },
       { name: 'Histórico', href: '/accounting-history', icon: History, roles: ['admin', 'contabilidade', 'financeiro', 'contador'] },
       { name: 'Auditoria', href: '/accounting-audit', icon: Shield, roles: ['admin', 'contador', 'contabilidade'] },
-      { name: 'Painel Recepção', href: '/reception-panel', icon: MonitorSmartphone, roles: ['admin', 'secretaria', 'gestor_unidade'] },
     ],
   },
 
