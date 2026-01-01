@@ -23,13 +23,6 @@ import { FiscalConfirmModal } from './FiscalConfirmModal';
 import { BankStatementsTab } from './BankStatementsTab';
 import { formatCurrency } from '@/lib/formats';
 
-// ============================================
-// CONFIGURAÇÃO DE SEGURANÇA
-// ============================================
-// IMPORTANTE: Substitua pelo seu user.id (UUID) real
-// Encontre em: Lovable Cloud -> Auth -> Users
-const AUTHORIZED_USER_ID = 'ADMIN_USER_ID_PLACEHOLDER';
-
 // IDs das categorias informais (já existentes no banco)
 const INFORMAL_CATEGORIES = [
   { id: 'dd6bb036-bb2e-4729-82e5-952d0d6c1ce4', name: 'Comissão Informal' },
@@ -56,15 +49,7 @@ export default function FiscalControl() {
   const [dueDate, setDueDate] = useState('');
   const [description, setDescription] = useState('');
 
-  // ============================================
-  // PROTEÇÃO DUPLA: Role + User ID específico
-  // ============================================
-  const isAuthorized = user?.id === AUTHORIZED_USER_ID || AUTHORIZED_USER_ID === 'ADMIN_USER_ID_PLACEHOLDER';
-  
-  // Se não é o usuário autorizado, redireciona silenciosamente
-  if (user && !isAuthorized && AUTHORIZED_USER_ID !== 'ADMIN_USER_ID_PLACEHOLDER') {
-    return <Navigate to="/dashboard" replace />;
-  }
+  // Proteção por role admin é feita pelo RequireRole no wrapper do componente
 
   // ============================================
   // LOG DE ACESSO quando confirma
