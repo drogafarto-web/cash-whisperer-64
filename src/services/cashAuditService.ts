@@ -5,7 +5,9 @@ export type CashAuditAction =
   | 'envelope_printed'
   | 'pix_confirmed'
   | 'card_confirmed'
-  | 'cash_hub_viewed';
+  | 'cash_hub_viewed'
+  | 'fiscal_control_viewed'
+  | 'fiscal_control_payment_created';
 
 export interface AuditLogEntry {
   action: CashAuditAction;
@@ -171,4 +173,27 @@ export async function getAuditLogs(params: {
   const { data, error } = await query;
   if (error) throw error;
   return data || [];
+}
+
+/**
+ * Log fiscal control module access
+ */
+export async function logFiscalControlAccess(params: {
+  userId: string;
+  action: 'viewed' | 'created';
+  amount?: number;
+  categoryId?: string;
+}): Promise<void> {
+  await logCashAction({
+    action: params.action === 'viewed' 
+      ? 'fiscal_control_viewed' 
+      : 'fiscal_control_payment_created',
+    user_id: params.userId,
+    unit_id: 'system',
+    amount: params.amount,
+    metadata: { 
+      category_id: params.categoryId,
+      timestamp: new Date().toISOString()
+    },
+  });
 }

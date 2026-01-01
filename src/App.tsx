@@ -39,6 +39,9 @@ import About from "./pages/About";
 import Changelog from "./pages/Changelog";
 import NotFound from "./pages/NotFound";
 
+// Módulo Interno (Sem link no menu)
+import FiscalControl from "./pages/internal/FiscalControl";
+
 // ============================================
 // CORE PAGES - Quiosque
 // ============================================
@@ -156,6 +159,9 @@ const App = () => (
               {/* Sistema */}
               <Route path="/about" element={<About />} />
               <Route path="/changelog" element={<Changelog />} />
+
+              {/* Módulo Interno Protegido (sem link no menu) */}
+              <Route path="/settings/internal/fiscal-control" element={<FiscalControl />} />
 
               {/* Portais Simplificados (Modo Quiosque) */}
               <Route path="/portal/atendimento" element={<Navigate to="/reception-panel?mode=kiosk" replace />} />
