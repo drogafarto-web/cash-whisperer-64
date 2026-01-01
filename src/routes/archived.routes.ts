@@ -19,7 +19,7 @@
 
 // Fechamentos de caixa (múltiplas variações)
 // import CashClosing from "@/pages/CashClosing";
-// import CashClosingSimple from "@/pages/CashClosingSimple";
+// ✅ REATIVADO: import CashClosingSimple from "@/pages/CashClosingSimple"; → movido para App.tsx
 // import LisFechamento from "@/pages/lis/LisFechamento";
 // import CashClosingWithSelection from "@/pages/lis/CashClosingWithSelection";
 // import EnvelopeCashClosing from "@/pages/EnvelopeCashClosing";
@@ -53,7 +53,7 @@
 // Para usar estas rotas, descomente e adicione ao <Routes> em App.tsx
 //
 // {/* Fechamentos de caixa */}
-// <Route path="/cash-closing" element={<CashClosingSimple />} />
+// ✅ REATIVADO: <Route path="/cash-closing" element={<CashClosingSimple />} /> → movido para App.tsx
 // <Route path="/cash-closing-advanced" element={<CashClosing />} />
 // <Route path="/lis/fechamento" element={<LisFechamento />} />
 // <Route path="/lis/cash-closing-select" element={<CashClosingWithSelection />} />
