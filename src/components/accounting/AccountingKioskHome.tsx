@@ -32,6 +32,8 @@ import { ptBR } from 'date-fns/locale';
 import { useCompetenceData, useLabSubmission, useLabDocuments, useCompetenceDocuments } from '@/hooks/useAccountingCompetence';
 import { useBillingSummary } from '@/features/billing';
 import { useAccountingCashMovement } from '@/hooks/useAccountingCashMovement';
+import { TodayActivityCard } from '@/components/shared/TodayActivityCard';
+import { useDayActivity } from '@/hooks/useDayActivity';
 
 export type AccountingSection = 'folha' | 'impostos' | 'receitas';
 
@@ -97,6 +99,9 @@ export function AccountingKioskHome({
   
   // Faturamento - dados reais das invoices (não dados manuais de accounting_competence_data)
   const { data: billingSummary } = useBillingSummary(ano, mes, unitId || undefined);
+  
+  // Atividades do dia (lançamentos fiscais)
+  const { data: activity, isLoading: loadingActivity } = useDayActivity(unitId, 'contabilidade');
   
   const competenceLabel = format(competence, "MMMM 'de' yyyy", { locale: ptBR });
   
@@ -410,6 +415,17 @@ export function AccountingKioskHome({
             </CardContent>
           </Card>
         </div>
+      </div>
+
+      {/* Card de Atividades Fiscais do Dia */}
+      <div className="border-t pt-6">
+        <TodayActivityCard
+          items={activity?.items || []}
+          total={activity?.total || 0}
+          count={activity?.count || 0}
+          isLoading={loadingActivity}
+          title="Lançamentos Fiscais de Hoje"
+        />
       </div>
 
       <div className="flex justify-center pt-4">

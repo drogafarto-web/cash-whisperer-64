@@ -8,6 +8,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ReceptionDaySummaryModal } from './ReceptionDaySummaryModal';
+import { TodayActivityCard } from '@/components/shared/TodayActivityCard';
+import { useDayActivity } from '@/hooks/useDayActivity';
 
 export type ReceptionStep = 'home' | 'import' | 'document-upload';
 
@@ -60,6 +62,9 @@ export function ReceptionHome({ onNavigate, onCheckEnvelope, unitId }: Reception
     enabled: !!unitId,
     staleTime: 30000,
   });
+
+  // Hook para atividades do dia
+  const { data: activity, isLoading: loadingActivity } = useDayActivity(unitId, 'atendimento');
 
   const lastImport = dayData?.lastImport;
   const dayCounts = dayData ? { processed: dayData.processed, pending: dayData.pending } : null;
@@ -252,6 +257,18 @@ export function ReceptionHome({ onNavigate, onCheckEnvelope, unitId }: Reception
             )}
           </div>
         </Card>
+      </div>
+
+      {/* Card Atividades do Dia */}
+      <div className="lg:col-span-5">
+        <TodayActivityCard
+          items={activity?.items || []}
+          total={activity?.total || 0}
+          count={activity?.count || 0}
+          isLoading={loadingActivity}
+          onViewAll={() => setSummaryModalOpen(true)}
+          title="Documentos de Hoje"
+        />
       </div>
 
       {/* Card Resumo Rápido - largura total em desktop */}
