@@ -53,6 +53,7 @@ import ReceptionPanel from "./pages/core/ReceptionPanel";
 // CORE PAGES - Fechamento de Caixa
 // ============================================
 import CashClosingSimple from "./pages/CashClosingSimple";
+import EnvelopeCashClosing from "./pages/EnvelopeCashClosing";
 
 // ============================================
 // FUTURE PAGES - Ativar após núcleo estável
@@ -163,6 +164,7 @@ const App = () => (
               
               {/* Fechamento de Caixa */}
               <Route path="/cash-closing" element={<CashClosingSimple />} />
+              <Route path="/envelope-closing" element={<EnvelopeCashClosing />} />
               
               {/* Relatórios */}
               <Route path="/reports/cash-closings" element={<CashClosingReport />} />
