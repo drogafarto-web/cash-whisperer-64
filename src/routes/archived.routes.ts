@@ -22,7 +22,7 @@
 // ✅ REATIVADO: import CashClosingSimple from "@/pages/CashClosingSimple"; → movido para App.tsx
 // import LisFechamento from "@/pages/lis/LisFechamento";
 // import CashClosingWithSelection from "@/pages/lis/CashClosingWithSelection";
-// import EnvelopeCashClosing from "@/pages/EnvelopeCashClosing";
+// ✅ REATIVADO: import EnvelopeCashClosing from "@/pages/EnvelopeCashClosing"; → movido para App.tsx
 // import PixClosing from "@/pages/PixClosing";
 // import CardClosing from "@/pages/CardClosing";
 // import CashHub from "@/pages/CashHub";
@@ -57,7 +57,7 @@
 // <Route path="/cash-closing-advanced" element={<CashClosing />} />
 // <Route path="/lis/fechamento" element={<LisFechamento />} />
 // <Route path="/lis/cash-closing-select" element={<CashClosingWithSelection />} />
-// <Route path="/envelope-closing" element={<EnvelopeCashClosing />} />
+// ✅ REATIVADO: <Route path="/envelope-closing" element={<EnvelopeCashClosing />} /> → movido para App.tsx
 // <Route path="/pix-closing" element={<PixClosing />} />
 // <Route path="/card-closing" element={<CardClosing />} />
 // <Route path="/cash-hub" element={<CashHub />} />
