@@ -1,4 +1,5 @@
 import { AppRole } from '@/types/database';
+import { LucideIcon, Shield, User, Building2, Calculator, FileSpreadsheet, Users } from 'lucide-react';
 
 // Re-export AppRole for convenience
 export type { AppRole };
@@ -186,48 +187,55 @@ export const ROLE_CONFIG: Record<AppRole, {
   variant: 'default' | 'secondary' | 'outline';
   requiresUnit: boolean;
   isOperational: boolean;
+  icon: LucideIcon;
 }> = {
   admin: {
     label: 'Administrador',
-    description: 'Acesso total ao sistema: todos os módulos, configurações e dados sensíveis',
+    description: 'Acesso total: todos os módulos e configurações',
     variant: 'default',
     requiresUnit: false,
     isOperational: false,
+    icon: Shield,
   },
   contador: {
     label: 'Contador/Consultor',
-    description: 'Base fiscal: folha, impostos, parâmetros tributários. Sem acesso à operação diária.',
+    description: 'Impostos, Fator R, folha e parâmetros fiscais',
     variant: 'secondary',
     requiresUnit: false,
     isOperational: false,
+    icon: Users,
   },
   contabilidade: {
     label: 'Contabilidade',
-    description: 'Acesso a relatórios, cenários tributários, Fator R e exportações. Sem acesso a config.',
+    description: 'Relatórios, DRE, faturamento e exportações fiscais',
     variant: 'secondary',
     requiresUnit: false,
     isOperational: false,
+    icon: FileSpreadsheet,
   },
   financeiro: {
     label: 'Financeiro',
-    description: 'Contas a pagar, conciliação, extratos bancários. Sem acesso a config tributária.',
+    description: 'Boletos, NFs de fornecedor e conciliação bancária',
     variant: 'secondary',
     requiresUnit: false,
     isOperational: true,
+    icon: Calculator,
   },
   gestor_unidade: {
     label: 'Gestor de Unidade',
-    description: 'Visão completa da própria unidade: transações, caixa, relatórios filtrados',
+    description: 'Supervisiona a unidade: caixa, despesas e relatórios',
     variant: 'secondary',
     requiresUnit: true,
     isOperational: true,
+    icon: Building2,
   },
   secretaria: {
     label: 'Atendente',
-    description: 'Operacional: registra transações, fechamento de caixa, uploads. Dashboard simplificado',
+    description: 'Quiosque, lançamentos rápidos e fechamento de caixa',
     variant: 'outline',
     requiresUnit: true,
     isOperational: true,
+    icon: User,
   },
 };
 

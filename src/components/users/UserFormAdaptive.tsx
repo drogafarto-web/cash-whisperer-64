@@ -19,6 +19,7 @@ import {
 import { ROLE_CONFIG, ROLE_PERMISSIONS, AREA_LABELS, SystemArea } from '@/lib/access-policy';
 import { AppRole, Unit } from '@/types/database';
 import { Loader2, HelpCircle, Info } from 'lucide-react';
+import { RoleSelector } from './RoleSelector';
 
 interface UserFormAdaptiveProps {
   units: Unit[];
@@ -68,7 +69,7 @@ export function UserFormAdaptive({ units, isSubmitting, onSubmit }: UserFormAdap
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Passo 1: Escolher o papel primeiro */}
-      <div className="space-y-2">
+      <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Label className="text-base font-semibold">1. Escolha o Perfil</Label>
           <Tooltip>
@@ -80,26 +81,7 @@ export function UserFormAdaptive({ units, isSubmitting, onSubmit }: UserFormAdap
             </TooltipContent>
           </Tooltip>
         </div>
-        <Select value={role} onValueChange={value => setRole(value as AppRole)}>
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(ROLE_CONFIG).map(([key, config]) => (
-              <SelectItem key={key} value={key}>
-                <div className="flex items-center gap-2">
-                  <Badge variant={config.variant} className="text-xs">
-                    {config.label}
-                  </Badge>
-                  {config.requiresUnit && (
-                    <span className="text-xs text-muted-foreground">(requer unidade)</span>
-                  )}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p className="text-xs text-muted-foreground">{roleConfig.description}</p>
+        <RoleSelector value={role} onChange={setRole} />
       </div>
 
       {/* Preview do que o usuário verá */}
