@@ -25,7 +25,8 @@ import BillingSummary from "./pages/billing/Summary";
 
 // Core - Contabilidade
 import AccountingPanel from "./pages/AccountingPanel";
-import AccountingForm from "./pages/contabilidade/AccountingForm";
+import AccountingForm from "./pages/accounting/AccountingForm";
+import AccountingBankStatements from "./pages/accounting/AccountingBankStatements";
 
 // Core - Configurações essenciais
 import SettingsHub from "./pages/settings/SettingsHub";
@@ -41,9 +42,6 @@ import NotFound from "./pages/NotFound";
 
 // Módulo Interno (Sem link no menu)
 import FiscalControl from "./pages/internal/FiscalControl";
-
-// Contabilidade - Visualização de Extratos
-import AccountingBankStatements from "./pages/accounting/AccountingBankStatements";
 
 // ============================================
 // CORE PAGES - Quiosque
@@ -74,37 +72,9 @@ import ConvenioReportsImport from "./pages/import/ConvenioReports";
 import PayablesReconciliation from "./pages/payables/Reconciliation";
 
 // ============================================
-// ARCHIVED PAGES - Comentadas, não deletadas
+// ARCHIVED ROUTES
+// Ver: src/routes/archived.routes.ts
 // ============================================
-// Fechamentos de caixa (múltiplas variações)
-// import CashClosing from "./pages/CashClosing";
-// import CashClosingSimple from "./pages/CashClosingSimple";
-// import LisFechamento from "./pages/lis/LisFechamento";
-// import CashClosingWithSelection from "./pages/lis/CashClosingWithSelection";
-// import EnvelopeCashClosing from "./pages/EnvelopeCashClosing";
-// import PixClosing from "./pages/PixClosing";
-// import CardClosing from "./pages/CardClosing";
-// import CashHub from "./pages/CashHub";
-
-// Auditorias avançadas
-// import ParticularVsCash from "./pages/audit/ParticularVsCash";
-// import ConvenioVsInvoice from "./pages/audit/ConvenioVsInvoice";
-// import ExtratoParticulares from "./pages/import/ExtratoParticulares";
-
-// Relatórios avançados
-// import TaxScenarios from "./pages/reports/TaxScenarios";
-// import PersonnelRealVsOfficial from "./pages/reports/PersonnelRealVsOfficial";
-// import Patrimony from "./pages/reports/Patrimony";
-
-// Configurações avançadas
-// import FiscalBase from "./pages/settings/FiscalBase";
-// import Partners from "./pages/settings/Partners";
-// import AlertsConfig from "./pages/settings/AlertsConfig";
-// import TaxConfig from "./pages/settings/TaxConfig";
-// import DataSeed2025 from "./pages/settings/DataSeed2025";
-// import FatorRAudit from "./pages/settings/FatorRAudit";
-// import CardFeesConfig from "./pages/settings/CardFeesConfig";
-// import Convenios from "./pages/settings/Convenios";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -194,34 +164,6 @@ const App = () => (
               <Route path="/import/daily-movement" element={<DailyMovement />} />
               <Route path="/import/bank-statement" element={<BankStatement />} />
               <Route path="/import/convenio-reports" element={<ConvenioReportsImport />} />
-
-              {/* ============================================ */}
-              {/* ARCHIVED ROUTES - Comentadas */}
-              {/* ============================================ */}
-              {/* 
-              <Route path="/cash-closing" element={<CashClosingSimple />} />
-              <Route path="/cash-closing-advanced" element={<CashClosing />} />
-              <Route path="/lis/fechamento" element={<LisFechamento />} />
-              <Route path="/lis/cash-closing-select" element={<CashClosingWithSelection />} />
-              <Route path="/envelope-closing" element={<EnvelopeCashClosing />} />
-              <Route path="/pix-closing" element={<PixClosing />} />
-              <Route path="/card-closing" element={<CardClosing />} />
-              <Route path="/cash-hub" element={<CashHub />} />
-              <Route path="/settings/fiscal-base" element={<FiscalBase />} />
-              <Route path="/settings/partners" element={<Partners />} />
-              <Route path="/settings/tax-config" element={<TaxConfig />} />
-              <Route path="/settings/fator-r-audit" element={<FatorRAudit />} />
-              <Route path="/settings/alerts" element={<AlertsConfig />} />
-              <Route path="/settings/data-2025" element={<DataSeed2025 />} />
-              <Route path="/settings/card-fees" element={<CardFeesConfig />} />
-              <Route path="/settings/convenios" element={<Convenios />} />
-              <Route path="/reports/tax-scenarios" element={<TaxScenarios />} />
-              <Route path="/reports/personnel-real-vs-official" element={<PersonnelRealVsOfficial />} />
-              <Route path="/reports/patrimony" element={<Patrimony />} />
-              <Route path="/import/extrato-particulares" element={<ExtratoParticulares />} />
-              <Route path="/audit/particular-vs-cash" element={<ParticularVsCash />} />
-              <Route path="/audit/convenio-vs-invoice" element={<ConvenioVsInvoice />} />
-              */}
 
               <Route path="*" element={<NotFound />} />
             </Routes>
