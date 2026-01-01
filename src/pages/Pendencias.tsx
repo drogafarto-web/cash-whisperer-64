@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { usePendingDetails } from '@/hooks/usePendingDetails';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,11 +20,15 @@ import {
   FileText,
   Gavel,
   CalendarClock,
+  Landmark,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format, addDays } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { useAuth } from '@/hooks/useAuth';
+import { useBankStatements, BANK_ACCOUNTS } from '@/hooks/useBankStatements';
 
 function PendingCard({
   title,
@@ -127,16 +132,36 @@ function useExpiringContracts() {
 }
 
 export default function Pendencias() {
+  const { user, role } = useAuth();
+  const userId = user?.id || '';
   const { data, isLoading } = usePendingDetails();
   const { data: overdueTaxGuides = [], isLoading: loadingTaxGuides } = useOverdueTaxGuides();
   const { data: expiringContracts = [], isLoading: loadingContracts } = useExpiringContracts();
+  
+  // Hook para verificar extratos bancários pendentes
+  const { files, loadFiles, checkMissingStatements } = useBankStatements({ userId });
+  
+  // Carregar arquivos para verificação
+  useEffect(() => {
+    if (role === 'admin') {
+      loadFiles();
+    }
+  }, [role, loadFiles]);
+  
+  // Verificar se precisa mostrar lembrete de extratos (dias 1-5 do mês, só admin)
+  const today = new Date();
+  const dayOfMonth = today.getDate();
+  const showBankStatementReminder = role === 'admin' && dayOfMonth <= 5;
+  const missingStatements = checkMissingStatements();
 
   // Contagens por aba
+  const bankStatementPending = showBankStatementReminder && missingStatements.hasMissing ? 1 : 0;
   const fiscalCount = (data?.unidadesSemFechamento.length || 0) +
     (data?.unidadesSemTaxConfig.length || 0) +
     (data?.categoriasSemTaxGroup.length || 0) +
     (data?.fatorRStatus?.alertLevel !== 'ok' ? 1 : 0) +
-    overdueTaxGuides.length;
+    overdueTaxGuides.length +
+    bankStatementPending;
 
   const contratualCount = expiringContracts.length;
   const legalCount = 0; // Placeholder para futuro
@@ -424,6 +449,36 @@ export default function Pendencias() {
                         +{overdueTaxGuides.length - 5} guias
                       </p>
                     )}
+                  </div>
+                </PendingCard>
+              )}
+
+              {/* Lembrete de Extratos Bancários (só admin, dias 1-5) */}
+              {showBankStatementReminder && missingStatements.hasMissing && (
+                <PendingCard
+                  title="Extratos Bancários Pendentes"
+                  description={`Arquive os extratos de ${missingStatements.targetMonth}`}
+                  icon={Landmark}
+                  count={missingStatements.missingAccounts.length}
+                  status="warning"
+                >
+                  <div className="space-y-2">
+                    {missingStatements.missingAccounts.map(account => (
+                      <div key={account.id} className="flex items-center justify-between p-2 bg-muted/50 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Landmark className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">{account.name}</span>
+                        </div>
+                        <Badge variant="secondary" className="text-xs">
+                          Sem extrato
+                        </Badge>
+                      </div>
+                    ))}
+                    <Button size="sm" variant="outline" asChild className="w-full mt-3">
+                      <Link to="/settings/internal/fiscal-control">
+                        Arquivar Extratos <ArrowRight className="ml-1 h-3 w-3" />
+                      </Link>
+                    </Button>
                   </div>
                 </PendingCard>
               )}

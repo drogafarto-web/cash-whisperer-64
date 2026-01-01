@@ -42,6 +42,9 @@ import NotFound from "./pages/NotFound";
 // Módulo Interno (Sem link no menu)
 import FiscalControl from "./pages/internal/FiscalControl";
 
+// Contabilidade - Visualização de Extratos
+import AccountingBankStatements from "./pages/accounting/AccountingBankStatements";
+
 // ============================================
 // CORE PAGES - Quiosque
 // ============================================
@@ -162,6 +165,9 @@ const App = () => (
 
               {/* Módulo Interno Protegido (sem link no menu) */}
               <Route path="/settings/internal/fiscal-control" element={<FiscalControl />} />
+              
+              {/* Contabilidade - Visualização de Extratos (contador) */}
+              <Route path="/accounting/bank-statements" element={<AccountingBankStatements />} />
 
               {/* Portais Simplificados (Modo Quiosque) */}
               <Route path="/portal/atendimento" element={<Navigate to="/reception-panel?mode=kiosk" replace />} />
