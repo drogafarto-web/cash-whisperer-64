@@ -34,6 +34,7 @@ import Units from "./pages/settings/Units";
 import Accounts from "./pages/settings/Accounts";
 import Categories from "./pages/settings/Categories";
 import Users from "./pages/settings/Users";
+import TaxConfig from "./pages/settings/TaxConfig";
 
 // Sistema
 import About from "./pages/About";
@@ -133,6 +134,7 @@ const App = () => (
               <Route path="/settings/accounts" element={<Accounts />} />
               <Route path="/settings/categories" element={<Categories />} />
               <Route path="/settings/users" element={<Users />} />
+              <Route path="/settings/tax-config" element={<TaxConfig />} />
               
               {/* Sistema */}
               <Route path="/about" element={<About />} />
