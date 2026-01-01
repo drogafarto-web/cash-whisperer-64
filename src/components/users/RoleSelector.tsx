@@ -1,4 +1,4 @@
-import { Check } from 'lucide-react';
+import { Check, User as UserIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ROLE_CONFIG, AppRole } from '@/lib/access-policy';
 import { cn } from '@/lib/utils';
@@ -17,18 +17,26 @@ export function RoleSelector({
   compact = false 
 }: RoleSelectorProps) {
   return (
-    <div className={cn(
-      "grid gap-3",
-      compact ? "grid-cols-2 md:grid-cols-3" : "grid-cols-1 sm:grid-cols-2"
-    )}>
+    <div 
+      role="radiogroup" 
+      aria-label="Seleção de perfil de acesso"
+      className={cn(
+        "grid gap-3",
+        compact ? "grid-cols-2 md:grid-cols-3" : "grid-cols-1 sm:grid-cols-2"
+      )}
+    >
       {Object.entries(ROLE_CONFIG).map(([roleKey, config]) => {
-        const Icon = config.icon;
+        // Fallback to UserIcon if icon is missing
+        const Icon = config.icon || UserIcon;
         const isSelected = value === roleKey;
         
         return (
           <button
             key={roleKey}
             type="button"
+            role="radio"
+            aria-checked={isSelected}
+            aria-label={`${config.label}: ${config.description}`}
             onClick={() => onChange(roleKey as AppRole)}
             className={cn(
               "flex items-start gap-3 p-4 rounded-lg border text-left transition-all",
