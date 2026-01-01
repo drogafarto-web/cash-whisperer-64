@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
-import { Upload, FileText, Loader2, Plus, Trash2, Wand2, CreditCard, Banknote, Building2, Wallet, Clock, Check } from 'lucide-react';
+import { Upload, FileText, Loader2, Plus, Trash2, Wand2, CreditCard, Banknote, Building2, Wallet, Clock, Check, TrendingDown } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -427,26 +427,39 @@ export function SupplierInvoiceUploadForm({ units, categories, onSuccess, onCanc
               <FormField
                 control={form.control}
                 name="category_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Categoria</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione..." />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {categories.map((cat) => (
-                          <SelectItem key={cat.id} value={cat.id}>
-                            {cat.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                render={({ field }) => {
+                  const selectedCat = categories.find(c => c.id === field.value) as any;
+                  const entraFatorR = selectedCat?.entra_fator_r || selectedCat?.tax_group === 'PESSOAL';
+                  
+                  return (
+                    <FormItem>
+                      <FormLabel>Categoria</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {categories.map((cat) => (
+                            <SelectItem key={cat.id} value={cat.id}>
+                              {cat.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {entraFatorR && (
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <Badge variant="secondary" className="text-xs gap-1">
+                            <TrendingDown className="h-3 w-3" />
+                            Entra no cálculo do Fator R
+                          </Badge>
+                        </div>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
               />
 
               <FormField

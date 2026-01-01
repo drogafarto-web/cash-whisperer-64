@@ -51,6 +51,7 @@ import { HelpCircle } from 'lucide-react';
 import { AttendantDashboard } from '@/components/dashboard/AttendantDashboard';
 import { FinanceiroDashboard } from '@/components/dashboard/FinanceiroDashboard';
 import { ContadorDashboard } from '@/components/dashboard/ContadorDashboard';
+import { CompetenceCard } from '@/components/dashboard/CompetenceCard';
 
 // Thresholds configuráveis
 const THRESHOLDS = {
@@ -653,6 +654,9 @@ export default function Dashboard() {
               Receita: {formatCurrency(resultado.receita)} | Custos: {formatCurrency(resultado.custos)}
             </p>
           </DashboardCard>
+
+          {/* Card 1.5: DRE por Competência */}
+          <CompetenceCard selectedUnit={selectedUnit} dateRange={dateRange} />
 
           {/* Card 2: Caixa & Extratos por Unidade */}
           <DashboardCard
