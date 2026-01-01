@@ -41,7 +41,7 @@
 // import FiscalBase from "@/pages/settings/FiscalBase";
 // import Partners from "@/pages/settings/Partners";
 // import AlertsConfig from "@/pages/settings/AlertsConfig";
-// import TaxConfig from "@/pages/settings/TaxConfig";
+// ✅ REATIVADO: import TaxConfig from "@/pages/settings/TaxConfig"; → movido para App.tsx
 // import DataSeed2025 from "@/pages/settings/DataSeed2025";
 // import FatorRAudit from "@/pages/settings/FatorRAudit";
 // import CardFeesConfig from "@/pages/settings/CardFeesConfig";
@@ -65,7 +65,7 @@
 // {/* Configurações avançadas */}
 // <Route path="/settings/fiscal-base" element={<FiscalBase />} />
 // <Route path="/settings/partners" element={<Partners />} />
-// <Route path="/settings/tax-config" element={<TaxConfig />} />
+// ✅ REATIVADO: <Route path="/settings/tax-config" element={<TaxConfig />} /> → movido para App.tsx
 // <Route path="/settings/fator-r-audit" element={<FatorRAudit />} />
 // <Route path="/settings/alerts" element={<AlertsConfig />} />
 // <Route path="/settings/data-2025" element={<DataSeed2025 />} />
