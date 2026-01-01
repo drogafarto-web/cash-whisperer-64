@@ -95,7 +95,7 @@ function ReceptionPanelContent() {
           <div className="mb-4">
             <KioskBreadcrumb 
               homeHref="/reception-panel"
-              homeLabel="Recepção"
+              homeLabel="Quiosque"
               items={[{ label: getStepLabel(currentStep) }]}
             />
           </div>
@@ -123,7 +123,7 @@ function ReceptionPanelContent() {
             <div className="lg:flex-1 lg:ml-0">
               <p className="text-muted-foreground text-sm">Olá, {firstName}</p>
               <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-foreground">
-                Painel Recepção
+                Quiosque
               </h1>
             </div>
             
@@ -200,7 +200,7 @@ function ReceptionPanelContent() {
 
 export default function ReceptionPanel() {
   return (
-    <RequireFunction functions={['caixa', 'supervisao']}>
+    <RequireFunction functions={['atendimento', 'caixa', 'supervisao']}>
       <ReceptionPanelContent />
     </RequireFunction>
   );

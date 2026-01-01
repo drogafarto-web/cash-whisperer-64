@@ -22,12 +22,12 @@ interface HelpChatModalProps {
 // Perguntas contextuais por rota
 const SCREEN_QUESTIONS: Record<string, { name: string; questions: string[] }> = {
   '/reception-panel': {
-    name: 'Recepção',
+    name: 'Quiosque',
     questions: [
-      'Como importar movimento diário?',
-      'O que fazer se der erro na importação?',
-      'Como fechar envelope de dinheiro?',
-      'Como confirmar PIX e cartão?'
+      'Como lançar uma receita rapidamente?',
+      'Como lançar uma despesa?',
+      'Posso anexar documentos?',
+      'Como usar o OCR para extrair dados?'
     ]
   },
   '/payables/boletos': {

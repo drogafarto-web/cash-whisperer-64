@@ -40,9 +40,13 @@ import Changelog from "./pages/Changelog";
 import NotFound from "./pages/NotFound";
 
 // ============================================
+// CORE PAGES - Quiosque
+// ============================================
+import ReceptionPanel from "./pages/core/ReceptionPanel";
+
+// ============================================
 // FUTURE PAGES - Ativar após núcleo estável
 // ============================================
-import ReceptionPanel from "./pages/ReceptionPanel";
 import AccountingHistory from "./pages/AccountingHistory";
 import AccountingAudit from "./pages/AccountingAudit";
 import PayablesDashboard from "./pages/payables/Dashboard";
