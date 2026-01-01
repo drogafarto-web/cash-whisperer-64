@@ -33,12 +33,12 @@
 // import ExtratoParticulares from "@/pages/import/ExtratoParticulares";
 
 // Relatórios avançados
-// import TaxScenarios from "@/pages/reports/TaxScenarios";
+// ✅ REATIVADO: import TaxScenarios from "@/pages/reports/TaxScenarios"; → movido para App.tsx
 // import PersonnelRealVsOfficial from "@/pages/reports/PersonnelRealVsOfficial";
 // import Patrimony from "@/pages/reports/Patrimony";
 
 // Configurações avançadas
-// import FiscalBase from "@/pages/settings/FiscalBase";
+// ✅ REATIVADO: import FiscalBase from "@/pages/settings/FiscalBase"; → movido para App.tsx
 // import Partners from "@/pages/settings/Partners";
 // import AlertsConfig from "@/pages/settings/AlertsConfig";
 // ✅ REATIVADO: import TaxConfig from "@/pages/settings/TaxConfig"; → movido para App.tsx
@@ -63,7 +63,7 @@
 // <Route path="/cash-hub" element={<CashHub />} />
 //
 // {/* Configurações avançadas */}
-// <Route path="/settings/fiscal-base" element={<FiscalBase />} />
+// ✅ REATIVADO: <Route path="/settings/fiscal-base" element={<FiscalBase />} /> → movido para App.tsx
 // <Route path="/settings/partners" element={<Partners />} />
 // ✅ REATIVADO: <Route path="/settings/tax-config" element={<TaxConfig />} /> → movido para App.tsx
 // <Route path="/settings/fator-r-audit" element={<FatorRAudit />} />
@@ -73,7 +73,7 @@
 // <Route path="/settings/convenios" element={<Convenios />} />
 //
 // {/* Relatórios avançados */}
-// <Route path="/reports/tax-scenarios" element={<TaxScenarios />} />
+// ✅ REATIVADO: <Route path="/reports/tax-scenarios" element={<TaxScenarios />} /> → movido para App.tsx
 // <Route path="/reports/personnel-real-vs-official" element={<PersonnelRealVsOfficial />} />
 // <Route path="/reports/patrimony" element={<Patrimony />} />
 //
