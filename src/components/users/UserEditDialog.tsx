@@ -18,6 +18,7 @@ import {
   TableRow 
 } from '@/components/ui/table';
 import { Loader2, Star, Building2, Briefcase, Link2, Check, Shield, AlertTriangle, Phone, Calendar, CreditCard, KeyRound } from 'lucide-react';
+import { RoleSelector } from './RoleSelector';
 import { Unit, AppRole } from '@/types/database';
 import { OPERATIONAL_FUNCTIONS } from '@/hooks/useProfileFunctions';
 import { ROLE_CONFIG } from '@/lib/access-policy';
@@ -337,45 +338,17 @@ export function UserEditDialog({
             </div>
 
             {/* Role Selection Cards */}
-            {onRoleChange && (
+            {onRoleChange && currentRole && (
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Shield className="w-4 h-4 text-primary" />
                   <Label className="font-medium">Perfil de Acesso</Label>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {Object.entries(ROLE_CONFIG).map(([roleKey, config]) => {
-                    const isSelected = currentRole === roleKey;
-                    return (
-                      <button
-                        key={roleKey}
-                        type="button"
-                        onClick={() => onRoleChange(roleKey as AppRole)}
-                        className={cn(
-                          "p-3 rounded-lg border text-left transition-all",
-                          isSelected 
-                            ? "border-primary bg-primary/5 ring-1 ring-primary" 
-                            : "border-muted hover:border-primary/50 hover:bg-muted/50"
-                        )}
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className={cn(
-                            "w-3 h-3 rounded-full border-2 flex items-center justify-center",
-                            isSelected 
-                              ? "bg-primary border-primary" 
-                              : "border-muted-foreground"
-                          )}>
-                            {isSelected && <Check className="w-2 h-2 text-primary-foreground" />}
-                          </div>
-                          <span className="font-medium text-sm">{config.label}</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground line-clamp-2">
-                          {config.description}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
+                <RoleSelector 
+                  value={currentRole} 
+                  onChange={onRoleChange} 
+                  compact 
+                />
               </div>
             )}
 
