@@ -1465,6 +1465,9 @@ export function AccountingSmartUpload({
                 status={doc.status as 'processing' | 'ready' | 'applied' | 'error'}
                 onApply={() => handlePayrollApply(doc)}
                 onRemove={() => handleRemove(doc.id)}
+                onEditSave={(updatedResult) => {
+                  updateDocument(doc.id, { payrollResult: updatedResult });
+                }}
               />
             ) : doc.taxResult ? (
               <TaxGuideResultCard

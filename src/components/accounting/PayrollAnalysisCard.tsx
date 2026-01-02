@@ -1,6 +1,16 @@
+import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Users,
   Lightbulb,
@@ -8,6 +18,9 @@ import {
   CheckCircle2,
   Loader2,
   FileSpreadsheet,
+  Pencil,
+  Save,
+  X,
 } from 'lucide-react';
 import type { PayrollOcrResult } from '@/services/accountingValidationService';
 
@@ -17,7 +30,23 @@ interface PayrollAnalysisCardProps {
   status: 'processing' | 'ready' | 'applied' | 'error';
   onApply?: () => void;
   onRemove?: () => void;
+  onEditSave?: (updatedResult: PayrollOcrResult) => void;
 }
+
+const MONTHS = [
+  { value: '1', label: 'Janeiro' },
+  { value: '2', label: 'Fevereiro' },
+  { value: '3', label: 'Março' },
+  { value: '4', label: 'Abril' },
+  { value: '5', label: 'Maio' },
+  { value: '6', label: 'Junho' },
+  { value: '7', label: 'Julho' },
+  { value: '8', label: 'Agosto' },
+  { value: '9', label: 'Setembro' },
+  { value: '10', label: 'Outubro' },
+  { value: '11', label: 'Novembro' },
+  { value: '12', label: 'Dezembro' },
+];
 
 export function PayrollAnalysisCard({
   result,
@@ -25,7 +54,18 @@ export function PayrollAnalysisCard({
   status,
   onApply,
   onRemove,
+  onEditSave,
 }: PayrollAnalysisCardProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValues, setEditValues] = useState({
+    total_folha: result.total_folha ?? 0,
+    encargos: result.encargos ?? 0,
+    prolabore: result.prolabore ?? 0,
+    num_funcionarios: result.num_funcionarios ?? 0,
+    competencia_mes: result.competencia?.mes ?? 1,
+    competencia_ano: result.competencia?.ano ?? new Date().getFullYear(),
+  });
+
   const formatCurrency = (value: number | null) => {
     if (value === null) return '—';
     return `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
@@ -37,6 +77,164 @@ export function PayrollAnalysisCard({
     return 'text-red-600';
   };
 
+  const handleStartEdit = () => {
+    setEditValues({
+      total_folha: result.total_folha ?? 0,
+      encargos: result.encargos ?? 0,
+      prolabore: result.prolabore ?? 0,
+      num_funcionarios: result.num_funcionarios ?? 0,
+      competencia_mes: result.competencia?.mes ?? 1,
+      competencia_ano: result.competencia?.ano ?? new Date().getFullYear(),
+    });
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+  };
+
+  const handleSaveEdit = () => {
+    if (onEditSave) {
+      const updatedResult: PayrollOcrResult = {
+        ...result,
+        total_folha: editValues.total_folha,
+        encargos: editValues.encargos,
+        prolabore: editValues.prolabore || null,
+        num_funcionarios: editValues.num_funcionarios || null,
+        competencia: {
+          mes: editValues.competencia_mes,
+          ano: editValues.competencia_ano,
+        },
+      };
+      onEditSave(updatedResult);
+    }
+    setIsEditing(false);
+  };
+
+  // Edit Mode
+  if (isEditing) {
+    return (
+      <Card className="overflow-hidden">
+        <div className="h-1 bg-blue-500" />
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Pencil className="h-4 w-4 text-blue-500" />
+              <span className="font-semibold">Editar Valores</span>
+            </div>
+            <Badge variant="secondary">Modo Edição</Badge>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Total Folha</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={editValues.total_folha}
+                onChange={(e) =>
+                  setEditValues((prev) => ({
+                    ...prev,
+                    total_folha: parseFloat(e.target.value) || 0,
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Encargos</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={editValues.encargos}
+                onChange={(e) =>
+                  setEditValues((prev) => ({
+                    ...prev,
+                    encargos: parseFloat(e.target.value) || 0,
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Pró-labore</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={editValues.prolabore}
+                onChange={(e) =>
+                  setEditValues((prev) => ({
+                    ...prev,
+                    prolabore: parseFloat(e.target.value) || 0,
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Nº Funcionários</Label>
+              <Input
+                type="number"
+                value={editValues.num_funcionarios}
+                onChange={(e) =>
+                  setEditValues((prev) => ({
+                    ...prev,
+                    num_funcionarios: parseInt(e.target.value) || 0,
+                  }))
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Mês</Label>
+              <Select
+                value={String(editValues.competencia_mes)}
+                onValueChange={(v) =>
+                  setEditValues((prev) => ({
+                    ...prev,
+                    competencia_mes: parseInt(v),
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MONTHS.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Ano</Label>
+              <Input
+                type="number"
+                value={editValues.competencia_ano}
+                onChange={(e) =>
+                  setEditValues((prev) => ({
+                    ...prev,
+                    competencia_ano: parseInt(e.target.value) || new Date().getFullYear(),
+                  }))
+                }
+              />
+            </div>
+          </div>
+
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={handleCancelEdit}>
+              <X className="h-4 w-4 mr-1" />
+              Cancelar
+            </Button>
+            <Button size="sm" onClick={handleSaveEdit}>
+              <Save className="h-4 w-4 mr-1" />
+              Salvar
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // View Mode
   return (
     <Card className="overflow-hidden">
       <div className="h-1 bg-blue-500" />
@@ -75,13 +273,24 @@ export function PayrollAnalysisCard({
             </div>
           </div>
 
-          {/* Right: Funcionários */}
-          <div className="text-right">
+          {/* Right: Funcionários + Edit button */}
+          <div className="flex items-center gap-2">
             {result.num_funcionarios !== null && (
               <Badge variant="secondary" className="gap-1">
                 <Users className="h-3 w-3" />
                 {result.num_funcionarios} funcionário(s)
               </Badge>
+            )}
+            {status === 'ready' && onEditSave && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={handleStartEdit}
+                title="Editar valores"
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
             )}
           </div>
         </div>
