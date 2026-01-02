@@ -608,7 +608,18 @@ export function AccountingSmartUpload({
     const errors: string[] = [];
     
     try {
-      // 1. Check for existing payroll document for this competence
+      // 1. Buscar funcionários da unidade com salário cadastrado
+      const { data: funcionarios } = await supabase
+        .from('partners')
+        .select('id, name, expected_amount, default_category_id')
+        .eq('unit_id', unitId)
+        .eq('type', 'FUNCIONARIO')
+        .eq('active', true)
+        .not('expected_amount', 'is', null);
+      
+      const numFuncionariosRegistrados = funcionarios?.length || 0;
+      
+      // 2. Check for existing payroll document for this competence
       const { data: existingPayroll } = await supabase
         .from('accounting_lab_documents')
         .select('id, valor, created_at')
@@ -622,7 +633,7 @@ export function AccountingSmartUpload({
         toast.warning(`Já existe folha para ${competenciaLabel}. Atualizando dados...`);
       }
       
-      // 2. Save/update in accounting_lab_documents (for auditing)
+      // 3. Save/update in accounting_lab_documents (for auditing)
       const labDocData = {
         unit_id: unitId,
         ano: docAno,
@@ -631,7 +642,7 @@ export function AccountingSmartUpload({
         file_name: doc.fileName,
         file_path: doc.filePath || null,
         valor: doc.payrollResult.total_folha,
-        descricao: `Folha de Pagamento - ${doc.payrollResult.num_funcionarios || '?'} funcionário(s)`,
+        descricao: `Folha de Pagamento - ${numFuncionariosRegistrados > 0 ? numFuncionariosRegistrados : (doc.payrollResult.num_funcionarios || '?')} funcionário(s)`,
         created_by: user?.id,
         payable_status: 'pending',
       };
@@ -647,84 +658,118 @@ export function AccountingSmartUpload({
         documentSaved = true;
       }
       
-      // 3. CREATE PAYABLES for each payroll component
-      const payrollComponents = [
-        {
-          categoryId: PAYROLL_CATEGORY_MAP.salarios,
-          valor: doc.payrollResult.total_folha || 0,
-          description: `Salários - ${competenciaLabel} (${doc.payrollResult.num_funcionarios || '?'} funcionários)`,
-        },
-      ];
-      
-      // Add pró-labore if exists
-      if (doc.payrollResult.prolabore && doc.payrollResult.prolabore > 0) {
-        payrollComponents.push({
-          categoryId: PAYROLL_CATEGORY_MAP.prolabore,
-          valor: doc.payrollResult.prolabore,
-          description: `Pró-labore - ${competenciaLabel}`,
-        });
-      }
-      
-      // Add encargos if exists
-      if (doc.payrollResult.encargos && doc.payrollResult.encargos > 0) {
-        payrollComponents.push({
-          categoryId: PAYROLL_CATEGORY_MAP.encargos,
-          valor: doc.payrollResult.encargos,
-          description: `Encargos Patronais - ${competenciaLabel}`,
-        });
-      }
-      
-      // 4. Check for existing payables for this competence
+      // 4. Verificar payables existentes para evitar duplicidade
       const { data: existingPayables } = await supabase
         .from('payables')
-        .select('id, category_id, description')
+        .select('id, category_id, beneficiario')
         .eq('unit_id', unitId)
-        .in('category_id', Object.values(PAYROLL_CATEGORY_MAP))
         .gte('vencimento', `${docAno}-${docMes.toString().padStart(2, '0')}-01`)
         .lte('vencimento', lastDayOfMonth);
       
+      const existingBeneficiarios = new Set(existingPayables?.map(p => p.beneficiario) || []);
       const existingCategoryIds = new Set(existingPayables?.map(p => p.category_id) || []);
       
-      // 5. Create payables only for categories that don't exist yet
-      for (const component of payrollComponents) {
-        if (component.valor <= 0) continue;
-        
-        if (existingCategoryIds.has(component.categoryId)) {
-          console.log(`[handlePayrollApply] Payable already exists for category ${component.categoryId}`);
-          continue;
+      // 5. Criar payables POR FUNCIONÁRIO (se houver cadastrados)
+      if (funcionarios && funcionarios.length > 0) {
+        for (const func of funcionarios) {
+          if (existingBeneficiarios.has(func.name)) {
+            console.log(`[handlePayrollApply] Payable já existe para ${func.name}`);
+            continue;
+          }
+          
+          const { error: payableError } = await supabase
+            .from('payables')
+            .insert({
+              beneficiario: func.name,
+              valor: func.expected_amount,  // USA SALÁRIO CADASTRADO
+              vencimento: lastDayOfMonth,
+              description: `Salário ${func.name} - ${competenciaLabel}`,
+              tipo: 'titulo',
+              unit_id: unitId,
+              category_id: func.default_category_id || PAYROLL_CATEGORY_MAP.salarios,
+              status: 'PENDENTE',
+              file_path: doc.filePath || null,
+              file_name: doc.fileName,
+              created_by: user?.id,
+              nf_vinculacao_status: 'nao_requer',
+            });
+          
+          if (payableError) {
+            console.error(`[handlePayrollApply] Erro para ${func.name}:`, payableError);
+            errors.push(`Erro: ${func.name}`);
+          } else {
+            payablesCreated++;
+          }
         }
-        
-        const { error: payableError } = await supabase
-          .from('payables')
-          .insert({
-            beneficiario: 'Folha de Pagamento',
-            valor: component.valor,
-            vencimento: lastDayOfMonth,
-            description: component.description,
-            tipo: 'titulo',
-            unit_id: unitId,
-            category_id: component.categoryId,
-            status: 'PENDENTE',
-            file_path: doc.filePath || null,
-            file_name: doc.fileName,
-            created_by: user?.id,
-            nf_vinculacao_status: 'nao_requer',
-          });
-        
-        if (payableError) {
-          console.error('[handlePayrollApply] Payable error:', payableError);
-          errors.push(`Erro ao criar ${component.description}`);
-        } else {
-          payablesCreated++;
+      } else {
+        // Fallback: nenhum funcionário cadastrado - criar payable genérico
+        if (!existingCategoryIds.has(PAYROLL_CATEGORY_MAP.salarios) && (doc.payrollResult.total_folha || 0) > 0) {
+          const { error: payableError } = await supabase
+            .from('payables')
+            .insert({
+              beneficiario: 'Folha de Pagamento',
+              valor: doc.payrollResult.total_folha || 0,
+              vencimento: lastDayOfMonth,
+              description: `Salários - ${competenciaLabel} (${doc.payrollResult.num_funcionarios || '?'} funcionários)`,
+              tipo: 'titulo',
+              unit_id: unitId,
+              category_id: PAYROLL_CATEGORY_MAP.salarios,
+              status: 'PENDENTE',
+              file_path: doc.filePath || null,
+              file_name: doc.fileName,
+              created_by: user?.id,
+              nf_vinculacao_status: 'nao_requer',
+            });
+          
+          if (!payableError) payablesCreated++;
         }
       }
       
-      // 6. Update lab document status if payables were created
-      if (payablesCreated > 0 && existingPayroll) {
-        await supabase
-          .from('accounting_lab_documents')
-          .update({ payable_status: 'created' })
-          .eq('id', existingPayroll.id);
+      // 6. Pró-labore (se existir no resultado OCR)
+      if (doc.payrollResult.prolabore && doc.payrollResult.prolabore > 0 && !existingCategoryIds.has(PAYROLL_CATEGORY_MAP.prolabore)) {
+        const { error } = await supabase.from('payables').insert({
+          beneficiario: 'Pró-labore',
+          valor: doc.payrollResult.prolabore,
+          vencimento: lastDayOfMonth,
+          description: `Pró-labore - ${competenciaLabel}`,
+          tipo: 'titulo',
+          unit_id: unitId,
+          category_id: PAYROLL_CATEGORY_MAP.prolabore,
+          status: 'PENDENTE',
+          file_path: doc.filePath || null,
+          created_by: user?.id,
+          nf_vinculacao_status: 'nao_requer',
+        });
+        if (!error) payablesCreated++;
+      }
+      
+      // 7. Encargos (se existir)
+      if (doc.payrollResult.encargos && doc.payrollResult.encargos > 0 && !existingCategoryIds.has(PAYROLL_CATEGORY_MAP.encargos)) {
+        const { error } = await supabase.from('payables').insert({
+          beneficiario: 'Encargos Patronais',
+          valor: doc.payrollResult.encargos,
+          vencimento: lastDayOfMonth,
+          description: `Encargos - ${competenciaLabel}`,
+          tipo: 'titulo',
+          unit_id: unitId,
+          category_id: PAYROLL_CATEGORY_MAP.encargos,
+          status: 'PENDENTE',
+          file_path: doc.filePath || null,
+          created_by: user?.id,
+          nf_vinculacao_status: 'nao_requer',
+        });
+        if (!error) payablesCreated++;
+      }
+      
+      // 8. Update lab document status if payables were created
+      if (payablesCreated > 0) {
+        const docId = existingPayroll?.id;
+        if (docId) {
+          await supabase
+            .from('accounting_lab_documents')
+            .update({ payable_status: 'created' })
+            .eq('id', docId);
+        }
       }
       
     } catch (err: any) {
@@ -732,7 +777,7 @@ export function AccountingSmartUpload({
       errors.push('Erro inesperado');
     }
     
-    // 7. Apply values to form (maintain current behavior)
+    // 9. Apply values to form (maintain current behavior)
     onPayrollApply({
       total_folha: doc.payrollResult.total_folha || 0,
       encargos: doc.payrollResult.encargos || 0,
@@ -741,11 +786,11 @@ export function AccountingSmartUpload({
     });
     updateDocument(doc.id, { status: 'applied' });
     
-    // 8. Invalidate queries to update dashboard
+    // 10. Invalidate queries to update dashboard
     queryClient.invalidateQueries({ queryKey: ['accounting-dashboard', ano, mes] });
     queryClient.invalidateQueries({ queryKey: ['payables'] });
     
-    // 9. User feedback
+    // 11. User feedback
     if (errors.length > 0) {
       toast.error(`Folha aplicada com erros: ${errors.join(', ')}`);
     } else if (payablesCreated > 0) {

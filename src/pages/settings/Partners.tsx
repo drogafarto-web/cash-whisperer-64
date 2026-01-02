@@ -32,9 +32,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
-import { Partner, PartnerType, Category } from '@/types/database';
+import { Partner, PartnerType, Category, Unit } from '@/types/database';
 import { toast } from 'sonner';
-import { Plus, Loader2, Pencil, RefreshCw, Users, Building2 } from 'lucide-react';
+import { Plus, Loader2, Pencil, RefreshCw, Users, Building2, UserCircle } from 'lucide-react';
 
 export default function PartnersSettings() {
   const navigate = useNavigate();
@@ -42,6 +42,7 @@ export default function PartnersSettings() {
   const [isLoading, setIsLoading] = useState(true);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [units, setUnits] = useState<Unit[]>([]);
   
   // Dialog states
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -51,6 +52,7 @@ export default function PartnersSettings() {
   // Form state
   const [name, setName] = useState('');
   const [type, setType] = useState<PartnerType>('CLIENTE');
+  const [unitId, setUnitId] = useState<string>('');
   const [isRecurring, setIsRecurring] = useState(false);
   const [defaultCategoryId, setDefaultCategoryId] = useState<string>('');
   const [expectedAmount, setExpectedAmount] = useState('');
@@ -74,20 +76,25 @@ export default function PartnersSettings() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [partnersRes, categoriesRes] = await Promise.all([
+      const [partnersRes, categoriesRes, unitsRes] = await Promise.all([
         supabase
           .from('partners')
-          .select('*, default_category:categories(*)')
+          .select('*, default_category:categories(*), unit:units(id, name)')
           .order('name'),
         supabase
           .from('categories')
           .select('*')
           .eq('active', true)
           .order('name'),
+        supabase
+          .from('units')
+          .select('id, name')
+          .order('name'),
       ]);
 
       setPartners((partnersRes.data || []) as Partner[]);
       setCategories((categoriesRes.data || []) as Category[]);
+      setUnits((unitsRes.data || []) as Unit[]);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -98,6 +105,7 @@ export default function PartnersSettings() {
   const resetForm = () => {
     setName('');
     setType('CLIENTE');
+    setUnitId('');
     setIsRecurring(false);
     setDefaultCategoryId('');
     setExpectedAmount('');
@@ -110,6 +118,7 @@ export default function PartnersSettings() {
     setEditingPartner(partner);
     setName(partner.name);
     setType(partner.type);
+    setUnitId(partner.unit_id || '');
     setIsRecurring(partner.is_recurring);
     setDefaultCategoryId(partner.default_category_id || '');
     setExpectedAmount(partner.expected_amount?.toString() || '');
@@ -122,12 +131,25 @@ export default function PartnersSettings() {
     e.preventDefault();
     if (!user) return;
 
+    // Validação: Funcionário requer unidade e salário
+    if (type === 'FUNCIONARIO') {
+      if (!unitId) {
+        toast.error('Funcionário requer uma unidade vinculada');
+        return;
+      }
+      if (!expectedAmount || parseFloat(expectedAmount) <= 0) {
+        toast.error('Funcionário requer salário cadastrado');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       const partnerData = {
         name: name.trim(),
         type,
-        is_recurring: isRecurring,
+        unit_id: type === 'FUNCIONARIO' ? unitId : null,
+        is_recurring: type === 'FUNCIONARIO' ? true : isRecurring,
         default_category_id: defaultCategoryId || null,
         expected_amount: expectedAmount ? parseFloat(expectedAmount) : null,
         notes: notes.trim() || null,
@@ -162,9 +184,11 @@ export default function PartnersSettings() {
     }
   };
 
-  const filteredCategories = categories.filter(c => 
-    type === 'CLIENTE' ? c.type === 'ENTRADA' : c.type === 'SAIDA'
-  );
+  const filteredCategories = categories.filter(c => {
+    if (type === 'CLIENTE') return c.type === 'ENTRADA';
+    // FUNCIONARIO e FORNECEDOR usam SAIDA
+    return c.type === 'SAIDA';
+  });
 
   if (authLoading || isLoading) {
     return (
@@ -235,23 +259,52 @@ export default function PartnersSettings() {
                           Fornecedor
                         </span>
                       </SelectItem>
+                      <SelectItem value="FUNCIONARIO">
+                        <span className="flex items-center gap-2">
+                          <UserCircle className="w-4 h-4" />
+                          Funcionário
+                        </span>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="recurring">Recorrência Mensal</Label>
+                {type === 'FUNCIONARIO' && (
+                  <div className="space-y-2">
+                    <Label>Unidade *</Label>
+                    <Select value={unitId} onValueChange={setUnitId} required>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a unidade..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {units.map(unit => (
+                          <SelectItem key={unit.id} value={unit.id}>
+                            {unit.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <p className="text-xs text-muted-foreground">
-                      Pagamento/recebimento todo mês
+                      A folha de pagamento será vinculada aos funcionários desta unidade
                     </p>
                   </div>
-                  <Switch
-                    id="recurring"
-                    checked={isRecurring}
-                    onCheckedChange={setIsRecurring}
-                  />
-                </div>
+                )}
+
+                {type !== 'FUNCIONARIO' && (
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="recurring">Recorrência Mensal</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Pagamento/recebimento todo mês
+                      </p>
+                    </div>
+                    <Switch
+                      id="recurring"
+                      checked={isRecurring}
+                      onCheckedChange={setIsRecurring}
+                    />
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label>Categoria Padrão</Label>
@@ -271,7 +324,9 @@ export default function PartnersSettings() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="expectedAmount">Valor Esperado (R$)</Label>
+                  <Label htmlFor="expectedAmount">
+                    {type === 'FUNCIONARIO' ? 'Salário (R$) *' : 'Valor Esperado (R$)'}
+                  </Label>
                   <Input
                     id="expectedAmount"
                     type="number"
@@ -279,8 +334,14 @@ export default function PartnersSettings() {
                     min="0"
                     value={expectedAmount}
                     onChange={e => setExpectedAmount(e.target.value)}
-                    placeholder="Ex: 700.00"
+                    placeholder={type === 'FUNCIONARIO' ? 'Ex: 2500.00' : 'Ex: 700.00'}
+                    required={type === 'FUNCIONARIO'}
                   />
+                  {type === 'FUNCIONARIO' && (
+                    <p className="text-xs text-muted-foreground">
+                      Este valor será usado para criar os lançamentos de folha
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -321,9 +382,9 @@ export default function PartnersSettings() {
                 <TableRow>
                   <TableHead>Nome</TableHead>
                   <TableHead>Tipo</TableHead>
+                  <TableHead>Unidade</TableHead>
                   <TableHead>Recorrência</TableHead>
-                  <TableHead>Categoria Padrão</TableHead>
-                  <TableHead>Valor Esperado</TableHead>
+                  <TableHead>Valor</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -340,9 +401,21 @@ export default function PartnersSettings() {
                     <TableRow key={partner.id}>
                       <TableCell className="font-medium">{partner.name}</TableCell>
                       <TableCell>
-                        <Badge variant={partner.type === 'CLIENTE' ? 'default' : 'secondary'}>
-                          {partner.type === 'CLIENTE' ? 'Cliente' : 'Fornecedor'}
+                        <Badge 
+                          variant={partner.type === 'FUNCIONARIO' ? 'outline' : partner.type === 'CLIENTE' ? 'default' : 'secondary'}
+                          className={partner.type === 'FUNCIONARIO' ? 'border-blue-500 text-blue-600' : ''}
+                        >
+                          {partner.type === 'FUNCIONARIO' 
+                            ? 'Funcionário' 
+                            : partner.type === 'CLIENTE' 
+                              ? 'Cliente' 
+                              : 'Fornecedor'}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {partner.unit?.name || (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {partner.is_recurring ? (
@@ -355,13 +428,13 @@ export default function PartnersSettings() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {partner.default_category?.name || (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
                         {partner.expected_amount ? (
-                          `R$ ${partner.expected_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                          <span className={partner.type === 'FUNCIONARIO' ? 'font-medium' : ''}>
+                            R$ {partner.expected_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            {partner.type === 'FUNCIONARIO' && (
+                              <span className="text-xs text-muted-foreground ml-1">/mês</span>
+                            )}
+                          </span>
                         ) : (
                           <span className="text-muted-foreground">-</span>
                         )}

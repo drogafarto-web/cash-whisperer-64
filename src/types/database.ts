@@ -1,7 +1,7 @@
 export type AppRole = 'admin' | 'secretaria' | 'contabilidade' | 'gestor_unidade' | 'financeiro' | 'contador';
 export type AccountType = 'CAIXA' | 'CONTA_BANCARIA' | 'OPERADORA_CARTAO';
 export type BankAccountType = 'operacional_principal' | 'recebiveis_cartao_pix' | 'recebiveis_cartao_credito' | 'caixa' | 'conta_bancaria';
-export type PartnerType = 'CLIENTE' | 'FORNECEDOR';
+export type PartnerType = 'CLIENTE' | 'FORNECEDOR' | 'FUNCIONARIO';
 export type UnitType = 'MATRIZ' | 'FILIAL_COM_NF' | 'POSTO_COLETA_SEM_NF';
 export type RegimeTributario = 'SIMPLES_NACIONAL' | 'LUCRO_PRESUMIDO' | 'LUCRO_REAL';
 export type IssTipoApuracao = 'SOBRE_FATURAMENTO' | 'FIXO_MENSAL';
@@ -142,6 +142,7 @@ export interface Partner {
   id: string;
   name: string;
   type: PartnerType;
+  unit_id: string | null;
   is_recurring: boolean;
   default_category_id: string | null;
   expected_amount: number | null;
@@ -151,6 +152,7 @@ export interface Partner {
   updated_at: string;
   // Joined data
   default_category?: Category;
+  unit?: Unit;
 }
 
 export interface Transaction {
