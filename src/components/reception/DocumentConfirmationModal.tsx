@@ -37,19 +37,35 @@ import {
   ArrowUpDown,
   BanknoteIcon,
   Pencil,
-  Check,
   X,
+  Hash,
 } from 'lucide-react';
 import { AnalyzedDocResult, DOCUMENT_TYPE_LABELS, isTaxDocument } from '@/services/accountingOcrService';
 import { toast } from 'sonner';
 
 export type PaymentMethodType = 'dinheiro_caixa' | 'pix' | 'transferencia' | '';
 
+export interface EditedFieldInfo {
+  original: string | number | null;
+  edited: string | number;
+}
+
 export interface OcrEditInfo {
   ocrValueEdited: boolean;
   ocrOriginalValue: number;
   ocrEditReason: string;
   editedValue: number;
+  // Expanded fields
+  fieldsEdited?: {
+    valor?: EditedFieldInfo;
+    vencimento?: EditedFieldInfo;
+    linhaDigitavel?: EditedFieldInfo;
+    codigoBarras?: EditedFieldInfo;
+    fornecedor?: EditedFieldInfo;
+    cnpj?: EditedFieldInfo;
+    numeroDocumento?: EditedFieldInfo;
+    pixKey?: EditedFieldInfo;
+  };
 }
 
 interface DocumentConfirmationModalProps {
@@ -65,6 +81,28 @@ interface DocumentConfirmationModalProps {
   }) => void;
   onCancel: () => void;
   isConfirming?: boolean;
+}
+
+interface EditableFields {
+  valor: string;
+  vencimento: string;
+  linhaDigitavel: string;
+  codigoBarras: string;
+  fornecedor: string;
+  cnpj: string;
+  numeroDocumento: string;
+  pixKey: string;
+}
+
+interface OriginalFields {
+  valor: number;
+  vencimento: string | null;
+  linhaDigitavel: string | null;
+  codigoBarras: string | null;
+  fornecedor: string | null;
+  cnpj: string | null;
+  numeroDocumento: string | null;
+  pixKey: string | null;
 }
 
 export function DocumentConfirmationModal({
@@ -88,19 +126,50 @@ export function DocumentConfirmationModal({
   // Flag for revenue reconciliation - default to true
   const [needsReconciliation, setNeedsReconciliation] = useState(true);
 
-  // Value editing state
-  const originalValue = result.netValue || result.totalValue || 0;
-  const [isEditingValue, setIsEditingValue] = useState(false);
-  const [editedValue, setEditedValue] = useState<string>(originalValue.toString());
+  // Global edit mode
+  const [isEditMode, setIsEditMode] = useState(false);
   const [editReason, setEditReason] = useState('');
   const [showEditError, setShowEditError] = useState(false);
+
+  // Original values from OCR
+  const originalValue = result.netValue || result.totalValue || 0;
+  const originalFields: OriginalFields = {
+    valor: originalValue,
+    vencimento: result.dueDate || result.issueDate || null,
+    linhaDigitavel: result.linhaDigitavel || null,
+    codigoBarras: result.codigoBarras || null,
+    fornecedor: result.issuerName || null,
+    cnpj: result.issuerCnpj || null,
+    numeroDocumento: result.documentNumber || null,
+    pixKey: result.pixKey || null,
+  };
+
+  // Editable values
+  const [editedFields, setEditedFields] = useState<EditableFields>({
+    valor: originalValue.toString(),
+    vencimento: originalFields.vencimento || '',
+    linhaDigitavel: originalFields.linhaDigitavel || '',
+    codigoBarras: originalFields.codigoBarras || '',
+    fornecedor: originalFields.fornecedor || '',
+    cnpj: originalFields.cnpj || '',
+    numeroDocumento: originalFields.numeroDocumento || '',
+    pixKey: originalFields.pixKey || '',
+  });
 
   // Reset editing state when modal opens/closes or result changes
   useEffect(() => {
     if (open) {
-      const val = result.netValue || result.totalValue || 0;
-      setEditedValue(val.toString());
-      setIsEditingValue(false);
+      setEditedFields({
+        valor: (result.netValue || result.totalValue || 0).toString(),
+        vencimento: result.dueDate || result.issueDate || '',
+        linhaDigitavel: result.linhaDigitavel || '',
+        codigoBarras: result.codigoBarras || '',
+        fornecedor: result.issuerName || '',
+        cnpj: result.issuerCnpj || '',
+        numeroDocumento: result.documentNumber || '',
+        pixKey: result.pixKey || '',
+      });
+      setIsEditMode(false);
       setEditReason('');
       setShowEditError(false);
     }
@@ -112,8 +181,46 @@ export function DocumentConfirmationModal({
   const isLowConfidence = confidencePercent < 70;
   const isUnknown = result.type === 'unknown';
 
-  const parsedEditedValue = parseFloat(editedValue.replace(',', '.')) || 0;
-  const valueWasEdited = Math.abs(parsedEditedValue - originalValue) > 0.01;
+  // Check if a specific field was edited
+  const wasFieldEdited = (field: keyof EditableFields): boolean => {
+    if (field === 'valor') {
+      const parsed = parseFloat(editedFields.valor.replace(',', '.')) || 0;
+      return Math.abs(parsed - originalFields.valor) > 0.01;
+    }
+    const original = originalFields[field] || '';
+    const edited = editedFields[field] || '';
+    return original !== edited && edited !== '';
+  };
+
+  // Check if any field was edited
+  const hasAnyFieldEdited = (): boolean => {
+    return (
+      wasFieldEdited('valor') ||
+      wasFieldEdited('vencimento') ||
+      wasFieldEdited('linhaDigitavel') ||
+      wasFieldEdited('codigoBarras') ||
+      wasFieldEdited('fornecedor') ||
+      wasFieldEdited('cnpj') ||
+      wasFieldEdited('numeroDocumento') ||
+      wasFieldEdited('pixKey')
+    );
+  };
+
+  // Get list of edited fields for display
+  const getEditedFieldsList = (): string[] => {
+    const fields: string[] = [];
+    if (wasFieldEdited('valor')) fields.push('Valor');
+    if (wasFieldEdited('vencimento')) fields.push('Vencimento');
+    if (wasFieldEdited('linhaDigitavel')) fields.push('Linha Digitável');
+    if (wasFieldEdited('codigoBarras')) fields.push('Código de Barras');
+    if (wasFieldEdited('fornecedor')) fields.push('Fornecedor');
+    if (wasFieldEdited('cnpj')) fields.push('CNPJ');
+    if (wasFieldEdited('numeroDocumento')) fields.push('Nº Documento');
+    if (wasFieldEdited('pixKey')) fields.push('Chave PIX');
+    return fields;
+  };
+
+  const parsedEditedValue = parseFloat(editedFields.valor.replace(',', '.')) || 0;
 
   const formatCurrency = (value: number | null) => {
     if (!value && value !== 0) return '-';
@@ -138,40 +245,64 @@ export function DocumentConfirmationModal({
     }
   };
 
-  const handleStartEditValue = () => {
-    setIsEditingValue(true);
-    setShowEditError(false);
-  };
-
-  const handleCancelEditValue = () => {
-    setEditedValue(originalValue.toString());
-    setIsEditingValue(false);
-    setEditReason('');
-    setShowEditError(false);
-  };
-
-  const handleConfirmEditValue = () => {
-    if (valueWasEdited && editReason.trim().length < 10) {
-      setShowEditError(true);
-      return;
+  const handleToggleEditMode = () => {
+    if (isEditMode) {
+      // Exiting edit mode - check if there are unsaved edits
+      setIsEditMode(false);
+    } else {
+      setIsEditMode(true);
     }
-    setIsEditingValue(false);
-    setShowEditError(false);
+  };
+
+  const handleFieldChange = (field: keyof EditableFields, value: string) => {
+    setEditedFields(prev => ({ ...prev, [field]: value }));
+  };
+
+  const buildFieldsEditedObject = (): OcrEditInfo['fieldsEdited'] => {
+    const fieldsEdited: OcrEditInfo['fieldsEdited'] = {};
+    
+    if (wasFieldEdited('valor')) {
+      fieldsEdited.valor = { original: originalFields.valor, edited: parsedEditedValue };
+    }
+    if (wasFieldEdited('vencimento')) {
+      fieldsEdited.vencimento = { original: originalFields.vencimento, edited: editedFields.vencimento };
+    }
+    if (wasFieldEdited('linhaDigitavel')) {
+      fieldsEdited.linhaDigitavel = { original: originalFields.linhaDigitavel, edited: editedFields.linhaDigitavel };
+    }
+    if (wasFieldEdited('codigoBarras')) {
+      fieldsEdited.codigoBarras = { original: originalFields.codigoBarras, edited: editedFields.codigoBarras };
+    }
+    if (wasFieldEdited('fornecedor')) {
+      fieldsEdited.fornecedor = { original: originalFields.fornecedor, edited: editedFields.fornecedor };
+    }
+    if (wasFieldEdited('cnpj')) {
+      fieldsEdited.cnpj = { original: originalFields.cnpj, edited: editedFields.cnpj };
+    }
+    if (wasFieldEdited('numeroDocumento')) {
+      fieldsEdited.numeroDocumento = { original: originalFields.numeroDocumento, edited: editedFields.numeroDocumento };
+    }
+    if (wasFieldEdited('pixKey')) {
+      fieldsEdited.pixKey = { original: originalFields.pixKey, edited: editedFields.pixKey };
+    }
+    
+    return fieldsEdited;
   };
 
   const handleConfirm = () => {
-    // Validate edit reason if value was changed
-    if (valueWasEdited && editReason.trim().length < 10) {
+    // Validate edit reason if any field was changed
+    if (hasAnyFieldEdited() && editReason.trim().length < 10) {
       setShowEditError(true);
       toast.error('Informe a justificativa da correção (mínimo 10 caracteres)');
       return;
     }
 
-    const ocrEdit: OcrEditInfo | undefined = valueWasEdited ? {
-      ocrValueEdited: true,
-      ocrOriginalValue: originalValue,
+    const ocrEdit: OcrEditInfo | undefined = hasAnyFieldEdited() ? {
+      ocrValueEdited: wasFieldEdited('valor'),
+      ocrOriginalValue: originalFields.valor,
       ocrEditReason: editReason.trim(),
       editedValue: parsedEditedValue,
+      fieldsEdited: buildFieldsEditedObject(),
     } : undefined;
 
     const extras = isExpense ? {
@@ -193,19 +324,94 @@ export function DocumentConfirmationModal({
 
   const docTypeLabel = DOCUMENT_TYPE_LABELS[result.documentType] || result.documentType;
 
+  // Render an editable or static field
+  const renderEditableField = (
+    field: keyof EditableFields,
+    label: string,
+    icon: React.ReactNode,
+    type: 'text' | 'date' | 'currency' = 'text',
+    placeholder?: string
+  ) => {
+    const edited = wasFieldEdited(field);
+    const value = editedFields[field];
+    
+    if (isEditMode) {
+      return (
+        <div className="flex items-center gap-2 text-sm">
+          {icon}
+          <span className="text-muted-foreground whitespace-nowrap">{label}:</span>
+          <Input
+            type={type === 'date' ? 'date' : 'text'}
+            value={value}
+            onChange={(e) => handleFieldChange(field, e.target.value)}
+            className={`h-7 text-sm flex-1 ${edited ? 'border-amber-500' : ''}`}
+            placeholder={placeholder}
+          />
+        </div>
+      );
+    }
+
+    // Static display
+    let displayValue: string;
+    if (type === 'currency') {
+      displayValue = formatCurrency(parsedEditedValue);
+    } else if (type === 'date') {
+      displayValue = formatDate(value) || '-';
+    } else {
+      displayValue = value || '-';
+    }
+
+    return (
+      <div className="flex items-center gap-2 text-sm">
+        {icon}
+        <span className="text-muted-foreground">{label}:</span>
+        <span className={`${type === 'currency' ? 'font-semibold' : ''} ${edited ? 'text-amber-600' : ''}`}>
+          {displayValue}
+        </span>
+        {edited && (
+          <Badge variant="outline" className="text-xs border-amber-500 text-amber-600">
+            Corrigido
+          </Badge>
+        )}
+      </div>
+    );
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {isTaxDoc ? (
-              <Landmark className="h-5 w-5 text-blue-600" />
-            ) : isRevenue ? (
-              <FileText className="h-5 w-5 text-emerald-600" />
-            ) : (
-              <Receipt className="h-5 w-5 text-amber-600" />
-            )}
-            Confirmar Classificação
+          <DialogTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {isTaxDoc ? (
+                <Landmark className="h-5 w-5 text-blue-600" />
+              ) : isRevenue ? (
+                <FileText className="h-5 w-5 text-emerald-600" />
+              ) : (
+                <Receipt className="h-5 w-5 text-amber-600" />
+              )}
+              Confirmar Classificação
+            </div>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleToggleEditMode}
+              className={`gap-2 ${isEditMode ? 'text-amber-600 bg-amber-50' : 'text-muted-foreground'}`}
+              title={isEditMode ? "Sair do modo edição" : "Editar dados extraídos"}
+            >
+              {isEditMode ? (
+                <>
+                  <X className="h-4 w-4" />
+                  Fechar Edição
+                </>
+              ) : (
+                <>
+                  <Pencil className="h-4 w-4" />
+                  Editar
+                </>
+              )}
+            </Button>
           </DialogTitle>
           <DialogDescription>
             {fileName}
@@ -213,6 +419,16 @@ export function DocumentConfirmationModal({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {/* Edit Mode Banner */}
+          {isEditMode && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200">
+              <Pencil className="h-4 w-4 text-amber-600" />
+              <p className="text-sm text-amber-800">
+                <span className="font-medium">Modo de edição ativo.</span> Altere os campos que precisam de correção.
+              </p>
+            </div>
+          )}
+
           {/* Document Type Badge */}
           {isTaxDoc && (
             <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-50 border border-blue-200">
@@ -288,60 +504,117 @@ export function DocumentConfirmationModal({
           )}
 
           {/* Payment Info for Tax Documents */}
-          {(result.codigoBarras || result.linhaDigitavel || result.pixKey) && (
+          {(originalFields.codigoBarras || originalFields.linhaDigitavel || originalFields.pixKey) && (
             <div className="space-y-2 p-3 rounded-lg bg-muted/30 border">
               <h4 className="text-sm font-medium flex items-center gap-2">
                 <Copy className="h-4 w-4" />
                 Dados para Pagamento
               </h4>
               
-              {result.linhaDigitavel && (
+              {/* Linha Digitável */}
+              {(originalFields.linhaDigitavel || isEditMode) && (
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <span className="text-xs text-muted-foreground">Linha Digitável</span>
-                    <p className="text-xs font-mono truncate">{result.linhaDigitavel}</p>
+                    {isEditMode ? (
+                      <Input
+                        value={editedFields.linhaDigitavel}
+                        onChange={(e) => handleFieldChange('linhaDigitavel', e.target.value)}
+                        className={`font-mono text-xs h-7 ${wasFieldEdited('linhaDigitavel') ? 'border-amber-500' : ''}`}
+                        placeholder="Linha digitável do boleto"
+                      />
+                    ) : (
+                      <p className={`text-xs font-mono truncate ${wasFieldEdited('linhaDigitavel') ? 'text-amber-600' : ''}`}>
+                        {editedFields.linhaDigitavel || '-'}
+                        {wasFieldEdited('linhaDigitavel') && (
+                          <Badge variant="outline" className="ml-2 text-xs border-amber-500 text-amber-600">
+                            Corrigido
+                          </Badge>
+                        )}
+                      </p>
+                    )}
                   </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => handleCopy(result.linhaDigitavel, 'Linha digitável')}
-                  >
-                    <Copy className="h-3 w-3" />
-                  </Button>
+                  {!isEditMode && editedFields.linhaDigitavel && (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleCopy(editedFields.linhaDigitavel, 'Linha digitável')}
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  )}
                 </div>
               )}
 
-              {result.codigoBarras && !result.linhaDigitavel && (
+              {/* Código de Barras */}
+              {(originalFields.codigoBarras || isEditMode) && !originalFields.linhaDigitavel && (
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <span className="text-xs text-muted-foreground">Código de Barras</span>
-                    <p className="text-xs font-mono truncate">{result.codigoBarras}</p>
+                    {isEditMode ? (
+                      <Input
+                        value={editedFields.codigoBarras}
+                        onChange={(e) => handleFieldChange('codigoBarras', e.target.value)}
+                        className={`font-mono text-xs h-7 ${wasFieldEdited('codigoBarras') ? 'border-amber-500' : ''}`}
+                        placeholder="Código de barras"
+                      />
+                    ) : (
+                      <p className={`text-xs font-mono truncate ${wasFieldEdited('codigoBarras') ? 'text-amber-600' : ''}`}>
+                        {editedFields.codigoBarras || '-'}
+                        {wasFieldEdited('codigoBarras') && (
+                          <Badge variant="outline" className="ml-2 text-xs border-amber-500 text-amber-600">
+                            Corrigido
+                          </Badge>
+                        )}
+                      </p>
+                    )}
                   </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => handleCopy(result.codigoBarras, 'Código de barras')}
-                  >
-                    <Copy className="h-3 w-3" />
-                  </Button>
+                  {!isEditMode && editedFields.codigoBarras && (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleCopy(editedFields.codigoBarras, 'Código de barras')}
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  )}
                 </div>
               )}
 
-              {result.pixKey && (
+              {/* PIX Key */}
+              {(originalFields.pixKey || isEditMode) && (
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <span className="text-xs text-muted-foreground">
                       Chave PIX ({result.pixTipo || 'desconhecido'})
                     </span>
-                    <p className="text-xs font-mono truncate">{result.pixKey}</p>
+                    {isEditMode ? (
+                      <Input
+                        value={editedFields.pixKey}
+                        onChange={(e) => handleFieldChange('pixKey', e.target.value)}
+                        className={`font-mono text-xs h-7 ${wasFieldEdited('pixKey') ? 'border-amber-500' : ''}`}
+                        placeholder="Chave PIX"
+                      />
+                    ) : (
+                      <p className={`text-xs font-mono truncate ${wasFieldEdited('pixKey') ? 'text-amber-600' : ''}`}>
+                        {editedFields.pixKey || '-'}
+                        {wasFieldEdited('pixKey') && (
+                          <Badge variant="outline" className="ml-2 text-xs border-amber-500 text-amber-600">
+                            Corrigido
+                          </Badge>
+                        )}
+                      </p>
+                    )}
                   </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => handleCopy(result.pixKey, 'Chave PIX')}
-                  >
-                    <Copy className="h-3 w-3" />
-                  </Button>
+                  {!isEditMode && editedFields.pixKey && (
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleCopy(editedFields.pixKey, 'Chave PIX')}
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
@@ -352,29 +625,25 @@ export function DocumentConfirmationModal({
             <h4 className="text-sm font-medium text-muted-foreground">Dados Extraídos</h4>
             
             <div className="grid gap-2">
-              {/* Issuer */}
-              <div className="flex items-center gap-2 text-sm">
-                <Building2 className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">
-                  {isTaxDoc ? 'Contribuinte:' : isRevenue ? 'Cliente:' : 'Fornecedor:'}
-                </span>
-                <span className="font-medium">
-                  {isTaxDoc
-                    ? result.issuerName || 'Não identificado'
-                    : isRevenue 
-                      ? result.customerName || 'Não identificado' 
-                      : result.issuerName || 'Não identificado'
-                  }
-                </span>
-              </div>
+              {/* Issuer/Fornecedor */}
+              {renderEditableField(
+                'fornecedor',
+                isTaxDoc ? 'Contribuinte' : isRevenue ? 'Cliente' : 'Fornecedor',
+                <Building2 className="h-4 w-4 text-muted-foreground" />,
+                'text',
+                'Nome do fornecedor'
+              )}
 
               {/* CNPJ */}
-              {(result.issuerCnpj || result.customerCnpj) && (
-                <div className="flex items-center gap-2 text-sm pl-6">
-                  <span className="text-muted-foreground">CNPJ:</span>
-                  <span className="font-mono text-xs">
-                    {isTaxDoc ? result.issuerCnpj : isRevenue ? result.customerCnpj : result.issuerCnpj}
-                  </span>
+              {(originalFields.cnpj || isEditMode) && (
+                <div className="pl-6">
+                  {renderEditableField(
+                    'cnpj',
+                    'CNPJ',
+                    <span className="w-4" />,
+                    'text',
+                    '00.000.000/0000-00'
+                  )}
                 </div>
               )}
 
@@ -389,120 +658,72 @@ export function DocumentConfirmationModal({
                 </div>
               )}
 
-              {/* Value - Editable */}
-              <div className="flex items-start gap-2 text-sm">
-                <DollarSign className="h-4 w-4 text-muted-foreground mt-0.5" />
-                <div className="flex-1 space-y-2">
-                  {isEditingValue ? (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground">R$</span>
-                        <Input
-                          type="text"
-                          value={editedValue}
-                          onChange={(e) => setEditedValue(e.target.value)}
-                          className="w-32 h-8"
-                          placeholder="0,00"
-                          autoFocus
-                        />
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleConfirmEditValue}
-                          className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                        >
-                          <Check className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleCancelEditValue}
-                          className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Valor original OCR: {formatCurrency(originalValue)}
-                      </p>
-                      {valueWasEdited && (
-                        <div className="space-y-1">
-                          <Label className="text-xs">
-                            Justificativa da correção <span className="text-destructive">*</span>
-                          </Label>
-                          <Textarea
-                            value={editReason}
-                            onChange={(e) => {
-                              setEditReason(e.target.value);
-                              if (e.target.value.trim().length >= 10) {
-                                setShowEditError(false);
-                              }
-                            }}
-                            placeholder="Explique por que está corrigindo o valor (mínimo 10 caracteres)"
-                            rows={2}
-                            className={`resize-none text-sm ${showEditError ? 'border-destructive' : ''}`}
-                          />
-                          {showEditError && (
-                            <p className="text-xs text-destructive">
-                              Justificativa obrigatória (mínimo 10 caracteres)
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground">Valor:</span>
-                      <span className={`font-semibold ${valueWasEdited ? 'text-amber-600' : ''}`}>
-                        {formatCurrency(parsedEditedValue)}
-                      </span>
-                      {valueWasEdited && (
-                        <Badge variant="outline" className="text-xs border-amber-500 text-amber-600">
-                          Corrigido
-                        </Badge>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleStartEditValue}
-                        className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                        title="Editar valor"
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  )}
-                  {valueWasEdited && !isEditingValue && editReason && (
-                    <p className="text-xs text-muted-foreground">
-                      <span className="font-medium">Motivo:</span> {editReason}
-                    </p>
-                  )}
-                </div>
-              </div>
+              {/* Value */}
+              {renderEditableField(
+                'valor',
+                'Valor',
+                <DollarSign className="h-4 w-4 text-muted-foreground" />,
+                'currency',
+                '0,00'
+              )}
 
-              {/* Date */}
-              <div className="flex items-center gap-2 text-sm">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">
-                  {isRevenue ? 'Emissão:' : 'Vencimento:'}
-                </span>
-                <span>
-                  {isRevenue 
-                    ? formatDate(result.issueDate) 
-                    : formatDate(result.dueDate || result.issueDate)
-                  }
-                </span>
-              </div>
+              {/* Date/Vencimento */}
+              {renderEditableField(
+                'vencimento',
+                isRevenue ? 'Emissão' : 'Vencimento',
+                <Calendar className="h-4 w-4 text-muted-foreground" />,
+                'date'
+              )}
 
               {/* Document number */}
-              {result.documentNumber && (
-                <div className="flex items-center gap-2 text-sm pl-6">
-                  <span className="text-muted-foreground">Nº Doc:</span>
-                  <span className="font-mono text-xs">{result.documentNumber}</span>
+              {(originalFields.numeroDocumento || isEditMode) && (
+                <div className="pl-6">
+                  {renderEditableField(
+                    'numeroDocumento',
+                    'Nº Doc',
+                    <Hash className="h-3 w-3 text-muted-foreground" />,
+                    'text',
+                    'Número do documento'
+                  )}
                 </div>
               )}
             </div>
           </div>
+
+          {/* Edit Justification Area */}
+          {hasAnyFieldEdited() && (
+            <div className="space-y-2 p-3 rounded-lg bg-amber-50 border border-amber-200">
+              <div className="flex items-center gap-2 text-amber-700">
+                <AlertTriangle className="h-4 w-4" />
+                <span className="text-sm font-medium">Dados corrigidos manualmente</span>
+              </div>
+              
+              <div className="text-xs text-amber-600 mb-2">
+                Campos alterados: {getEditedFieldsList().join(', ')}
+              </div>
+              
+              <Label className="text-xs">
+                Justificativa da correção <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                value={editReason}
+                onChange={(e) => {
+                  setEditReason(e.target.value);
+                  if (e.target.value.trim().length >= 10) {
+                    setShowEditError(false);
+                  }
+                }}
+                placeholder="Explique por que está corrigindo os dados (mínimo 10 caracteres)"
+                rows={2}
+                className={`resize-none text-sm ${showEditError ? 'border-destructive' : ''}`}
+              />
+              {showEditError && (
+                <p className="text-xs text-destructive">
+                  Justificativa obrigatória (mínimo 10 caracteres)
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Service Description and Payment Method - only for expenses */}
           {isExpense && (
