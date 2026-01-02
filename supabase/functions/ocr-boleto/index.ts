@@ -17,7 +17,7 @@ interface BoletoOcrResult {
   vencimento: string | null;
   nosso_numero: string | null;
   documento: string | null;
-  confianca: number;
+  confidence: number;
 }
 
 const BANCOS: Record<string, string> = {
@@ -69,7 +69,7 @@ serve(async (req) => {
   "vencimento": "YYYY-MM-DD" (data de vencimento),
   "nosso_numero": "nosso número do boleto",
   "documento": "número do documento",
-  "confianca": número de 0 a 100 indicando a confiança da extração
+  "confidence": número de 0 a 100 indicando a confiança da extração
 }
 
 INSTRUÇÕES IMPORTANTES:
@@ -177,7 +177,7 @@ INSTRUÇÕES IMPORTANTES:
       vencimento: ocrData.vencimento || null,
       nosso_numero: ocrData.nosso_numero || null,
       documento: ocrData.documento || null,
-      confianca: ocrData.confianca || 0,
+      confidence: ocrData.confidence || (ocrData as Record<string, unknown>).confianca as number || 0,
     };
 
     console.log("OCR boleto result:", result);

@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ShieldCheck, Plus, TrendingDown, Calendar, Loader2, FileText } from 'lucide-react';
+import { ShieldCheck, Plus, TrendingDown, Calendar, Loader2, FileText, Zap } from 'lucide-react';
 
 import { RequireRole } from '@/components/auth/RequireRole';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -21,7 +21,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { logFiscalControlAccess } from '@/services/cashAuditService';
 import { FiscalConfirmModal } from './FiscalConfirmModal';
 import { BankStatementsTab } from './BankStatementsTab';
+import { QuickOpsTab } from './QuickOpsTab';
 import { formatCurrency } from '@/lib/formats';
+
+// UUID do dono - único usuário com acesso à aba Ops Rápidas
+const OWNER_USER_ID = '7ecf8586-6bb1-4c10-82de-f0e8135e1d8f';
 
 // IDs das categorias informais (já existentes no banco)
 const INFORMAL_CATEGORIES = [
@@ -42,6 +46,9 @@ export default function FiscalControl() {
   
   const [confirmed, setConfirmed] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  
+  // Verifica se é o dono (único com acesso a Ops Rápidas)
+  const isOwner = user?.id === OWNER_USER_ID;
   
   // Form state
   const [categoryId, setCategoryId] = useState('');
@@ -195,6 +202,12 @@ export default function FiscalControl() {
                   <FileText className="h-4 w-4" />
                   Extratos Bancários
                 </TabsTrigger>
+                {isOwner && (
+                  <TabsTrigger value="ops" className="gap-2">
+                    <Zap className="h-4 w-4" />
+                    Ops Rápidas
+                  </TabsTrigger>
+                )}
               </TabsList>
 
               {/* Tab: Pagamentos Informais */}
@@ -369,6 +382,13 @@ export default function FiscalControl() {
               <TabsContent value="extratos">
                 <BankStatementsTab userId={user?.id || ''} />
               </TabsContent>
+
+              {/* Tab: Ops Rápidas (apenas para o dono) */}
+              {isOwner && (
+                <TabsContent value="ops">
+                  <QuickOpsTab userId={user?.id || ''} />
+                </TabsContent>
+              )}
             </Tabs>
 
             {/* Aviso de segurança */}
