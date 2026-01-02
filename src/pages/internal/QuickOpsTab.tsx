@@ -79,7 +79,7 @@ export function QuickOpsTab({ userId }: QuickOpsTabProps) {
   };
 
   const openKiosk = (path: string) => {
-    window.open(path, '_blank');
+    window.open(`${window.location.origin}${path}`, '_blank');
   };
 
   return (
@@ -100,7 +100,7 @@ export function QuickOpsTab({ userId }: QuickOpsTabProps) {
             <Button 
               variant="outline" 
               className="gap-2"
-              onClick={() => openKiosk('/core/reception-panel?mode=kiosk')}
+              onClick={() => openKiosk('/reception-panel?mode=kiosk')}
             >
               <Receipt className="h-4 w-4" />
               Quiosque Recepção
