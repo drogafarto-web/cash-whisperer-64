@@ -600,13 +600,13 @@ export function AccountingSmartUpload({
     }
   };
 
-  const handlePayrollApply = async (doc: UploadedDocument) => {
-    if (!doc.payrollResult || !onPayrollApply) return;
+  // Returns true if modal was opened (batch needs to wait)
+  const handlePayrollApply = async (doc: UploadedDocument): Promise<boolean> => {
+    if (!doc.payrollResult || !onPayrollApply) return false;
     
     const competencia = doc.payrollResult.competencia;
     const docAno = competencia?.ano || ano;
     const docMes = competencia?.mes || mes;
-    const competenciaLabel = `${docMes.toString().padStart(2, '0')}/${docAno}`;
     
     try {
       // 1. Buscar funcionários da unidade com salário cadastrado
@@ -616,9 +616,6 @@ export function AccountingSmartUpload({
         .eq('unit_id', unitId)
         .eq('type', 'FUNCIONARIO')
         .eq('active', true);
-      
-      // Filter colaboradores with valid salary for display
-      const colaboradoresValidos = (funcionarios || []).filter(f => f.expected_amount && f.expected_amount > 0);
       
       // 2. Se existirem colaboradores, abrir modal de vinculação
       if (funcionarios && funcionarios.length > 0) {
@@ -631,15 +628,17 @@ export function AccountingSmartUpload({
         
         setPendingPayrollDoc(doc);
         setShowPayrollModal(true);
-        return; // Wait for modal confirmation
+        return true; // Modal opened, batch should stop
       }
       
       // 3. Se não existirem colaboradores, criar payable genérico automaticamente
       await createGenericPayroll(doc);
+      return false; // No modal, batch can continue
       
     } catch (err: any) {
       console.error('[handlePayrollApply] Exception:', err);
       toast.error('Erro ao processar folha de pagamento');
+      return false;
     }
   };
 
@@ -1163,12 +1162,18 @@ export function AccountingSmartUpload({
         } else if (doc.type === 'payroll' && doc.payrollResult && onPayrollApply) {
           // For payroll, call handlePayrollApply which will open the modal if colaboradores exist
           // Note: In batch mode, we'll process the first payroll document and stop if modal opens
-          await handlePayrollApply(doc);
+          const modalOpened = await handlePayrollApply(doc);
           
-          // If modal opened (showPayrollModal became true), stop batch processing
-          // User needs to manually confirm colaborador assignment
-          if (showPayrollModal) {
-            toast.info('Folha de pagamento requer vinculação de colaboradores. Complete o processo manualmente.');
+          // If modal opened, stop batch processing - user needs to confirm colaborador assignment
+          if (modalOpened) {
+            toast.info('Folha de pagamento requer vinculação de colaboradores. Complete o processo no modal aberto.');
+            results.push({
+              type: 'folha',
+              valor: doc.payrollResult.total_folha || 0,
+              status: 'success',
+              fileName: doc.fileName,
+              payableSkipped: true,
+            });
             break;
           }
           
