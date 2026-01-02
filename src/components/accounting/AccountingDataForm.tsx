@@ -448,6 +448,12 @@ export function AccountingDataForm({ unitId, unitName, competence, section, onBa
                   existingFile={documentsByCategory.folha}
                   onUploadComplete={() => refetchDocuments()}
                   onDeleteComplete={() => refetchDocuments()}
+                  onPayrollOcrComplete={(result) => {
+                    if (result.total_folha !== null) {
+                      form.setValue('total_folha', result.total_folha);
+                      toast.success('Total da folha preenchido automaticamente via IA');
+                    }
+                  }}
                 />
               )}
             </CardContent>
