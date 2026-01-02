@@ -98,6 +98,16 @@ export function useAccountingDashboard(ano: number, mes: number) {
         .eq('mes', mes)
         .maybeSingle();
 
+      // Buscar documentos de folha do lab (Processamento Inteligente)
+      const { data: labPayrollDocs } = await supabase
+        .from('accounting_lab_documents')
+        .select('valor')
+        .eq('ano', ano)
+        .eq('mes', mes)
+        .eq('tipo', 'folha_pagamento');
+      
+      const labPayrollTotal = (labPayrollDocs || []).reduce((sum, doc) => sum + (doc.valor || 0), 0);
+
       // Buscar documentos da competência
       const { data: documents } = await supabase
         .from('accounting_documents')
@@ -164,17 +174,20 @@ export function useAccountingDashboard(ano: number, mes: number) {
         total: usarInvoices ? invoicesReceita : ((revenueData?.receita_servicos || 0) + (revenueData?.receita_outras || 0)),
       };
 
-      // Folha: priorizar payables reais
+      // Folha: priorizar payables reais, depois lab documents, depois seed
       const seedFolhaTotal = (payrollData?.salarios || 0) + (payrollData?.prolabore || 0) + (payrollData?.inss_patronal || 0) + (payrollData?.fgts || 0) + (payrollData?.decimo_terceiro || 0) + (payrollData?.ferias || 0);
       
+      // Determinar fonte de dados para folha
+      const usarLabPayroll = !usarPayables && labPayrollTotal > 0;
+      
       const folha = {
-        salarios: usarPayables ? payablesFolha : (payrollData?.salarios || 0),
-        prolabore: usarPayables ? 0 : (payrollData?.prolabore || 0), // TODO: separar de payables
-        inss_patronal: usarPayables ? 0 : (payrollData?.inss_patronal || 0),
-        fgts: usarPayables ? 0 : (payrollData?.fgts || 0),
-        decimo_terceiro: usarPayables ? 0 : (payrollData?.decimo_terceiro || 0),
-        ferias: usarPayables ? 0 : (payrollData?.ferias || 0),
-        total: usarPayables ? payablesFolha : seedFolhaTotal,
+        salarios: usarPayables ? payablesFolha : usarLabPayroll ? labPayrollTotal : (payrollData?.salarios || 0),
+        prolabore: usarPayables ? 0 : usarLabPayroll ? 0 : (payrollData?.prolabore || 0),
+        inss_patronal: usarPayables ? 0 : usarLabPayroll ? 0 : (payrollData?.inss_patronal || 0),
+        fgts: usarPayables ? 0 : usarLabPayroll ? 0 : (payrollData?.fgts || 0),
+        decimo_terceiro: usarPayables ? 0 : usarLabPayroll ? 0 : (payrollData?.decimo_terceiro || 0),
+        ferias: usarPayables ? 0 : usarLabPayroll ? 0 : (payrollData?.ferias || 0),
+        total: usarPayables ? payablesFolha : usarLabPayroll ? labPayrollTotal : seedFolhaTotal,
       };
 
       // Calcular Fator R
