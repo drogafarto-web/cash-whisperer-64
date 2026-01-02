@@ -34,6 +34,8 @@ import { useBillingSummary } from '@/features/billing';
 import { useAccountingCashMovement } from '@/hooks/useAccountingCashMovement';
 import { TodayActivityCard } from '@/components/shared/TodayActivityCard';
 import { useDayActivity } from '@/hooks/useDayActivity';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 export type AccountingSection = 'folha' | 'impostos' | 'receitas';
 
@@ -102,6 +104,27 @@ export function AccountingKioskHome({
   
   // Atividades do dia (lançamentos fiscais)
   const { data: activity, isLoading: loadingActivity } = useDayActivity(unitId, 'contabilidade');
+  
+  // Funcionários cadastrados para a unidade
+  const { data: funcionariosData } = useQuery({
+    queryKey: ['funcionarios-unidade', unitId],
+    queryFn: async () => {
+      if (!unitId) return null;
+      const { data } = await supabase
+        .from('partners')
+        .select('id, name, expected_amount')
+        .eq('unit_id', unitId)
+        .eq('type', 'FUNCIONARIO')
+        .eq('active', true)
+        .not('expected_amount', 'is', null);
+      
+      return {
+        count: data?.length || 0,
+        total: data?.reduce((sum, f) => sum + (f.expected_amount || 0), 0) || 0,
+      };
+    },
+    enabled: !!unitId,
+  });
   
   const competenceLabel = format(competence, "MMMM 'de' yyyy", { locale: ptBR });
   
@@ -281,7 +304,27 @@ export function AccountingKioskHome({
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold">{formatCurrency(competenceData?.total_folha)}</p>
-              <p className="text-xs text-muted-foreground">{competenceData?.num_funcionarios || 0} funcionários</p>
+              <div className="mt-2 space-y-1">
+                {funcionariosData && funcionariosData.count > 0 ? (
+                  <div className="flex items-center gap-2 text-xs">
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700">
+                      {funcionariosData.count} funcionário(s) cadastrado(s)
+                    </Badge>
+                    <span className="text-muted-foreground">
+                      = {formatCurrency(funcionariosData.total)}
+                    </span>
+                  </div>
+                ) : (
+                  <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700 text-xs">
+                    Nenhum funcionário cadastrado
+                  </Badge>
+                )}
+                {competenceData?.num_funcionarios !== undefined && competenceData.num_funcionarios > 0 && competenceData.num_funcionarios !== funcionariosData?.count && (
+                  <p className="text-xs text-muted-foreground">
+                    Informado: {competenceData.num_funcionarios} funcionários
+                  </p>
+                )}
+              </div>
             </CardContent>
           </Card>
 

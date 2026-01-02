@@ -40,6 +40,8 @@ interface AccountingDataCardProps {
       decimo_terceiro: number;
       ferias: number;
       total: number;
+      num_funcionarios?: number;
+      salarios_cadastrados?: number;
     };
     fatorR?: {
       percentual: number;
@@ -131,8 +133,8 @@ export function AccountingDataCard({ type, data, competence }: AccountingDataCar
   }
 
   if (type === 'folha' && data.folha) {
-    const { salarios, prolabore, total } = data.folha;
-    const hasData = total > 0;
+    const { salarios, prolabore, total, num_funcionarios = 0, salarios_cadastrados = 0 } = data.folha;
+    const hasData = total > 0 || num_funcionarios > 0;
 
     return (
       <Card 
@@ -158,9 +160,31 @@ export function AccountingDataCard({ type, data, competence }: AccountingDataCar
                 <p>Salários: {formatCurrency(salarios)}</p>
                 <p>Pró-labore: {formatCurrency(prolabore)}</p>
               </div>
+              <div className="pt-2 border-t">
+                <Badge 
+                  variant="outline" 
+                  className={num_funcionarios > 0 
+                    ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700" 
+                    : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700"
+                  }
+                >
+                  <Users className="h-3 w-3 mr-1" />
+                  {num_funcionarios} funcionário(s)
+                </Badge>
+                {salarios_cadastrados > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Base cadastrada: {formatCurrency(salarios_cadastrados)}
+                  </p>
+                )}
+              </div>
             </div>
           ) : (
-            <p className="text-muted-foreground text-sm">Aguardando dados</p>
+            <div className="space-y-2">
+              <p className="text-muted-foreground text-sm">Aguardando dados</p>
+              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-700">
+                Nenhum funcionário cadastrado
+              </Badge>
+            </div>
           )}
         </CardContent>
       </Card>
