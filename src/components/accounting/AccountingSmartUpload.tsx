@@ -25,6 +25,7 @@ import { TaxGuideResultCard } from './TaxGuideResultCard';
 import { PayrollAnalysisCard } from './PayrollAnalysisCard';
 import { BatchApplyResultModal, BatchApplyResult, BatchResultItem } from './BatchApplyResultModal';
 import { TaxDuplicateModal } from './TaxDuplicateModal';
+import { PayrollAssignModal, Colaborador, PayrollData } from './PayrollAssignModal';
 import { AIErrorExplanation } from '@/components/ui/AIErrorExplanation';
 import type { TaxGuideOcrResult, PayrollOcrResult } from '@/services/accountingValidationService';
 import { 
@@ -114,6 +115,13 @@ export function AccountingSmartUpload({
   const [duplicateWarning, setDuplicateWarning] = useState<DuplicateWarning | null>(null);
   const [forcingDuplicate, setForcingDuplicate] = useState(false);
   const [aiError, setAiError] = useState<{ message: string; context?: Record<string, any> } | null>(null);
+  
+  // Payroll assignment modal states
+  const [showPayrollModal, setShowPayrollModal] = useState(false);
+  const [pendingPayrollDoc, setPendingPayrollDoc] = useState<UploadedDocument | null>(null);
+  const [payrollColaboradores, setPayrollColaboradores] = useState<Colaborador[]>([]);
+  const [payrollModalLoading, setPayrollModalLoading] = useState(false);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -600,13 +608,6 @@ export function AccountingSmartUpload({
     const docMes = competencia?.mes || mes;
     const competenciaLabel = `${docMes.toString().padStart(2, '0')}/${docAno}`;
     
-    // Calculate last day of the month for due date
-    const lastDayOfMonth = new Date(docAno, docMes, 0).toISOString().split('T')[0];
-    
-    let documentSaved = false;
-    let payablesCreated = 0;
-    const errors: string[] = [];
-    
     try {
       // 1. Buscar funcionários da unidade com salário cadastrado
       const { data: funcionarios } = await supabase
@@ -614,26 +615,58 @@ export function AccountingSmartUpload({
         .select('id, name, expected_amount, default_category_id')
         .eq('unit_id', unitId)
         .eq('type', 'FUNCIONARIO')
-        .eq('active', true)
-        .not('expected_amount', 'is', null);
+        .eq('active', true);
       
-      const numFuncionariosRegistrados = funcionarios?.length || 0;
+      // Filter colaboradores with valid salary for display
+      const colaboradoresValidos = (funcionarios || []).filter(f => f.expected_amount && f.expected_amount > 0);
       
-      // 2. Check for existing payroll document for this competence
+      // 2. Se existirem colaboradores, abrir modal de vinculação
+      if (funcionarios && funcionarios.length > 0) {
+        setPayrollColaboradores(funcionarios.map(f => ({
+          id: f.id,
+          name: f.name,
+          expected_amount: f.expected_amount,
+          default_category_id: f.default_category_id,
+        })));
+        
+        setPendingPayrollDoc(doc);
+        setShowPayrollModal(true);
+        return; // Wait for modal confirmation
+      }
+      
+      // 3. Se não existirem colaboradores, criar payable genérico automaticamente
+      await createGenericPayroll(doc);
+      
+    } catch (err: any) {
+      console.error('[handlePayrollApply] Exception:', err);
+      toast.error('Erro ao processar folha de pagamento');
+    }
+  };
+
+  // Create generic payroll (when no colaboradores exist)
+  const createGenericPayroll = async (doc: UploadedDocument) => {
+    if (!doc.payrollResult || !onPayrollApply) return;
+    
+    const competencia = doc.payrollResult.competencia;
+    const docAno = competencia?.ano || ano;
+    const docMes = competencia?.mes || mes;
+    const competenciaLabel = `${docMes.toString().padStart(2, '0')}/${docAno}`;
+    const lastDayOfMonth = new Date(docAno, docMes, 0).toISOString().split('T')[0];
+    
+    let payablesCreated = 0;
+    
+    try {
+      // Check for existing payroll document
       const { data: existingPayroll } = await supabase
         .from('accounting_lab_documents')
-        .select('id, valor, created_at')
+        .select('id')
         .eq('unit_id', unitId)
         .eq('tipo', 'folha_pagamento')
         .eq('mes', docMes)
         .eq('ano', docAno)
         .maybeSingle();
       
-      if (existingPayroll) {
-        toast.warning(`Já existe folha para ${competenciaLabel}. Atualizando dados...`);
-      }
-      
-      // 3. Save/update in accounting_lab_documents (for auditing)
+      // Save to accounting_lab_documents
       const labDocData = {
         unit_id: unitId,
         ano: docAno,
@@ -642,90 +675,47 @@ export function AccountingSmartUpload({
         file_name: doc.fileName,
         file_path: doc.filePath || null,
         valor: doc.payrollResult.total_folha,
-        descricao: `Folha de Pagamento - ${numFuncionariosRegistrados > 0 ? numFuncionariosRegistrados : (doc.payrollResult.num_funcionarios || '?')} funcionário(s)`,
+        descricao: `Folha de Pagamento - ${doc.payrollResult.num_funcionarios || '?'} funcionário(s) (genérico)`,
         created_by: user?.id,
         payable_status: 'pending',
       };
       
-      const { error: labError } = existingPayroll
-        ? await supabase.from('accounting_lab_documents').update(labDocData).eq('id', existingPayroll.id)
-        : await supabase.from('accounting_lab_documents').insert(labDocData);
-      
-      if (labError) {
-        console.error('[handlePayrollApply] Lab doc error:', labError);
-        errors.push('Erro ao salvar documento');
+      if (existingPayroll) {
+        await supabase.from('accounting_lab_documents').update(labDocData).eq('id', existingPayroll.id);
       } else {
-        documentSaved = true;
+        await supabase.from('accounting_lab_documents').insert(labDocData);
       }
       
-      // 4. Verificar payables existentes para evitar duplicidade
+      // Check existing payables
       const { data: existingPayables } = await supabase
         .from('payables')
-        .select('id, category_id, beneficiario')
+        .select('id, category_id')
         .eq('unit_id', unitId)
         .gte('vencimento', `${docAno}-${docMes.toString().padStart(2, '0')}-01`)
         .lte('vencimento', lastDayOfMonth);
       
-      const existingBeneficiarios = new Set(existingPayables?.map(p => p.beneficiario) || []);
       const existingCategoryIds = new Set(existingPayables?.map(p => p.category_id) || []);
       
-      // 5. Criar payables POR FUNCIONÁRIO (se houver cadastrados)
-      if (funcionarios && funcionarios.length > 0) {
-        for (const func of funcionarios) {
-          if (existingBeneficiarios.has(func.name)) {
-            console.log(`[handlePayrollApply] Payable já existe para ${func.name}`);
-            continue;
-          }
-          
-          const { error: payableError } = await supabase
-            .from('payables')
-            .insert({
-              beneficiario: func.name,
-              valor: func.expected_amount,  // USA SALÁRIO CADASTRADO
-              vencimento: lastDayOfMonth,
-              description: `Salário ${func.name} - ${competenciaLabel}`,
-              tipo: 'titulo',
-              unit_id: unitId,
-              category_id: func.default_category_id || PAYROLL_CATEGORY_MAP.salarios,
-              status: 'PENDENTE',
-              file_path: doc.filePath || null,
-              file_name: doc.fileName,
-              created_by: user?.id,
-              nf_vinculacao_status: 'nao_requer',
-            });
-          
-          if (payableError) {
-            console.error(`[handlePayrollApply] Erro para ${func.name}:`, payableError);
-            errors.push(`Erro: ${func.name}`);
-          } else {
-            payablesCreated++;
-          }
-        }
-      } else {
-        // Fallback: nenhum funcionário cadastrado - criar payable genérico
-        if (!existingCategoryIds.has(PAYROLL_CATEGORY_MAP.salarios) && (doc.payrollResult.total_folha || 0) > 0) {
-          const { error: payableError } = await supabase
-            .from('payables')
-            .insert({
-              beneficiario: 'Folha de Pagamento',
-              valor: doc.payrollResult.total_folha || 0,
-              vencimento: lastDayOfMonth,
-              description: `Salários - ${competenciaLabel} (${doc.payrollResult.num_funcionarios || '?'} funcionários)`,
-              tipo: 'titulo',
-              unit_id: unitId,
-              category_id: PAYROLL_CATEGORY_MAP.salarios,
-              status: 'PENDENTE',
-              file_path: doc.filePath || null,
-              file_name: doc.fileName,
-              created_by: user?.id,
-              nf_vinculacao_status: 'nao_requer',
-            });
-          
-          if (!payableError) payablesCreated++;
-        }
+      // Create generic payable for total_folha
+      if (!existingCategoryIds.has(PAYROLL_CATEGORY_MAP.salarios) && (doc.payrollResult.total_folha || 0) > 0) {
+        const { error } = await supabase.from('payables').insert({
+          beneficiario: 'Folha de Pagamento',
+          valor: doc.payrollResult.total_folha || 0,
+          vencimento: lastDayOfMonth,
+          description: `Salários - ${competenciaLabel} (${doc.payrollResult.num_funcionarios || '?'} funcionários)`,
+          tipo: 'titulo',
+          unit_id: unitId,
+          category_id: PAYROLL_CATEGORY_MAP.salarios,
+          status: 'PENDENTE',
+          file_path: doc.filePath || null,
+          file_name: doc.fileName,
+          created_by: user?.id,
+          nf_vinculacao_status: 'nao_requer',
+        });
+        if (!error) payablesCreated++;
       }
       
-      // 6. Pró-labore (se existir no resultado OCR)
+      // Pró-labore
       if (doc.payrollResult.prolabore && doc.payrollResult.prolabore > 0 && !existingCategoryIds.has(PAYROLL_CATEGORY_MAP.prolabore)) {
         const { error } = await supabase.from('payables').insert({
           beneficiario: 'Pró-labore',
@@ -743,7 +733,7 @@ export function AccountingSmartUpload({
         if (!error) payablesCreated++;
       }
       
-      // 7. Encargos (se existir)
+      // Encargos
       if (doc.payrollResult.encargos && doc.payrollResult.encargos > 0 && !existingCategoryIds.has(PAYROLL_CATEGORY_MAP.encargos)) {
         const { error } = await supabase.from('payables').insert({
           beneficiario: 'Encargos Patronais',
@@ -761,49 +751,215 @@ export function AccountingSmartUpload({
         if (!error) payablesCreated++;
       }
       
-      // 8. Update lab document status if payables were created
+      // Apply values to form
+      onPayrollApply({
+        total_folha: doc.payrollResult.total_folha || 0,
+        encargos: doc.payrollResult.encargos || 0,
+        prolabore: doc.payrollResult.prolabore || 0,
+        num_funcionarios: doc.payrollResult.num_funcionarios || 0,
+      });
+      updateDocument(doc.id, { status: 'applied' });
+      
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ['accounting-dashboard', ano, mes] });
+      queryClient.invalidateQueries({ queryKey: ['payables'] });
+      
       if (payablesCreated > 0) {
-        const docId = existingPayroll?.id;
-        if (docId) {
-          await supabase
-            .from('accounting_lab_documents')
-            .update({ payable_status: 'created' })
-            .eq('id', docId);
+        toast.success(`Folha genérica criada para ${competenciaLabel}! ${payablesCreated} conta(s) a pagar.`);
+      } else {
+        toast.info(`Folha de ${competenciaLabel} já estava cadastrada.`);
+      }
+    } catch (err: any) {
+      console.error('[createGenericPayroll] Exception:', err);
+      toast.error('Erro ao criar folha genérica');
+    }
+  };
+
+  // Handle payroll modal confirm (create payables per colaborador)
+  const handlePayrollConfirm = async (selectedIds: string[]) => {
+    if (!pendingPayrollDoc?.payrollResult || !onPayrollApply) return;
+    
+    setPayrollModalLoading(true);
+    
+    const doc = pendingPayrollDoc;
+    const competencia = doc.payrollResult.competencia;
+    const docAno = competencia?.ano || ano;
+    const docMes = competencia?.mes || mes;
+    const competenciaLabel = `${docMes.toString().padStart(2, '0')}/${docAno}`;
+    const lastDayOfMonth = new Date(docAno, docMes, 0).toISOString().split('T')[0];
+    
+    let payablesCreated = 0;
+    const errors: string[] = [];
+    
+    try {
+      // 1. Save to accounting_lab_documents
+      const { data: existingPayroll } = await supabase
+        .from('accounting_lab_documents')
+        .select('id')
+        .eq('unit_id', unitId)
+        .eq('tipo', 'folha_pagamento')
+        .eq('mes', docMes)
+        .eq('ano', docAno)
+        .maybeSingle();
+      
+      const labDocData = {
+        unit_id: unitId,
+        ano: docAno,
+        mes: docMes,
+        tipo: 'folha_pagamento',
+        file_name: doc.fileName,
+        file_path: doc.filePath || null,
+        valor: doc.payrollResult.total_folha,
+        descricao: `Folha de Pagamento - ${selectedIds.length} colaborador(es)`,
+        created_by: user?.id,
+        payable_status: 'pending',
+      };
+      
+      if (existingPayroll) {
+        await supabase.from('accounting_lab_documents').update(labDocData).eq('id', existingPayroll.id);
+      } else {
+        await supabase.from('accounting_lab_documents').insert(labDocData);
+      }
+      
+      // 2. Check existing payables to avoid duplicates
+      const { data: existingPayables } = await supabase
+        .from('payables')
+        .select('id, category_id, beneficiario')
+        .eq('unit_id', unitId)
+        .gte('vencimento', `${docAno}-${docMes.toString().padStart(2, '0')}-01`)
+        .lte('vencimento', lastDayOfMonth);
+      
+      const existingBeneficiarios = new Set(existingPayables?.map(p => p.beneficiario) || []);
+      const existingCategoryIds = new Set(existingPayables?.map(p => p.category_id) || []);
+      
+      // 3. Create payable PER selected colaborador
+      for (const collabId of selectedIds) {
+        const collab = payrollColaboradores.find(c => c.id === collabId);
+        if (!collab || !collab.expected_amount) continue;
+        
+        if (existingBeneficiarios.has(collab.name)) {
+          console.log(`[handlePayrollConfirm] Payable already exists for ${collab.name}`);
+          continue;
+        }
+        
+        const { error: payableError } = await supabase
+          .from('payables')
+          .insert({
+            beneficiario: collab.name,
+            valor: collab.expected_amount,
+            vencimento: lastDayOfMonth,
+            description: `Salário ${collab.name} - ${competenciaLabel}`,
+            tipo: 'titulo',
+            unit_id: unitId,
+            category_id: collab.default_category_id || PAYROLL_CATEGORY_MAP.salarios,
+            status: 'PENDENTE',
+            file_path: doc.filePath || null,
+            file_name: doc.fileName,
+            created_by: user?.id,
+            nf_vinculacao_status: 'nao_requer',
+          });
+        
+        if (payableError) {
+          console.error(`[handlePayrollConfirm] Error for ${collab.name}:`, payableError);
+          errors.push(collab.name);
+        } else {
+          payablesCreated++;
         }
       }
       
+      // 4. Pró-labore (if in OCR result)
+      if (doc.payrollResult.prolabore && doc.payrollResult.prolabore > 0 && !existingCategoryIds.has(PAYROLL_CATEGORY_MAP.prolabore)) {
+        const { error } = await supabase.from('payables').insert({
+          beneficiario: 'Pró-labore',
+          valor: doc.payrollResult.prolabore,
+          vencimento: lastDayOfMonth,
+          description: `Pró-labore - ${competenciaLabel}`,
+          tipo: 'titulo',
+          unit_id: unitId,
+          category_id: PAYROLL_CATEGORY_MAP.prolabore,
+          status: 'PENDENTE',
+          file_path: doc.filePath || null,
+          created_by: user?.id,
+          nf_vinculacao_status: 'nao_requer',
+        });
+        if (!error) payablesCreated++;
+      }
+      
+      // 5. Encargos
+      if (doc.payrollResult.encargos && doc.payrollResult.encargos > 0 && !existingCategoryIds.has(PAYROLL_CATEGORY_MAP.encargos)) {
+        const { error } = await supabase.from('payables').insert({
+          beneficiario: 'Encargos Patronais',
+          valor: doc.payrollResult.encargos,
+          vencimento: lastDayOfMonth,
+          description: `Encargos - ${competenciaLabel}`,
+          tipo: 'titulo',
+          unit_id: unitId,
+          category_id: PAYROLL_CATEGORY_MAP.encargos,
+          status: 'PENDENTE',
+          file_path: doc.filePath || null,
+          created_by: user?.id,
+          nf_vinculacao_status: 'nao_requer',
+        });
+        if (!error) payablesCreated++;
+      }
+      
+      // 6. Update lab document status
+      if (existingPayroll && payablesCreated > 0) {
+        await supabase
+          .from('accounting_lab_documents')
+          .update({ payable_status: 'created' })
+          .eq('id', existingPayroll.id);
+      }
+      
+      // 7. Close modal and update UI
+      setShowPayrollModal(false);
+      setPendingPayrollDoc(null);
+      updateDocument(doc.id, { status: 'applied' });
+      
+      // 8. Apply values to form
+      onPayrollApply({
+        total_folha: doc.payrollResult.total_folha || 0,
+        encargos: doc.payrollResult.encargos || 0,
+        prolabore: doc.payrollResult.prolabore || 0,
+        num_funcionarios: selectedIds.length,
+      });
+      
+      // 9. Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ['accounting-dashboard', ano, mes] });
+      queryClient.invalidateQueries({ queryKey: ['payables'] });
+      
+      // 10. Feedback
+      if (errors.length > 0) {
+        toast.error(`Folha aplicada com erros: ${errors.join(', ')}`);
+      } else if (payablesCreated > 0) {
+        toast.success(
+          <div className="flex flex-col gap-1">
+            <span>Folha aplicada para {competenciaLabel}!</span>
+            <span className="text-xs text-muted-foreground">
+              {payablesCreated} conta(s) a pagar criada(s) para {selectedIds.length} colaborador(es)
+            </span>
+          </div>
+        );
+      }
     } catch (err: any) {
-      console.error('[handlePayrollApply] Exception:', err);
-      errors.push('Erro inesperado');
+      console.error('[handlePayrollConfirm] Exception:', err);
+      toast.error('Erro ao vincular colaboradores');
+    } finally {
+      setPayrollModalLoading(false);
     }
+  };
+
+  // Handle payroll modal skip (create generic payable)
+  const handlePayrollSkip = async () => {
+    if (!pendingPayrollDoc) return;
     
-    // 9. Apply values to form (maintain current behavior)
-    onPayrollApply({
-      total_folha: doc.payrollResult.total_folha || 0,
-      encargos: doc.payrollResult.encargos || 0,
-      prolabore: doc.payrollResult.prolabore || 0,
-      num_funcionarios: doc.payrollResult.num_funcionarios || 0,
-    });
-    updateDocument(doc.id, { status: 'applied' });
-    
-    // 10. Invalidate queries to update dashboard
-    queryClient.invalidateQueries({ queryKey: ['accounting-dashboard', ano, mes] });
-    queryClient.invalidateQueries({ queryKey: ['payables'] });
-    
-    // 11. User feedback
-    if (errors.length > 0) {
-      toast.error(`Folha aplicada com erros: ${errors.join(', ')}`);
-    } else if (payablesCreated > 0) {
-      toast.success(
-        <div className="flex flex-col gap-1">
-          <span>Folha aplicada para {competenciaLabel}!</span>
-          <span className="text-xs text-muted-foreground">
-            {payablesCreated} conta(s) a pagar criada(s)
-          </span>
-        </div>
-      );
-    } else if (documentSaved) {
-      toast.info(`Folha de ${competenciaLabel} já estava cadastrada.`);
+    setPayrollModalLoading(true);
+    try {
+      await createGenericPayroll(pendingPayrollDoc);
+      setShowPayrollModal(false);
+      setPendingPayrollDoc(null);
+    } finally {
+      setPayrollModalLoading(false);
     }
   };
 
@@ -1005,47 +1161,16 @@ export function AccountingSmartUpload({
             payableSkipped,
           });
         } else if (doc.type === 'payroll' && doc.payrollResult && onPayrollApply) {
-          // Save payroll document to accounting_lab_documents
-          const competencia = doc.payrollResult.competencia;
-          const docAno = competencia?.ano || ano;
-          const docMes = competencia?.mes || mes;
+          // For payroll, call handlePayrollApply which will open the modal if colaboradores exist
+          // Note: In batch mode, we'll process the first payroll document and stop if modal opens
+          await handlePayrollApply(doc);
           
-          try {
-            const { data: existingPayroll } = await supabase
-              .from('accounting_lab_documents')
-              .select('id')
-              .eq('unit_id', unitId)
-              .eq('tipo', 'folha_pagamento')
-              .eq('mes', docMes)
-              .eq('ano', docAno)
-              .maybeSingle();
-            
-            if (!existingPayroll) {
-              await supabase.from('accounting_lab_documents').insert({
-                unit_id: unitId,
-                ano: docAno,
-                mes: docMes,
-                tipo: 'folha_pagamento',
-                file_name: doc.fileName,
-                file_path: doc.filePath || null,
-                valor: doc.payrollResult.total_folha,
-                descricao: `Folha de Pagamento - ${doc.payrollResult.num_funcionarios || '?'} funcionário(s)`,
-                created_by: user?.id,
-                payable_status: 'skipped',
-              });
-              console.log('[handleApplyAll] Payroll document saved to accounting_lab_documents');
-            }
-          } catch (insertError) {
-            console.error('[handleApplyAll] Error inserting payroll document:', insertError);
+          // If modal opened (showPayrollModal became true), stop batch processing
+          // User needs to manually confirm colaborador assignment
+          if (showPayrollModal) {
+            toast.info('Folha de pagamento requer vinculação de colaboradores. Complete o processo manualmente.');
+            break;
           }
-          
-          onPayrollApply({
-            total_folha: doc.payrollResult.total_folha || 0,
-            encargos: doc.payrollResult.encargos || 0,
-            prolabore: doc.payrollResult.prolabore || 0,
-            num_funcionarios: doc.payrollResult.num_funcionarios || 0,
-          });
-          updateDocument(doc.id, { status: 'applied' });
           
           results.push({
             type: 'folha',
@@ -1383,6 +1508,30 @@ export function AccountingSmartUpload({
         onForceContinue={handleDuplicateForceContinue}
         isLoading={forcingDuplicate}
       />
+      
+      {/* Payroll Assignment Modal */}
+      {pendingPayrollDoc?.payrollResult && (
+        <PayrollAssignModal
+          open={showPayrollModal}
+          onOpenChange={(open) => {
+            if (!open) {
+              setShowPayrollModal(false);
+              setPendingPayrollDoc(null);
+            }
+          }}
+          colaboradores={payrollColaboradores}
+          payrollData={{
+            total_folha: pendingPayrollDoc.payrollResult.total_folha || 0,
+            num_funcionarios: pendingPayrollDoc.payrollResult.num_funcionarios || null,
+            competencia: `${(pendingPayrollDoc.payrollResult.competencia?.mes || mes).toString().padStart(2, '0')}/${pendingPayrollDoc.payrollResult.competencia?.ano || ano}`,
+            fileName: pendingPayrollDoc.fileName,
+            filePath: pendingPayrollDoc.filePath || null,
+          }}
+          onConfirm={handlePayrollConfirm}
+          onSkip={handlePayrollSkip}
+          isLoading={payrollModalLoading}
+        />
+      )}
       
       {/* AI Error Explanation */}
       {aiError && (
