@@ -34,7 +34,8 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { Partner, PartnerType, Category, Unit } from '@/types/database';
 import { toast } from 'sonner';
-import { Plus, Loader2, Pencil, RefreshCw, Users, Building2, UserCircle } from 'lucide-react';
+import { Plus, Loader2, Pencil, RefreshCw, Users, Building2, UserCircle, Download, Check } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export default function PartnersSettings() {
   const navigate = useNavigate();
@@ -48,6 +49,19 @@ export default function PartnersSettings() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingPartner, setEditingPartner] = useState<Partner | null>(null);
+  
+  // Import modal states
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importableUsers, setImportableUsers] = useState<Array<{
+    id: string;
+    name: string;
+    unit_id: string;
+    unit_name: string;
+    selected: boolean;
+    salary: string;
+  }>>([]);
+  const [isLoadingImport, setIsLoadingImport] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   
   // Form state
   const [name, setName] = useState('');
@@ -190,6 +204,98 @@ export default function PartnersSettings() {
     return c.type === 'SAIDA';
   });
 
+  // Find Salários category ID
+  const salariosCategory = categories.find(c => c.name.toLowerCase().includes('salário') || c.name.toLowerCase().includes('salario'));
+
+  const openImportModal = async () => {
+    setShowImportModal(true);
+    setIsLoadingImport(true);
+    
+    try {
+      // Get existing FUNCIONARIO partners
+      const { data: existingPartners } = await supabase
+        .from('partners')
+        .select('name, unit_id')
+        .eq('type', 'FUNCIONARIO');
+      
+      const existingSet = new Set(
+        (existingPartners || []).map(p => `${p.name?.toLowerCase()}_${p.unit_id}`)
+      );
+      
+      // Get users with unit_id (employees)
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, name, unit_id, units:unit_id(name)')
+        .not('unit_id', 'is', null)
+        .order('name');
+      
+      const importable = (profiles || [])
+        .filter(p => p.name && p.unit_id && !existingSet.has(`${p.name.toLowerCase()}_${p.unit_id}`))
+        .map(p => ({
+          id: p.id,
+          name: p.name || '',
+          unit_id: p.unit_id!,
+          unit_name: (p.units as any)?.name || '',
+          selected: true,
+          salary: '',
+        }));
+      
+      setImportableUsers(importable);
+    } catch (error) {
+      console.error('Error loading users:', error);
+      toast.error('Erro ao carregar usuários');
+    } finally {
+      setIsLoadingImport(false);
+    }
+  };
+
+  const handleImport = async () => {
+    const selected = importableUsers.filter(u => u.selected);
+    if (selected.length === 0) {
+      toast.error('Selecione pelo menos um funcionário');
+      return;
+    }
+    
+    setIsImporting(true);
+    try {
+      const toInsert = selected.map(u => ({
+        name: u.name,
+        type: 'FUNCIONARIO' as PartnerType,
+        unit_id: u.unit_id,
+        is_recurring: true,
+        default_category_id: salariosCategory?.id || null,
+        expected_amount: u.salary ? parseFloat(u.salary) : null,
+        active: true,
+        notes: `Importado do perfil: ${u.id}`,
+      }));
+      
+      const { error } = await supabase.from('partners').insert(toInsert);
+      if (error) throw error;
+      
+      toast.success(`${selected.length} funcionário(s) importado(s) com sucesso!`);
+      setShowImportModal(false);
+      setImportableUsers([]);
+      fetchData();
+    } catch (error: any) {
+      console.error('Import error:', error);
+      toast.error('Erro ao importar funcionários');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const toggleUserSelection = (id: string) => {
+    setImportableUsers(prev => prev.map(u => 
+      u.id === id ? { ...u, selected: !u.selected } : u
+    ));
+  };
+
+  const updateUserSalary = (id: string, salary: string) => {
+    setImportableUsers(prev => prev.map(u => 
+      u.id === id ? { ...u, salary } : u
+    ));
+  };
+
   if (authLoading || isLoading) {
     return (
       <AppLayout>
@@ -209,16 +315,22 @@ export default function PartnersSettings() {
             <p className="text-muted-foreground">Clientes, convênios e fornecedores</p>
           </div>
           
-          <Dialog open={isDialogOpen} onOpenChange={(open) => {
-            setIsDialogOpen(open);
-            if (!open) resetForm();
-          }}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Novo Parceiro
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={openImportModal}>
+              <Download className="w-4 h-4 mr-2" />
+              Importar Funcionários
+            </Button>
+            
+            <Dialog open={isDialogOpen} onOpenChange={(open) => {
+              setIsDialogOpen(open);
+              if (!open) resetForm();
+            }}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Novo Parceiro
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
                 <DialogTitle>
@@ -371,6 +483,89 @@ export default function PartnersSettings() {
                   {editingPartner ? 'Salvar Alterações' : 'Criar Parceiro'}
                 </Button>
               </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+          
+          {/* Import Modal */}
+          <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Importar Funcionários do Sistema</DialogTitle>
+              </DialogHeader>
+              
+              {isLoadingImport ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : importableUsers.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <UserCircle className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>Todos os usuários já estão cadastrados como funcionários</p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Selecione os usuários que deseja cadastrar como funcionários para vinculação de folha:
+                  </p>
+                  
+                  <div className="max-h-64 overflow-y-auto border rounded-md">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-10"></TableHead>
+                          <TableHead>Nome</TableHead>
+                          <TableHead>Unidade</TableHead>
+                          <TableHead>Salário (R$)</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {importableUsers.map(user => (
+                          <TableRow key={user.id}>
+                            <TableCell>
+                              <Checkbox
+                                checked={user.selected}
+                                onCheckedChange={() => toggleUserSelection(user.id)}
+                              />
+                            </TableCell>
+                            <TableCell className="font-medium">{user.name}</TableCell>
+                            <TableCell className="text-muted-foreground">{user.unit_name}</TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0,00"
+                                className="w-24 h-8"
+                                value={user.salary}
+                                onChange={e => updateUserSalary(user.id, e.target.value)}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  
+                  <p className="text-xs text-muted-foreground">
+                    💡 Os salários podem ser definidos agora ou editados depois
+                  </p>
+                  
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button variant="outline" onClick={() => setShowImportModal(false)}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={handleImport} disabled={isImporting}>
+                      {isImporting ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Check className="w-4 h-4 mr-2" />
+                      )}
+                      Importar {importableUsers.filter(u => u.selected).length} Funcionário(s)
+                    </Button>
+                  </div>
+                </>
+              )}
             </DialogContent>
           </Dialog>
         </div>
