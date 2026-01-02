@@ -18,3 +18,5 @@ export { TaxSummaryCard } from './TaxSummaryCard';
 export { TaxDueDateAlert, DueDateBadge } from './TaxDueDateAlert';
 export { AccountingProcessingCard } from './AccountingProcessingCard';
 export { BatchApplyResultModal } from './BatchApplyResultModal';
+export { PayrollAssignModal } from './PayrollAssignModal';
+export type { Colaborador, PayrollData } from './PayrollAssignModal';
