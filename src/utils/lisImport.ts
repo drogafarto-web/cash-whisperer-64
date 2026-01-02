@@ -154,61 +154,56 @@ function parseDate(value: unknown): string | null {
   
   // Handle Date object (from cellDates: true)
   if (value instanceof Date) {
-    const year = value.getFullYear();
-    const month = String(value.getMonth() + 1).padStart(2, '0');
-    const day = String(value.getDate()).padStart(2, '0');
+    // Use UTC methods to avoid timezone issues
+    const year = value.getUTCFullYear();
+    const month = String(value.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(value.getUTCDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   }
   
   // Handle Excel serial number (days since 1899-12-30)
   if (typeof value === 'number') {
-    // Excel serial date: number of days since 1899-12-30
-    // Excel has a bug where it thinks 1900 is a leap year, so we adjust
-    const excelEpoch = new Date(1899, 11, 30); // Dec 30, 1899
-    const date = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000);
-    if (!isNaN(date.getTime()) && date.getFullYear() > 1900 && date.getFullYear() < 2100) {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
+    // IMPORTANTE: Usar UTC para evitar problemas de timezone
+    const excelEpoch = Date.UTC(1899, 11, 30); // Dec 30, 1899 UTC
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const date = new Date(excelEpoch + value * msPerDay);
+    
+    if (!isNaN(date.getTime()) && date.getUTCFullYear() > 1900 && date.getUTCFullYear() < 2100) {
+      const year = date.getUTCFullYear();
+      const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(date.getUTCDate()).padStart(2, '0');
       return `${year}-${month}-${day}`;
     }
     return null;
   }
   
-  // Handle string in dd/mm/yyyy format (with fallback to mm/dd/yyyy)
+  // Handle string dates
   if (typeof value === 'string') {
     const dateStr = value.trim();
-    const match = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
-    if (match) {
-      let first = parseInt(match[1], 10);
-      let second = parseInt(match[2], 10);
-      let year = match[3];
+    
+    // Tentar formato ISO primeiro (2026-01-02)
+    const isoMatch = dateStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (isoMatch) {
+      const year = isoMatch[1];
+      const month = String(parseInt(isoMatch[2])).padStart(2, '0');
+      const day = String(parseInt(isoMatch[3])).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    
+    // Formato brasileiro DD/MM/YYYY (SEMPRE assumir brasileiro - sistema LIS é BR)
+    const brMatch = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+    if (brMatch) {
+      const day = parseInt(brMatch[1], 10);
+      const month = parseInt(brMatch[2], 10);
+      let year = brMatch[3];
       
       if (year.length === 2) {
         year = '20' + year;
       }
       
-      let day: number;
-      let month: number;
-      
-      // Validação inteligente: detectar formato DD/MM ou MM/DD
-      if (second > 12 && first <= 12) {
-        // Formato MM/DD/YYYY (americano) - second é dia, first é mês
-        day = second;
-        month = first;
-      } else if (first > 12 && second <= 12) {
-        // first > 12 significa que first é dia, second é mês (DD/MM/YYYY)
-        day = first;
-        month = second;
-      } else {
-        // Ambos <= 12, assumir formato brasileiro DD/MM/YYYY
-        day = first;
-        month = second;
-      }
-      
-      // Validar limites finais
+      // Validar limites
       if (month < 1 || month > 12 || day < 1 || day > 31) {
-        console.warn('[parseDate] Data inválida detectada:', value, '-> dia:', day, 'mês:', month);
+        console.warn('[parseDate] Data inválida:', value, '-> dia:', day, 'mês:', month);
         return null;
       }
       
@@ -688,7 +683,7 @@ export function parseLisXls(
   const firstSheet = workbook.Sheets[firstSheetName];
   const firstSheetData: unknown[][] = XLSX.utils.sheet_to_json(firstSheet, { 
     header: 1, 
-    raw: false,
+    raw: true,
     defval: '' 
   });
   
@@ -736,7 +731,7 @@ export function parseLisXls(
     const sheet = workbook.Sheets[sheetName];
     const data: unknown[][] = XLSX.utils.sheet_to_json(sheet, { 
       header: 1, 
-      raw: false,
+      raw: true,
       defval: '' 
     });
     
