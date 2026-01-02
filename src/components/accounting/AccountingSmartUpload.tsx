@@ -583,9 +583,48 @@ export function AccountingSmartUpload({
     }
   };
 
-  const handlePayrollApply = (doc: UploadedDocument) => {
+  const handlePayrollApply = async (doc: UploadedDocument) => {
     if (!doc.payrollResult || !onPayrollApply) return;
     
+    const competencia = doc.payrollResult.competencia;
+    const docAno = competencia?.ano || ano;
+    const docMes = competencia?.mes || mes;
+    
+    try {
+      // Check for existing payroll document for this competence
+      const { data: existingPayroll } = await supabase
+        .from('accounting_lab_documents')
+        .select('id, valor, created_at')
+        .eq('unit_id', unitId)
+        .eq('tipo', 'folha_pagamento')
+        .eq('mes', docMes)
+        .eq('ano', docAno)
+        .maybeSingle();
+      
+      if (existingPayroll) {
+        toast.warning(`Já existe uma folha de pagamento cadastrada para ${docMes.toString().padStart(2, '0')}/${docAno}.`);
+      } else {
+        // Save payroll document to accounting_lab_documents
+        await supabase.from('accounting_lab_documents').insert({
+          unit_id: unitId,
+          ano: docAno,
+          mes: docMes,
+          tipo: 'folha_pagamento',
+          file_name: doc.fileName,
+          file_path: doc.filePath || null,
+          valor: doc.payrollResult.total_folha,
+          descricao: `Folha de Pagamento - ${doc.payrollResult.num_funcionarios || '?'} funcionário(s)`,
+          created_by: user?.id,
+          payable_status: 'skipped',
+        });
+        console.log('[handlePayrollApply] Payroll document saved to accounting_lab_documents');
+      }
+    } catch (insertError) {
+      console.error('[handlePayrollApply] Error inserting payroll document:', insertError);
+      // Continue even if insert fails - don't block the form update
+    }
+    
+    // Apply values to form
     onPayrollApply({
       total_folha: doc.payrollResult.total_folha || 0,
       encargos: doc.payrollResult.encargos || 0,
@@ -593,7 +632,7 @@ export function AccountingSmartUpload({
       num_funcionarios: doc.payrollResult.num_funcionarios || 0,
     });
     updateDocument(doc.id, { status: 'applied' });
-    toast.success('Dados da folha aplicados com sucesso!');
+    toast.success('Dados da folha aplicados e documento salvo!');
   };
 
   const handleRemove = (id: string) => {
@@ -794,6 +833,40 @@ export function AccountingSmartUpload({
             payableSkipped,
           });
         } else if (doc.type === 'payroll' && doc.payrollResult && onPayrollApply) {
+          // Save payroll document to accounting_lab_documents
+          const competencia = doc.payrollResult.competencia;
+          const docAno = competencia?.ano || ano;
+          const docMes = competencia?.mes || mes;
+          
+          try {
+            const { data: existingPayroll } = await supabase
+              .from('accounting_lab_documents')
+              .select('id')
+              .eq('unit_id', unitId)
+              .eq('tipo', 'folha_pagamento')
+              .eq('mes', docMes)
+              .eq('ano', docAno)
+              .maybeSingle();
+            
+            if (!existingPayroll) {
+              await supabase.from('accounting_lab_documents').insert({
+                unit_id: unitId,
+                ano: docAno,
+                mes: docMes,
+                tipo: 'folha_pagamento',
+                file_name: doc.fileName,
+                file_path: doc.filePath || null,
+                valor: doc.payrollResult.total_folha,
+                descricao: `Folha de Pagamento - ${doc.payrollResult.num_funcionarios || '?'} funcionário(s)`,
+                created_by: user?.id,
+                payable_status: 'skipped',
+              });
+              console.log('[handleApplyAll] Payroll document saved to accounting_lab_documents');
+            }
+          } catch (insertError) {
+            console.error('[handleApplyAll] Error inserting payroll document:', insertError);
+          }
+          
           onPayrollApply({
             total_folha: doc.payrollResult.total_folha || 0,
             encargos: doc.payrollResult.encargos || 0,
