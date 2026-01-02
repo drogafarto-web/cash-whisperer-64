@@ -589,6 +589,9 @@ export function AccountingSmartUpload({
     const competencia = doc.payrollResult.competencia;
     const docAno = competencia?.ano || ano;
     const docMes = competencia?.mes || mes;
+    const competenciaLabel = `${docMes.toString().padStart(2, '0')}/${docAno}`;
+    
+    let documentSaved = false;
     
     try {
       // Check for existing payroll document for this competence
@@ -602,26 +605,37 @@ export function AccountingSmartUpload({
         .maybeSingle();
       
       if (existingPayroll) {
-        toast.warning(`Já existe uma folha de pagamento cadastrada para ${docMes.toString().padStart(2, '0')}/${docAno}.`);
+        toast.warning(`Já existe uma folha de pagamento cadastrada para ${competenciaLabel}.`);
       } else {
         // Save payroll document to accounting_lab_documents
-        await supabase.from('accounting_lab_documents').insert({
-          unit_id: unitId,
-          ano: docAno,
-          mes: docMes,
-          tipo: 'folha_pagamento',
-          file_name: doc.fileName,
-          file_path: doc.filePath || null,
-          valor: doc.payrollResult.total_folha,
-          descricao: `Folha de Pagamento - ${doc.payrollResult.num_funcionarios || '?'} funcionário(s)`,
-          created_by: user?.id,
-          payable_status: 'skipped',
-        });
-        console.log('[handlePayrollApply] Payroll document saved to accounting_lab_documents');
+        const { data: inserted, error: insertError } = await supabase
+          .from('accounting_lab_documents')
+          .insert({
+            unit_id: unitId,
+            ano: docAno,
+            mes: docMes,
+            tipo: 'folha_pagamento',
+            file_name: doc.fileName,
+            file_path: doc.filePath || null,
+            valor: doc.payrollResult.total_folha,
+            descricao: `Folha de Pagamento - ${doc.payrollResult.num_funcionarios || '?'} funcionário(s)`,
+            created_by: user?.id,
+            payable_status: 'skipped',
+          })
+          .select('id')
+          .single();
+        
+        if (insertError) {
+          console.error('[handlePayrollApply] Insert error:', insertError);
+          toast.error(`Erro ao salvar documento: ${insertError.message}`);
+        } else {
+          documentSaved = true;
+          console.log('[handlePayrollApply] Payroll document saved:', inserted?.id);
+        }
       }
-    } catch (insertError) {
-      console.error('[handlePayrollApply] Error inserting payroll document:', insertError);
-      // Continue even if insert fails - don't block the form update
+    } catch (err: any) {
+      console.error('[handlePayrollApply] Exception:', err);
+      toast.error('Erro inesperado ao salvar folha de pagamento');
     }
     
     // Apply values to form
@@ -632,7 +646,12 @@ export function AccountingSmartUpload({
       num_funcionarios: doc.payrollResult.num_funcionarios || 0,
     });
     updateDocument(doc.id, { status: 'applied' });
-    toast.success('Dados da folha aplicados e documento salvo!');
+    
+    if (documentSaved) {
+      toast.success(`Folha aplicada e salva para ${competenciaLabel}!`);
+    } else {
+      toast.info(`Dados da folha aplicados no formulário (${competenciaLabel}).`);
+    }
   };
 
   const handleRemove = (id: string) => {
