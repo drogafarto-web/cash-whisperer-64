@@ -1932,6 +1932,7 @@ export type Database = {
           name: string
           notes: string | null
           type: string
+          unit_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1944,6 +1945,7 @@ export type Database = {
           name: string
           notes?: string | null
           type: string
+          unit_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1956,6 +1958,7 @@ export type Database = {
           name?: string
           notes?: string | null
           type?: string
+          unit_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1964,6 +1967,13 @@ export type Database = {
             columns: ["default_category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partners_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
             referencedColumns: ["id"]
           },
         ]

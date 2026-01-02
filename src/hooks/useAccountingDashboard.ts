@@ -23,6 +23,8 @@ export interface AccountingDashboardData {
     decimo_terceiro: number;
     ferias: number;
     total: number;
+    num_funcionarios: number;
+    salarios_cadastrados: number;
   };
   fatorR: {
     percentual: number;
@@ -108,6 +110,19 @@ export function useAccountingDashboard(ano: number, mes: number) {
       
       const labPayrollTotal = (labPayrollDocs || []).reduce((sum, doc) => sum + (doc.valor || 0), 0);
 
+      // Buscar funcionários cadastrados
+      const { data: funcionariosData } = await supabase
+        .from('partners')
+        .select('id, name, expected_amount')
+        .eq('type', 'FUNCIONARIO')
+        .eq('active', true)
+        .not('expected_amount', 'is', null);
+
+      const numFuncionarios = funcionariosData?.length || 0;
+      const totalSalariosCadastrados = funcionariosData?.reduce(
+        (sum, f) => sum + (f.expected_amount || 0), 0
+      ) || 0;
+
       // Buscar documentos da competência
       const { data: documents } = await supabase
         .from('accounting_documents')
@@ -188,6 +203,8 @@ export function useAccountingDashboard(ano: number, mes: number) {
         decimo_terceiro: usarPayables ? 0 : usarLabPayroll ? 0 : (payrollData?.decimo_terceiro || 0),
         ferias: usarPayables ? 0 : usarLabPayroll ? 0 : (payrollData?.ferias || 0),
         total: usarPayables ? payablesFolha : usarLabPayroll ? labPayrollTotal : seedFolhaTotal,
+        num_funcionarios: numFuncionarios,
+        salarios_cadastrados: totalSalariosCadastrados,
       };
 
       // Calcular Fator R
