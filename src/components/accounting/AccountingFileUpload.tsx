@@ -42,6 +42,11 @@ interface OcrResult {
   vencimento: string | null;
 }
 
+interface PayrollOcrResult {
+  total_folha: number | null;
+  confidence: number;
+}
+
 interface AccountingFileUploadProps {
   unitId: string;
   ano: number;
@@ -52,6 +57,7 @@ interface AccountingFileUploadProps {
   onUploadComplete?: () => void;
   onDeleteComplete?: () => void;
   onOcrComplete?: (result: OcrResult) => void;
+  onPayrollOcrComplete?: (result: PayrollOcrResult) => void;
 }
 
 export function AccountingFileUpload({ 
@@ -64,6 +70,7 @@ export function AccountingFileUpload({
   onUploadComplete,
   onDeleteComplete,
   onOcrComplete,
+  onPayrollOcrComplete,
 }: AccountingFileUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -73,6 +80,8 @@ export function AccountingFileUpload({
   const queryClient = useQueryClient();
 
   const isTaxCategory = TAX_CATEGORIES.includes(categoria);
+  const isPayrollCategory = categoria === 'folha';
+  const shouldAutoOcr = isTaxCategory || isPayrollCategory;
 
   // State for signed URL (private bucket)
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
@@ -143,15 +152,28 @@ export function AccountingFileUpload({
         return;
       }
 
-      // If OCR was successful and we have values, call the callback
-      const valor = result.totalValue;
-      const vencimento = result.dueDate;
-      
-      if (valor !== null || vencimento !== null) {
-        onOcrComplete?.({ valor, vencimento });
-        toast.success(`${categoria.toUpperCase()} lido automaticamente via IA`);
-      } else {
-        toast.info('IA processou, mas não foi possível extrair valores. Preencha manualmente.');
+      // Tax docs: feed value + due date back to the form
+      if (isTaxCategory) {
+        const valor = result.totalValue;
+        const vencimento = result.dueDate;
+
+        if (valor !== null || vencimento !== null) {
+          onOcrComplete?.({ valor, vencimento });
+          toast.success(`${categoria.toUpperCase()} lido automaticamente via IA`);
+        } else {
+          toast.info('IA processou, mas não foi possível extrair valores. Preencha manualmente.');
+        }
+      }
+
+      // Payroll docs: feed total back to the form
+      if (isPayrollCategory) {
+        const totalFolha = result.totalValue;
+        if (totalFolha !== null) {
+          onPayrollOcrComplete?.({ total_folha: totalFolha, confidence: result.confidence });
+          toast.success('Folha lida automaticamente via IA');
+        } else {
+          toast.info('IA processou, mas não foi possível extrair o total da folha. Preencha manualmente.');
+        }
       }
 
       // Invalidate and force parent refetch to update UI
@@ -215,7 +237,7 @@ export function AccountingFileUpload({
           file_size: file.size,
           mime_type: file.type,
           created_by: user?.id,
-          ocr_status: isTaxCategory ? 'pendente' : null,
+          ocr_status: shouldAutoOcr ? 'pendente' : null,
         })
         .select()
         .single();
@@ -226,8 +248,8 @@ export function AccountingFileUpload({
       queryClient.invalidateQueries({ queryKey: ['competence-documents', unitId, ano, mes] });
       onUploadComplete?.();
 
-      // Process OCR for tax documents (PDF/images only)
-      if (isTaxCategory && insertedDoc && (file.type === 'application/pdf' || file.type.startsWith('image/'))) {
+      // Process OCR for tax docs and payroll docs (PDF/images only)
+      if (shouldAutoOcr && insertedDoc && (file.type === 'application/pdf' || file.type.startsWith('image/'))) {
         processOcr(filePath, insertedDoc.id, file);
       }
     } catch (error: any) {
