@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -39,8 +39,12 @@ const signupSchema = loginSchema.extend({
 
 export default function Auth() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, isLoading: authLoading, signIn, signUp } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+
+  const rawRedirectTo = new URLSearchParams(location.search).get('redirectTo');
+  const redirectTo = rawRedirectTo && rawRedirectTo.startsWith('/') ? rawRedirectTo : '/transactions';
   
   // Login form
   const [loginEmail, setLoginEmail] = useState('');
@@ -82,9 +86,9 @@ export default function Auth() {
 
   useEffect(() => {
     if (user && !authLoading) {
-      navigate('/transactions');
+      navigate(redirectTo, { replace: true });
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, redirectTo]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,7 +128,7 @@ export default function Auth() {
     }
 
     toast.success('Login realizado com sucesso!');
-    navigate('/transactions');
+    navigate(redirectTo, { replace: true });
   };
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -281,7 +285,7 @@ export default function Auth() {
                     const { error } = await supabase.auth.signInWithOAuth({
                       provider: 'google',
                       options: {
-                        redirectTo: `${window.location.origin}/transactions`,
+                        redirectTo: `${window.location.origin}${redirectTo}`,
                       },
                     });
                     if (error) {

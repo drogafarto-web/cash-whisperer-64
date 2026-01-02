@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Navigate, Link } from 'react-router-dom';
+import { Navigate, Link, useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Calculator, ChevronDown, History } from 'lucide-react';
+import { Calculator, ChevronDown, History, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ShieldAlert } from 'lucide-react';
@@ -28,7 +28,7 @@ import { AccountingViewData } from '@/components/accounting/AccountingViewData';
 import { AccountingSendDocuments } from '@/components/accounting/AccountingSendDocuments';
 import { AccountingDataForm } from '@/components/accounting/AccountingDataForm';
 import { AccountingSmartUpload } from '@/components/accounting/AccountingSmartUpload';
-import { canAccess, getPermissionLevel } from '@/lib/access-policy';
+import { canAccess } from '@/lib/access-policy';
 import type { AppRole } from '@/types/database';
 
 type Step = 'home' | 'view-data' | 'edit-data' | 'send-documents' | 'smart-upload';
@@ -260,19 +260,25 @@ function AccountingPanelContent({ isAccountingRole }: { isAccountingRole: boolea
 }
 
 export default function AccountingPanel() {
+  const location = useLocation();
   const { user, isLoading, role, isAdmin } = useAuth();
 
   if (isLoading) {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    const redirectTo = encodeURIComponent(`${location.pathname}${location.search}`);
+    return <Navigate to={`/auth?redirectTo=${redirectTo}`} replace />;
   }
 
   // Usar access-policy para verificar acesso
   const hasAccess = canAccess(role as AppRole | null, 'accounting_panel');
-  
+
   // Perfis que veem tudo e podem editar dados da contabilidade
   const isAccountingRole = isAdmin || ['contador', 'contabilidade'].includes(role || '');
 
