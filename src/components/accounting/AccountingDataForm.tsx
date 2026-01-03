@@ -196,10 +196,26 @@ export function AccountingDataForm({ unitId, unitName, competence, section, onBa
     },
   });
 
+  // Helper: check if existingData has real (non-zero) values
+  const hasRealData = (data: typeof existingData): boolean => {
+    if (!data) return false;
+    return (
+      (data.total_folha ?? 0) > 0 ||
+      (data.encargos ?? 0) > 0 ||
+      (data.das_valor ?? 0) > 0 ||
+      (data.darf_valor ?? 0) > 0 ||
+      (data.gps_valor ?? 0) > 0 ||
+      (data.inss_valor ?? 0) > 0 ||
+      (data.fgts_valor ?? 0) > 0 ||
+      (data.iss_valor ?? 0) > 0 ||
+      (data.receita_servicos ?? 0) > 0
+    );
+  };
+
   // Populate form with existing data OR payables data OR processed documents
   useEffect(() => {
-    if (existingData) {
-      // Priority 1: existing saved data in accounting_competence_data
+    // Priority 1: existing saved data in accounting_competence_data (ONLY if has real values)
+    if (existingData && hasRealData(existingData)) {
       form.reset({
         total_folha: existingData.total_folha || 0,
         encargos: existingData.encargos || 0,

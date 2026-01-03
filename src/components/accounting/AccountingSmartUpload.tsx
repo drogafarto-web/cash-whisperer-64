@@ -759,8 +759,12 @@ export function AccountingSmartUpload({
       });
       updateDocument(doc.id, { status: 'applied' });
       
-      // Invalidate queries
+      // Invalidate ALL related queries for cross-screen consistency
       queryClient.invalidateQueries({ queryKey: ['accounting-dashboard', ano, mes] });
+      queryClient.invalidateQueries({ queryKey: ['accounting-aggregated-folha', unitId, ano, mes] });
+      queryClient.invalidateQueries({ queryKey: ['accounting-aggregated-impostos', unitId, ano, mes] });
+      queryClient.invalidateQueries({ queryKey: ['accounting-competence-data', unitId, ano, mes] });
+      queryClient.invalidateQueries({ queryKey: ['folha-payables-form', unitId, ano, mes] });
       queryClient.invalidateQueries({ queryKey: ['payables'] });
       
       if (payablesCreated > 0) {
@@ -923,8 +927,12 @@ export function AccountingSmartUpload({
         num_funcionarios: selectedIds.length,
       });
       
-      // 9. Invalidate queries
+      // 9. Invalidate ALL related queries for cross-screen consistency
       queryClient.invalidateQueries({ queryKey: ['accounting-dashboard', ano, mes] });
+      queryClient.invalidateQueries({ queryKey: ['accounting-aggregated-folha', unitId, ano, mes] });
+      queryClient.invalidateQueries({ queryKey: ['accounting-aggregated-impostos', unitId, ano, mes] });
+      queryClient.invalidateQueries({ queryKey: ['accounting-competence-data', unitId, ano, mes] });
+      queryClient.invalidateQueries({ queryKey: ['folha-payables-form', unitId, ano, mes] });
       queryClient.invalidateQueries({ queryKey: ['payables'] });
       
       // 10. Feedback
