@@ -125,6 +125,37 @@ export function AccountingKioskHome({
     },
     enabled: !!unitId,
   });
+
+  // Payables de folha criados para a competência (busca soma real dos títulos criados)
+  const startDate = `${ano}-${String(mes).padStart(2, '0')}-01`;
+  const endDate = `${ano}-${String(mes).padStart(2, '0')}-31`;
+  
+  const { data: folhaPayablesData } = useQuery({
+    queryKey: ['folha-payables', unitId, ano, mes],
+    queryFn: async () => {
+      if (!unitId) return null;
+      
+      const { data, error } = await supabase
+        .from('payables')
+        .select(`id, beneficiario, valor, category_id, categories!inner(tax_group)`)
+        .eq('unit_id', unitId)
+        .eq('tipo', 'titulo')
+        .gte('vencimento', startDate)
+        .lte('vencimento', endDate)
+        .neq('status', 'CANCELADO');
+      
+      if (error) throw error;
+      
+      // Filtrar apenas categorias de folha (tax_group = 'PESSOAL')
+      const folhaPayables = data?.filter((p: any) => p.categories?.tax_group === 'PESSOAL') || [];
+      
+      return {
+        count: folhaPayables.length,
+        total: folhaPayables.reduce((sum: number, p: any) => sum + (p.valor || 0), 0),
+      };
+    },
+    enabled: !!unitId,
+  });
   
   const competenceLabel = format(competence, "MMMM 'de' yyyy", { locale: ptBR });
   
@@ -303,7 +334,7 @@ export function AccountingKioskHome({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold">{formatCurrency(competenceData?.total_folha)}</p>
+              <p className="text-2xl font-bold">{formatCurrency(folhaPayablesData?.total || competenceData?.total_folha || 0)}</p>
               <div className="mt-2 space-y-1">
                 {funcionariosData && funcionariosData.count > 0 ? (
                   <div className="flex items-center gap-2 text-xs">
