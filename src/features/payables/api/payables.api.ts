@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { Payable, PayableFormData, PayableStatus } from '@/types/payables';
+import { Payable, PayableFormData, PayableStatus, PAYABLE_STATUS } from '@/types/payables';
 
 export async function fetchPayables(filters?: {
   unitId?: string;
@@ -83,7 +83,7 @@ export async function createPayable(
       file_path: filePath,
       file_name: fileName,
       ocr_confidence: ocrConfidence,
-      status: 'pendente',
+      status: PAYABLE_STATUS.PENDENTE,
       nf_vinculacao_status: nfVinculacaoStatus || 'nao_requer',
       nf_exemption_reason: nfExemptionReason || null,
     })
@@ -121,7 +121,7 @@ export async function createPayablesFromParcelas(
     supplier_invoice_id: supplierInvoice.id,
     unit_id: supplierInvoice.unit_id,
     category_id: supplierInvoice.category_id,
-    status: 'pendente',
+    status: PAYABLE_STATUS.PENDENTE,
   }));
 
   const { data, error } = await supabase
@@ -168,7 +168,7 @@ export async function markPayableAsPaid(
   const { data, error } = await supabase
     .from('payables')
     .update({
-      status: 'pago',
+      status: PAYABLE_STATUS.PAGO,
       paid_at: paidAt,
       paid_amount: paidAmount,
       paid_method: paidMethod,
@@ -264,7 +264,7 @@ export async function reconcilePayableWithBankItem(
   const { data, error } = await supabase
     .from('payables')
     .update({
-      status: 'pago',
+      status: PAYABLE_STATUS.PAGO,
       paid_at: new Date().toISOString(),
       paid_amount: paidAmount,
       paid_method: 'transferencia',
@@ -283,7 +283,7 @@ export async function fetchPendingPayablesForReconciliation(unitId?: string) {
   let query = supabase
     .from('payables')
     .select('*')
-    .in('status', ['pendente', 'vencido', 'PENDENTE', 'VENCIDO'])
+    .in('status', [PAYABLE_STATUS.PENDENTE, PAYABLE_STATUS.VENCIDO])
     .is('matched_transaction_id', null)
     .is('matched_bank_item_id', null)
     .order('vencimento', { ascending: true });
@@ -395,7 +395,7 @@ export async function createPayableAndMarkAsPaid(
       category_id: data.category_id,
       file_path: filePath,
       file_name: fileName,
-      status: 'pago',
+      status: PAYABLE_STATUS.PAGO,
       paid_at: new Date().toISOString(),
       paid_amount: paidAmount,
       paid_method: paidMethod,
@@ -454,7 +454,7 @@ export async function fetchPayablesWithPaymentData(filters?: {
   let query = supabase
     .from('payables')
     .select('*, accounts:payment_bank_account_id(id, name, institution)')
-    .in('status', ['PENDENTE', 'pendente', 'VENCIDO', 'vencido'])
+    .in('status', [PAYABLE_STATUS.PENDENTE, PAYABLE_STATUS.VENCIDO])
     .order('created_at', { ascending: false });
 
   // Only filter by payment data if showAll is not true
@@ -497,7 +497,7 @@ export async function markPayableAsPaidWithAccount(
   }
 
   const updateData: Record<string, unknown> = {
-    status: 'pago',
+    status: PAYABLE_STATUS.PAGO,
     paid_at: paidAt,
     paid_amount: paidAmount,
     paid_method: paidMethod,
