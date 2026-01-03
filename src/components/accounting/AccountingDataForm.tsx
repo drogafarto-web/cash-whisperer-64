@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
+import { useQuery } from '@tanstack/react-query';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -103,6 +104,45 @@ export function AccountingDataForm({ unitId, unitName, competence, section, onBa
   
   const competenceLabel = format(competence, "MMMM 'de' yyyy", { locale: ptBR });
 
+  // Buscar payables de folha criados para a competência
+  const startDate = `${ano}-${String(mes).padStart(2, '0')}-01`;
+  const endDate = `${ano}-${String(mes).padStart(2, '0')}-31`;
+  
+  const { data: folhaPayablesData } = useQuery({
+    queryKey: ['folha-payables-form', unitId, ano, mes],
+    queryFn: async () => {
+      if (!unitId) return null;
+      
+      const { data, error } = await supabase
+        .from('payables')
+        .select(`id, beneficiario, valor, category_id, categories!inner(tax_group)`)
+        .eq('unit_id', unitId)
+        .eq('tipo', 'titulo')
+        .gte('vencimento', startDate)
+        .lte('vencimento', endDate)
+        .neq('status', 'CANCELADO');
+      
+      if (error) throw error;
+      
+      const folhaPayables = data?.filter((p: any) => p.categories?.tax_group === 'PESSOAL') || [];
+      
+      // Separar salários de encargos
+      const salarios = folhaPayables.filter((p: any) => 
+        !p.beneficiario?.toLowerCase().includes('encargo')
+      );
+      const encargos = folhaPayables.filter((p: any) => 
+        p.beneficiario?.toLowerCase().includes('encargo')
+      );
+      
+      return {
+        total_folha: salarios.reduce((sum: number, p: any) => sum + (p.valor || 0), 0),
+        encargos: encargos.reduce((sum: number, p: any) => sum + (p.valor || 0), 0),
+        num_funcionarios: salarios.length,
+      };
+    },
+    enabled: !!unitId,
+  });
+
   // Aggregate processed documents by tax type
   const processedByType = useMemo(() => {
     return aggregateProcessedTaxDocs(processedTaxDocs);
@@ -156,10 +196,10 @@ export function AccountingDataForm({ unitId, unitName, competence, section, onBa
     },
   });
 
-  // Populate form with existing data OR processed documents
+  // Populate form with existing data OR payables data OR processed documents
   useEffect(() => {
     if (existingData) {
-      // Priority: existing saved data
+      // Priority 1: existing saved data in accounting_competence_data
       form.reset({
         total_folha: existingData.total_folha || 0,
         encargos: existingData.encargos || 0,
@@ -181,8 +221,15 @@ export function AccountingDataForm({ unitId, unitName, competence, section, onBa
         receita_outras: existingData.receita_outras || 0,
         receita_observacoes: existingData.receita_observacoes || null,
       });
+    } else if (folhaPayablesData && (folhaPayablesData.total_folha > 0 || folhaPayablesData.encargos > 0)) {
+      // Priority 2: payables de folha criados via Smart Upload
+      form.setValue('total_folha', folhaPayablesData.total_folha);
+      form.setValue('encargos', folhaPayablesData.encargos);
+      form.setValue('num_funcionarios', folhaPayablesData.num_funcionarios);
+      
+      toast.info('Dados preenchidos a partir dos títulos de folha cadastrados', { duration: 4000 });
     } else if (Object.keys(processedByType).length > 0) {
-      // No existing data, but we have processed documents - pre-fill from AI
+      // Priority 3: processed documents via AI
       const aiFields = new Set<string>();
       
       const taxTypes = ['das', 'darf', 'gps', 'inss', 'fgts', 'iss'] as const;
@@ -203,7 +250,7 @@ export function AccountingDataForm({ unitId, unitName, competence, section, onBa
         );
       }
     }
-  }, [existingData, processedByType, form]);
+  }, [existingData, folhaPayablesData, processedByType, form]);
 
   // OCR completion handlers
   const handleOcrComplete = useCallback((taxType: TaxType, result: { valor: number | null; vencimento: string | null }) => {
