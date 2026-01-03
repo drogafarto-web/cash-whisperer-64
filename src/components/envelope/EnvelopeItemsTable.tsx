@@ -204,7 +204,7 @@ export const EnvelopeItemsTable = memo(function EnvelopeItemsTable({
                 aria-label="Selecionar todos em dinheiro"
               />
             </TableHead>
-            <TableHead>Data</TableHead>
+            <TableHead>Data Atend.</TableHead>
             <TableHead>Código</TableHead>
             <TableHead>Unidade</TableHead>
             <TableHead>Paciente</TableHead>

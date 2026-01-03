@@ -392,7 +392,7 @@ function EnvelopeCashClosingContent() {
             <h1 className="text-2xl font-bold text-foreground">
               Fechamento de Caixa por Envelope
             </h1>
-            <p className="text-muted-foreground capitalize">{todayFormatted}</p>
+            <p className="text-muted-foreground capitalize"><span className="font-medium">Hoje:</span> {todayFormatted}</p>
             {activeUnit && (
               <p className="text-sm text-muted-foreground">
                 Unidade: <span className="font-medium text-foreground">{activeUnit.name}</span>
@@ -465,7 +465,7 @@ function EnvelopeCashClosingContent() {
           <h1 className="text-2xl font-bold text-foreground">
             Conferência do Envelope
           </h1>
-          <p className="text-muted-foreground capitalize">{todayFormatted}</p>
+          <p className="text-muted-foreground capitalize"><span className="font-medium">Hoje:</span> {todayFormatted}</p>
           {activeUnit && (
             <p className="text-sm text-muted-foreground">
               Unidade: <span className="font-medium text-foreground">{activeUnit.name}</span>
