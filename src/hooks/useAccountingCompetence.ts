@@ -119,8 +119,24 @@ export function useSaveCompetenceData() {
       }
     },
     onSuccess: (_, variables) => {
+      // Invalidate ALL related queries for cross-screen consistency
       queryClient.invalidateQueries({ 
         queryKey: ['accounting-competence-data', variables.unit_id, variables.ano, variables.mes] 
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['accounting-aggregated-folha', variables.unit_id, variables.ano, variables.mes] 
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['accounting-aggregated-impostos', variables.unit_id, variables.ano, variables.mes] 
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['accounting-aggregated-receita', variables.unit_id, variables.ano, variables.mes] 
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['folha-payables-form', variables.unit_id, variables.ano, variables.mes] 
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['accounting-dashboard', variables.ano, variables.mes] 
       });
     },
   });
