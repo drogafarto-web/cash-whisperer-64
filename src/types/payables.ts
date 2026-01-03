@@ -110,6 +110,14 @@ export interface PayableFormData {
 
 // Status types
 export type PayableStatus = 'PENDENTE' | 'PAGO' | 'VENCIDO' | 'CANCELADO';
+
+// Status constants to avoid case-sensitivity issues
+export const PAYABLE_STATUS = {
+  PENDENTE: 'PENDENTE',
+  PAGO: 'PAGO',
+  VENCIDO: 'VENCIDO',
+  CANCELADO: 'CANCELADO',
+} as const;
 export type NfVinculacaoStatus = 'nao_requer' | 'pendente' | 'vinculado';
 export type SupplierInvoiceStatus = 'pendente' | 'parcial' | 'quitada' | 'cancelada' | 'aguardando_boleto';
 
