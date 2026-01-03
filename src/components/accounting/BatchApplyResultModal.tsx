@@ -137,7 +137,7 @@ export function BatchApplyResultModal({
           </div>
         </div>
         
-        {/* Critical Warning for Skipped Payables */}
+        {/* Critical Warning for Skipped Payables - only show for actual errors, not payroll pending */}
         {(result.payablesSkipped ?? 0) > 0 && (
           <div className="p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
             <div className="flex items-start gap-2">
@@ -147,8 +147,7 @@ export function BatchApplyResultModal({
                   {result.payablesSkipped} documento(s) sem conta a pagar
                 </p>
                 <p className="text-sm text-orange-600 dark:text-orange-500 mt-1">
-                  Os valores foram aplicados ao painel contábil, mas as contas a pagar não foram criadas 
-                  porque os arquivos não foram salvos corretamente. Considere reenviar estes documentos.
+                  Verifique se os arquivos foram salvos corretamente ou reenvie os documentos.
                 </p>
               </div>
             </div>

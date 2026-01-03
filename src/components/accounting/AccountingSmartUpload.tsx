@@ -1165,18 +1165,13 @@ export function AccountingSmartUpload({
           const modalOpened = await handlePayrollApply(doc);
           
           // If modal opened, stop batch processing - user needs to confirm colaborador assignment
+          // DO NOT add to results array - the modal will handle showing success/failure
           if (modalOpened) {
-            toast.info('Folha de pagamento requer vinculação de colaboradores. Complete o processo no modal aberto.');
-            results.push({
-              type: 'folha',
-              valor: doc.payrollResult.total_folha || 0,
-              status: 'success',
-              fileName: doc.fileName,
-              payableSkipped: true,
-            });
+            toast.info('Complete a vinculação de colaboradores no modal aberto');
             break;
           }
           
+          // Only add to results if processed automatically (no modal needed)
           results.push({
             type: 'folha',
             valor: doc.payrollResult.total_folha || 0,
