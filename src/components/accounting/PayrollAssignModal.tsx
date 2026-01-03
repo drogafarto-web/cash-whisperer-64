@@ -61,9 +61,8 @@ export function PayrollAssignModal({
       .reduce((sum, c) => sum + (c.expected_amount || 0), 0);
   }, [colaboradores, selectedIds]);
 
-  const difference = payrollData.total_folha - totalSelected;
-  const isMatch = Math.abs(difference) < 0.01;
-  const isClose = Math.abs(difference) <= payrollData.total_folha * 0.05; // Within 5%
+  // Note: We don't compare with OCR total since each colaborador generates a separate payable
+  // with their own expected_amount value
 
   const toggleColaborador = (id: string) => {
     setSelectedIds(prev => 
@@ -171,35 +170,23 @@ export function PayrollAssignModal({
 
           <Separator />
 
-          {/* Totals Comparison */}
+          {/* Summary - Total to Create */}
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-sm">Total Selecionado:</span>
-              <span className="font-semibold">{formatCurrency(totalSelected)}</span>
+              <span className="text-sm font-medium">Total a criar:</span>
+              <span className="font-bold text-lg">{formatCurrency(totalSelected)}</span>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm">Total da Folha:</span>
-              <span className="font-semibold">{formatCurrency(payrollData.total_folha)}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm">Diferença:</span>
-              <Badge 
-                variant={isMatch ? "default" : isClose ? "secondary" : "destructive"}
-                className="gap-1"
-              >
-                {isMatch ? (
-                  <>
-                    <CheckCircle2 className="h-3 w-3" />
-                    Confere
-                  </>
-                ) : (
-                  <>
-                    {!isClose && <AlertCircle className="h-3 w-3" />}
-                    {formatCurrency(Math.abs(difference))} {difference > 0 ? 'a menos' : 'a mais'}
-                  </>
-                )}
-              </Badge>
-            </div>
+            {selectedIds.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Serão criados {selectedIds.length} título(s) de pagamento
+              </p>
+            )}
+            {/* OCR reference - informational only */}
+            {payrollData.total_folha > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Valor extraído do documento: {formatCurrency(payrollData.total_folha)}
+              </p>
+            )}
           </div>
 
           {/* Warning if no colaborador selected */}
