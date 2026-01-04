@@ -57,6 +57,8 @@ import CashClosingSimple from "./pages/CashClosingSimple";
 import EnvelopeCashClosing from "./pages/EnvelopeCashClosing";
 import TaxScenarios from "./pages/reports/TaxScenarios";
 import FiscalBase from "./pages/settings/FiscalBase";
+import PersonnelRealVsOfficial from "./pages/reports/PersonnelRealVsOfficial";
+import FatorRAudit from "./pages/settings/FatorRAudit";
 
 // ============================================
 // FUTURE PAGES - Ativar após núcleo estável
@@ -177,6 +179,8 @@ const App = () => (
               <Route path="/reports/transactions" element={<TransactionsReport />} />
               <Route path="/reports/cashflow-projection" element={<CashflowProjection />} />
               <Route path="/reports/lis-closures" element={<LisClosuresReport />} />
+              <Route path="/reports/personnel-real-vs-official" element={<PersonnelRealVsOfficial />} />
+              <Route path="/settings/fator-r-audit" element={<FatorRAudit />} />
               
               {/* Importações */}
               <Route path="/import/daily-movement" element={<DailyMovement />} />
