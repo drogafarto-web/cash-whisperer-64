@@ -155,6 +155,8 @@ export interface Partner {
   unit?: Unit;
 }
 
+export type LisSource = 'IMPORT_LIS' | 'IMPORT_EXTRATO' | 'FECHAMENTO_CAIXA' | 'MANUAL' | 'OCR';
+
 export interface Transaction {
   id: string;
   date: string;
@@ -175,6 +177,9 @@ export interface Transaction {
   deleted_by: string | null;
   created_at: string;
   updated_at: string;
+  // LIS Integration
+  lis_protocol_id: string | null;
+  lis_source: LisSource | null;
   // Joined data
   account?: Account;
   category?: Category;

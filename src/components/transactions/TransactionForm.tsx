@@ -72,6 +72,7 @@ export function TransactionForm({
     partner_id: '',
     description: '',
     unit_id: !isAdmin && userUnit ? userUnit.id : '',
+    lis_protocol_id: '',
   });
   const [file, setFile] = useState<File | null>(null);
   const [ocrData, setOcrData] = useState<OcrData | null>(null);
@@ -160,6 +161,8 @@ export function TransactionForm({
           partner_id: formData.partner_id || null,
           amount: parseFloat(formData.amount),
           created_by: user.id,
+          lis_protocol_id: formData.lis_protocol_id || null,
+          lis_source: formData.lis_protocol_id ? 'MANUAL' : null,
         })
         .select()
         .single();
@@ -208,6 +211,7 @@ export function TransactionForm({
       partner_id: '',
       description: '',
       unit_id: !isAdmin && userUnit ? userUnit.id : '',
+      lis_protocol_id: '',
     });
     setFile(null);
     setOcrData(null);
@@ -492,6 +496,22 @@ export function TransactionForm({
               rows={3}
             />
           </div>
+
+          {/* LIS Protocol ID - Optional */}
+          {formData.type === 'ENTRADA' && (
+            <div className="space-y-2">
+              <Label htmlFor="lis_protocol_id">Código LIS (opcional)</Label>
+              <Input
+                id="lis_protocol_id"
+                placeholder="Ex: 102448"
+                value={formData.lis_protocol_id}
+                onChange={e => setFormData(prev => ({ ...prev, lis_protocol_id: e.target.value }))}
+              />
+              <p className="text-xs text-muted-foreground">
+                Vincule esta transação a um atendimento do LIS para rastreabilidade
+              </p>
+            </div>
+          )}
 
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
