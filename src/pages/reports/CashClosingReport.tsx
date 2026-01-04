@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -41,6 +41,8 @@ import {
   AlertTriangle,
   DollarSign,
   ClipboardList,
+  Eye,
+  Check,
 } from 'lucide-react';
 import {
   BarChart,
@@ -52,9 +54,14 @@ import {
   ResponsiveContainer,
   Cell,
   Legend,
+  LineChart,
+  Line,
+  ReferenceLine,
 } from 'recharts';
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
+import { EnvelopeDetailModal } from '@/components/cash-closing/EnvelopeDetailModal';
+import { toast } from 'sonner';
 
 interface EnvelopeWithRelations {
   id: string;
@@ -63,9 +70,12 @@ interface EnvelopeWithRelations {
   counted_cash: number | null;
   difference: number | null;
   status: string;
+  lis_codes: string[];
   lis_codes_count: number;
   created_at: string;
   created_by: string | null;
+  conferencia_checkbox: boolean;
+  justificativa: string | null;
   unit?: Unit;
   created_by_profile?: Profile;
 }
@@ -74,6 +84,13 @@ interface UnitDifferenceData {
   name: string;
   difference: number;
   color: string;
+}
+
+interface DailyDifferenceData {
+  date: string;
+  dateFormatted: string;
+  daily: number;
+  cumulative: number;
 }
 
 export default function CashClosingReport() {
@@ -88,6 +105,10 @@ export default function CashClosingReport() {
   const [endDate, setEndDate] = useState<Date>(endOfMonth(new Date()));
   const [selectedUnitId, setSelectedUnitId] = useState<string>('all');
   const [showOnlyWithDifference, setShowOnlyWithDifference] = useState(false);
+
+  // Modal state
+  const [selectedEnvelope, setSelectedEnvelope] = useState<EnvelopeWithRelations | null>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -130,9 +151,12 @@ export default function CashClosingReport() {
           counted_cash,
           difference,
           status,
+          lis_codes,
           lis_codes_count,
           created_at,
           created_by,
+          conferencia_checkbox,
+          justificativa,
           unit:units(*)
         `)
         .gte('created_at', `${startStr}T00:00:00`)
@@ -196,6 +220,55 @@ export default function CashClosingReport() {
       // Only show units that have closings in the period
       return cashClosings.some(c => c.unit?.code === u.name || c.unit?.name === u.name);
     });
+
+  // Temporal chart data - daily differences with cumulative
+  const dailyDifferences: DailyDifferenceData[] = useMemo(() => {
+    const grouped = cashClosings.reduce((acc, envelope) => {
+      const day = format(parseISO(envelope.created_at), 'yyyy-MM-dd');
+      if (!acc[day]) {
+        acc[day] = { date: day, dateFormatted: '', daily: 0, cumulative: 0 };
+      }
+      acc[day].daily += Number(envelope.difference || 0);
+      return acc;
+    }, {} as Record<string, DailyDifferenceData>);
+
+    const sorted = Object.values(grouped).sort((a, b) => a.date.localeCompare(b.date));
+    let cumulative = 0;
+    return sorted.map(item => {
+      cumulative += item.daily;
+      return {
+        ...item,
+        dateFormatted: format(parseISO(item.date), 'dd/MM'),
+        cumulative
+      };
+    });
+  }, [cashClosings]);
+
+  // Conferir envelope
+  const handleConferirEnvelope = async (envelopeId: string) => {
+    try {
+      const { error } = await supabase
+        .from('cash_envelopes')
+        .update({
+          conferencia_checkbox: true,
+          status: 'CONFERIDO'
+        })
+        .eq('id', envelopeId);
+
+      if (error) throw error;
+
+      toast.success('Envelope conferido com sucesso!');
+      fetchCashClosings();
+    } catch (error) {
+      console.error('Error confirming envelope:', error);
+      toast.error('Erro ao conferir envelope');
+    }
+  };
+
+  const openDetailModal = (envelope: EnvelopeWithRelations) => {
+    setSelectedEnvelope(envelope);
+    setDetailModalOpen(true);
+  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -503,6 +576,60 @@ export default function CashClosingReport() {
           </Card>
         )}
 
+        {/* Temporal Evolution Chart */}
+        {dailyDifferences.length > 1 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Evolução das Diferenças no Período</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={dailyDifferences}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis dataKey="dateFormatted" className="text-xs" />
+                    <YAxis
+                      className="text-xs"
+                      tickFormatter={(value) => formatCurrency(value)}
+                    />
+                    <Tooltip
+                      formatter={(value: number, name: string) => [
+                        formatCurrency(value),
+                        name === 'daily' ? 'Diferença do Dia' : 'Acumulado'
+                      ]}
+                      labelClassName="font-medium"
+                      contentStyle={{
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px',
+                      }}
+                    />
+                    <Legend 
+                      formatter={(value) => value === 'daily' ? 'Diferença do Dia' : 'Acumulado'}
+                    />
+                    <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
+                    <Line 
+                      type="monotone" 
+                      dataKey="daily" 
+                      stroke="hsl(var(--primary))" 
+                      strokeWidth={2}
+                      dot={{ fill: 'hsl(var(--primary))' }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="cumulative" 
+                      stroke="hsl(var(--destructive))" 
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      dot={{ fill: 'hsl(var(--destructive))' }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Table */}
         <Card>
           <CardContent className="p-0">
@@ -517,18 +644,20 @@ export default function CashClosingReport() {
                   <TableHead className="text-right">Diferença</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Fechado por</TableHead>
+                  <TableHead className="text-center">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {cashClosings.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                       Nenhum fechamento encontrado no período
                     </TableCell>
                   </TableRow>
                 ) : (
                   cashClosings.map(envelope => {
                     const diff = Number(envelope.difference || 0);
+                    const isConferido = envelope.status === 'CONFERIDO' || envelope.conferencia_checkbox;
                     return (
                       <TableRow key={envelope.id}>
                         <TableCell className="font-medium">
@@ -566,16 +695,47 @@ export default function CashClosingReport() {
                         </TableCell>
                         <TableCell>
                           <Badge 
-                            variant={envelope.status === 'CONFERIDO' ? 'default' : 'outline'}
+                            variant={isConferido ? 'default' : 'outline'}
                             className={cn(
-                              envelope.status === 'CONFERIDO' && 'bg-green-500/10 text-green-600 border-green-500/20'
+                              isConferido && 'bg-green-500/10 text-green-600 border-green-500/20'
                             )}
                           >
-                            {envelope.status || '—'}
+                            {isConferido ? (
+                              <span className="flex items-center gap-1">
+                                <CheckCircle className="w-3 h-3" />
+                                CONFERIDO
+                              </span>
+                            ) : (
+                              envelope.status || '—'
+                            )}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {envelope.created_by_profile?.name || '—'}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => openDetailModal(envelope)}
+                              title="Ver detalhes"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            {isAdmin && !isConferido && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-500/10"
+                                onClick={() => handleConferirEnvelope(envelope.id)}
+                                title="Conferir envelope"
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -585,6 +745,18 @@ export default function CashClosingReport() {
             </Table>
           </CardContent>
         </Card>
+
+        {/* Envelope Detail Modal */}
+        <EnvelopeDetailModal
+          envelope={selectedEnvelope}
+          open={detailModalOpen}
+          onClose={() => {
+            setDetailModalOpen(false);
+            setSelectedEnvelope(null);
+          }}
+          onConferido={fetchCashClosings}
+          isAdmin={isAdmin}
+        />
       </div>
     </AppLayout>
   );
