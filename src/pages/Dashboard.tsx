@@ -404,43 +404,105 @@ export default function Dashboard() {
     const endDate = endOfMonth(new Date());
     const startDate = startOfMonth(subMonths(endDate, 11));
 
-    let query = supabase
-      .from('transactions')
-      .select('*, category:categories(id, name, type, tax_group, is_informal, entra_fator_r)')
-      .gte('date', format(startDate, 'yyyy-MM-dd'))
-      .lte('date', format(endDate, 'yyyy-MM-dd'))
-      .eq('status', 'APROVADO')
-      .is('deleted_at', null);
-
-    if (selectedUnit !== 'all') {
-      query = query.eq('unit_id', selectedUnit);
-    }
-
-    const { data: txData } = await query;
-    if (!txData) return;
-
-    // Processar folha oficial vs informal
     let folhaOficial = 0;
     let folhaInformal = 0;
     let receitaServicos = 0;
 
-    txData.forEach((tx: any) => {
-      const amount = Math.abs(Number(tx.amount));
-      const taxGroup = tx.category?.tax_group;
-      const isInformal = tx.category?.is_informal || false;
-      const entraFatorR = tx.category?.entra_fator_r || false;
+    // 1. Buscar de payables com categorias PESSOAL (fonte primária - Smart Upload)
+    let payablesQuery = supabase
+      .from('payables')
+      .select(`*, categories!inner(tax_group, entra_fator_r, is_informal)`)
+      .gte('vencimento', format(startDate, 'yyyy-MM-dd'))
+      .lte('vencimento', format(endDate, 'yyyy-MM-dd'))
+      .neq('status', 'CANCELADO');
 
-      if (tx.type === 'ENTRADA' && taxGroup === 'RECEITA_SERVICOS') {
-        receitaServicos += amount;
-      } else if (tx.type === 'SAIDA' && taxGroup === 'PESSOAL') {
-        if (isInformal) {
-          folhaInformal += amount;
-        } else if (entraFatorR) {
-          folhaOficial += amount;
-        }
+    if (selectedUnit !== 'all') {
+      payablesQuery = payablesQuery.eq('unit_id', selectedUnit);
+    }
+
+    const { data: payablesData } = await payablesQuery;
+    
+    const payablesPessoal = payablesData?.filter((p: any) => p.categories?.tax_group === 'PESSOAL') || [];
+    
+    payablesPessoal.forEach((p: any) => {
+      const amount = Math.abs(Number(p.valor));
+      if (p.categories?.is_informal) {
+        folhaInformal += amount;
+      } else if (p.categories?.entra_fator_r) {
+        folhaOficial += amount;
       }
     });
 
+    // 2. Se não houver payables PESSOAL, tentar transactions como fallback
+    if (folhaOficial === 0 && folhaInformal === 0) {
+      let txQuery = supabase
+        .from('transactions')
+        .select('*, category:categories(tax_group, is_informal, entra_fator_r)')
+        .gte('date', format(startDate, 'yyyy-MM-dd'))
+        .lte('date', format(endDate, 'yyyy-MM-dd'))
+        .eq('status', 'APROVADO')
+        .eq('type', 'SAIDA')
+        .is('deleted_at', null);
+
+      if (selectedUnit !== 'all') {
+        txQuery = txQuery.eq('unit_id', selectedUnit);
+      }
+
+      const { data: txData } = await txQuery;
+      txData?.forEach((tx: any) => {
+        if (tx.category?.tax_group === 'PESSOAL') {
+          const amount = Math.abs(Number(tx.amount));
+          if (tx.category?.is_informal) {
+            folhaInformal += amount;
+          } else if (tx.category?.entra_fator_r) {
+            folhaOficial += amount;
+          }
+        }
+      });
+    }
+
+    // 3. Buscar receita de serviços - primeiro de invoices
+    let invoicesQuery = supabase
+      .from('invoices')
+      .select('net_value')
+      .gte('issue_date', format(startDate, 'yyyy-MM-dd'))
+      .lte('issue_date', format(endDate, 'yyyy-MM-dd'))
+      .neq('status', 'CANCELADA');
+
+    if (selectedUnit !== 'all') {
+      invoicesQuery = invoicesQuery.eq('unit_id', selectedUnit);
+    }
+
+    const { data: invoicesData } = await invoicesQuery;
+    
+    if (invoicesData && invoicesData.length > 0) {
+      receitaServicos = invoicesData.reduce((sum, inv) => sum + Math.abs(Number(inv.net_value || 0)), 0);
+    }
+
+    // 4. Se não houver invoices, tentar transactions ENTRADA
+    if (receitaServicos === 0) {
+      let receitaQuery = supabase
+        .from('transactions')
+        .select('amount, category:categories(tax_group)')
+        .gte('date', format(startDate, 'yyyy-MM-dd'))
+        .lte('date', format(endDate, 'yyyy-MM-dd'))
+        .eq('status', 'APROVADO')
+        .eq('type', 'ENTRADA')
+        .is('deleted_at', null);
+
+      if (selectedUnit !== 'all') {
+        receitaQuery = receitaQuery.eq('unit_id', selectedUnit);
+      }
+
+      const { data: receitaData } = await receitaQuery;
+      receitaData?.forEach((tx: any) => {
+        if (tx.category?.tax_group === 'RECEITA_SERVICOS') {
+          receitaServicos += Math.abs(Number(tx.amount));
+        }
+      });
+    }
+
+    // Calcular Fator R
     const custoTotal = folhaOficial + folhaInformal;
     const fatorR = receitaServicos > 0 ? folhaOficial / receitaServicos : 0;
     const anexo = fatorR >= THRESHOLDS.fatorRMinimo ? 'III' : 'V';
