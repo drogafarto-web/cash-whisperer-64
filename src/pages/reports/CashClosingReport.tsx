@@ -25,7 +25,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
-import { Unit, CashClosing, Account, Profile } from '@/types/database';
+import { Unit, Profile } from '@/types/database';
 import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -56,10 +56,18 @@ import {
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 
-interface CashClosingWithRelations extends CashClosing {
+interface EnvelopeWithRelations {
+  id: string;
+  unit_id: string | null;
+  expected_cash: number;
+  counted_cash: number | null;
+  difference: number | null;
+  status: string;
+  lis_codes_count: number;
+  created_at: string;
+  created_by: string | null;
   unit?: Unit;
-  account?: Account;
-  closed_by_profile?: Profile;
+  created_by_profile?: Profile;
 }
 
 interface UnitDifferenceData {
@@ -72,15 +80,13 @@ export default function CashClosingReport() {
   const navigate = useNavigate();
   const { user, isAdmin, isLoading: authLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
-  const [cashClosings, setCashClosings] = useState<CashClosingWithRelations[]>([]);
+  const [cashClosings, setCashClosings] = useState<EnvelopeWithRelations[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
 
   // Filters
   const [startDate, setStartDate] = useState<Date>(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState<Date>(endOfMonth(new Date()));
   const [selectedUnitId, setSelectedUnitId] = useState<string>('all');
-  const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
   const [showOnlyWithDifference, setShowOnlyWithDifference] = useState(false);
 
   useEffect(() => {
@@ -94,7 +100,6 @@ export default function CashClosingReport() {
   useEffect(() => {
     if (user && isAdmin) {
       fetchUnits();
-      fetchAccounts();
     }
   }, [user, isAdmin]);
 
@@ -102,67 +107,68 @@ export default function CashClosingReport() {
     if (user && isAdmin) {
       fetchCashClosings();
     }
-  }, [user, isAdmin, startDate, endDate, selectedUnitId, selectedAccountId, showOnlyWithDifference]);
+  }, [user, isAdmin, startDate, endDate, selectedUnitId, showOnlyWithDifference]);
 
   const fetchUnits = async () => {
     const { data } = await supabase.from('units').select('*').order('name');
     setUnits(data || []);
   };
 
-  const fetchAccounts = async () => {
-    const { data } = await supabase.from('accounts').select('*').eq('active', true).order('name');
-    setAccounts((data || []) as Account[]);
-  };
 
   const fetchCashClosings = async () => {
     setIsLoading(true);
     try {
+      const startStr = format(startDate, 'yyyy-MM-dd');
+      const endStr = format(endDate, 'yyyy-MM-dd');
+      
       let query = supabase
-        .from('cash_closings')
+        .from('cash_envelopes')
         .select(`
-          *,
-          unit:units(*),
-          account:accounts(*)
+          id,
+          unit_id,
+          expected_cash,
+          counted_cash,
+          difference,
+          status,
+          lis_codes_count,
+          created_at,
+          created_by,
+          unit:units(*)
         `)
-        .gte('date', format(startDate, 'yyyy-MM-dd'))
-        .lte('date', format(endDate, 'yyyy-MM-dd'))
-        .order('date', { ascending: false });
+        .gte('created_at', `${startStr}T00:00:00`)
+        .lte('created_at', `${endStr}T23:59:59`)
+        .order('created_at', { ascending: false });
 
       if (selectedUnitId !== 'all') {
         query = query.eq('unit_id', selectedUnitId);
-      }
-
-      if (selectedAccountId !== 'all') {
-        query = query.eq('account_id', selectedAccountId);
       }
 
       if (showOnlyWithDifference) {
         query = query.neq('difference', 0);
       }
 
-      const { data: closingsData } = await query;
+      const { data: envelopesData } = await query;
 
-      if (closingsData && closingsData.length > 0) {
-        // Fetch profiles for closed_by
-        const closedByIds = [...new Set(closingsData.map(c => c.closed_by))];
-        const { data: profilesData } = await supabase
-          .from('profiles')
-          .select('*')
-          .in('id', closedByIds);
+      if (envelopesData && envelopesData.length > 0) {
+        // Fetch profiles for created_by
+        const createdByIds = [...new Set(envelopesData.map(c => c.created_by).filter(Boolean))];
+        const { data: profilesData } = createdByIds.length > 0 
+          ? await supabase.from('profiles').select('*').in('id', createdByIds)
+          : { data: [] };
 
         const profilesMap = new Map((profilesData || []).map(p => [p.id, p]));
 
-        const enrichedData = closingsData.map(closing => ({
-          ...closing,
-          closed_by_profile: profilesMap.get(closing.closed_by) as Profile | undefined,
+        const enrichedData = envelopesData.map(envelope => ({
+          ...envelope,
+          created_by_profile: profilesMap.get(envelope.created_by || '') as Profile | undefined,
         }));
 
-        setCashClosings(enrichedData as CashClosingWithRelations[]);
+        setCashClosings(enrichedData as EnvelopeWithRelations[]);
       } else {
         setCashClosings([]);
       }
     } catch (error) {
-      console.error('Error fetching cash closings:', error);
+      console.error('Error fetching cash envelopes:', error);
     } finally {
       setIsLoading(false);
     }
@@ -170,10 +176,10 @@ export default function CashClosingReport() {
 
   // Calculate summary stats
   const totalClosings = cashClosings.length;
-  const totalExpected = cashClosings.reduce((sum, c) => sum + Number(c.expected_balance), 0);
-  const totalActual = cashClosings.reduce((sum, c) => sum + Number(c.actual_balance), 0);
-  const totalDifference = cashClosings.reduce((sum, c) => sum + Number(c.difference), 0);
-  const avgDifference = totalClosings > 0 ? totalDifference / totalClosings : 0;
+  const totalExpected = cashClosings.reduce((sum, c) => sum + Number(c.expected_cash || 0), 0);
+  const totalActual = cashClosings.reduce((sum, c) => sum + Number(c.counted_cash || 0), 0);
+  const totalDifference = cashClosings.reduce((sum, c) => sum + Number(c.difference || 0), 0);
+  const totalLisCodes = cashClosings.reduce((sum, c) => sum + Number(c.lis_codes_count || 0), 0);
 
   // Chart data - differences by unit
   const unitDifferences: UnitDifferenceData[] = units
@@ -222,32 +228,35 @@ export default function CashClosingReport() {
     doc.text(`Saldo Esperado: ${formatCurrency(totalExpected)}`, 14, 54);
     doc.text(`Saldo Contado: ${formatCurrency(totalActual)}`, 14, 60);
     doc.text(`Diferença Total: ${formatCurrency(totalDifference)}`, 14, 66);
+    doc.text(`Total Códigos LIS: ${totalLisCodes}`, 14, 72);
 
     // Table
-    let yPos = 80;
+    let yPos = 86;
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.text('Data', 14, yPos);
     doc.text('Unidade', 40, yPos);
-    doc.text('Esperado', 80, yPos);
-    doc.text('Contado', 110, yPos);
-    doc.text('Diferença', 140, yPos);
-    doc.text('Envelope', 170, yPos);
+    doc.text('LIS', 70, yPos);
+    doc.text('Esperado', 90, yPos);
+    doc.text('Contado', 120, yPos);
+    doc.text('Diferença', 150, yPos);
+    doc.text('Status', 180, yPos);
 
     doc.setFont('helvetica', 'normal');
     yPos += 8;
 
-    cashClosings.forEach(closing => {
+    cashClosings.forEach(envelope => {
       if (yPos > 280) {
         doc.addPage();
         yPos = 20;
       }
-      doc.text(format(parseISO(closing.date), 'dd/MM/yyyy'), 14, yPos);
-      doc.text(closing.unit?.code || '—', 40, yPos);
-      doc.text(formatCurrency(Number(closing.expected_balance)), 80, yPos);
-      doc.text(formatCurrency(Number(closing.actual_balance)), 110, yPos);
-      doc.text(formatCurrency(Number(closing.difference)), 140, yPos);
-      doc.text(closing.envelope_id?.slice(0, 12) || '—', 170, yPos);
+      doc.text(format(parseISO(envelope.created_at), 'dd/MM/yyyy'), 14, yPos);
+      doc.text(envelope.unit?.code || '—', 40, yPos);
+      doc.text(String(envelope.lis_codes_count || 0), 70, yPos);
+      doc.text(formatCurrency(Number(envelope.expected_cash || 0)), 90, yPos);
+      doc.text(formatCurrency(Number(envelope.counted_cash || 0)), 120, yPos);
+      doc.text(formatCurrency(Number(envelope.difference || 0)), 150, yPos);
+      doc.text(envelope.status || '—', 180, yPos);
       yPos += 6;
     });
 
@@ -255,16 +264,16 @@ export default function CashClosingReport() {
   };
 
   const exportToExcel = () => {
-    const data = cashClosings.map(closing => ({
-      Data: format(parseISO(closing.date), 'dd/MM/yyyy'),
-      Unidade: closing.unit?.name || '—',
-      Conta: closing.account?.name || '—',
-      'Saldo Esperado': Number(closing.expected_balance),
-      'Saldo Contado': Number(closing.actual_balance),
-      Diferença: Number(closing.difference),
-      Envelope: closing.envelope_id || '—',
-      'Fechado por': closing.closed_by_profile?.name || '—',
-      Observações: closing.notes || '—',
+    const data = cashClosings.map(envelope => ({
+      Data: format(parseISO(envelope.created_at), 'dd/MM/yyyy'),
+      Hora: format(parseISO(envelope.created_at), 'HH:mm'),
+      Unidade: envelope.unit?.name || '—',
+      'Códigos LIS': envelope.lis_codes_count || 0,
+      'Saldo Esperado': Number(envelope.expected_cash || 0),
+      'Saldo Contado': Number(envelope.counted_cash || 0),
+      Diferença: Number(envelope.difference || 0),
+      Status: envelope.status || '—',
+      'Fechado por': envelope.created_by_profile?.name || '—',
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
@@ -368,23 +377,6 @@ export default function CashClosingReport() {
                 </Select>
               </div>
 
-              {/* Account Filter */}
-              <div className="space-y-2">
-                <Label>Conta</Label>
-                <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Todas" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas as contas</SelectItem>
-                    {accounts.map(account => (
-                      <SelectItem key={account.id} value={account.id}>
-                        {account.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
 
               {/* Only with difference */}
               <div className="flex items-center gap-2 pb-2">
@@ -517,13 +509,13 @@ export default function CashClosingReport() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Data</TableHead>
+                  <TableHead>Data/Hora</TableHead>
                   <TableHead>Unidade</TableHead>
-                  <TableHead>Conta</TableHead>
+                  <TableHead className="text-center">Códigos LIS</TableHead>
                   <TableHead className="text-right">Esperado</TableHead>
                   <TableHead className="text-right">Contado</TableHead>
                   <TableHead className="text-right">Diferença</TableHead>
-                  <TableHead>Envelope</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Fechado por</TableHead>
                 </TableRow>
               </TableHeader>
@@ -535,24 +527,29 @@ export default function CashClosingReport() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  cashClosings.map(closing => {
-                    const diff = Number(closing.difference);
+                  cashClosings.map(envelope => {
+                    const diff = Number(envelope.difference || 0);
                     return (
-                      <TableRow key={closing.id}>
+                      <TableRow key={envelope.id}>
                         <TableCell className="font-medium">
-                          {format(parseISO(closing.date), 'dd/MM/yyyy')}
+                          <div className="flex flex-col">
+                            <span>{format(parseISO(envelope.created_at), 'dd/MM/yyyy')}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {format(parseISO(envelope.created_at), 'HH:mm')}
+                            </span>
+                          </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline">{closing.unit?.code || '—'}</Badge>
+                          <Badge variant="outline">{envelope.unit?.code || '—'}</Badge>
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {closing.account?.name || '—'}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(Number(closing.expected_balance))}
+                        <TableCell className="text-center">
+                          <Badge variant="secondary">{envelope.lis_codes_count || 0}</Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          {formatCurrency(Number(closing.actual_balance))}
+                          {formatCurrency(Number(envelope.expected_cash || 0))}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(Number(envelope.counted_cash || 0))}
                         </TableCell>
                         <TableCell className={cn(
                           "text-right font-medium",
@@ -567,11 +564,18 @@ export default function CashClosingReport() {
                             {formatCurrency(diff)}
                           </div>
                         </TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">
-                          {closing.envelope_id || '—'}
+                        <TableCell>
+                          <Badge 
+                            variant={envelope.status === 'CONFERIDO' ? 'default' : 'outline'}
+                            className={cn(
+                              envelope.status === 'CONFERIDO' && 'bg-green-500/10 text-green-600 border-green-500/20'
+                            )}
+                          >
+                            {envelope.status || '—'}
+                          </Badge>
                         </TableCell>
                         <TableCell className="text-muted-foreground">
-                          {closing.closed_by_profile?.name || '—'}
+                          {envelope.created_by_profile?.name || '—'}
                         </TableCell>
                       </TableRow>
                     );
