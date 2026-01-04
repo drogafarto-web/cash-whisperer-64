@@ -7,6 +7,7 @@ import {
   CashflowProjection,
   LisClosuresReport,
   PersonnelRealVsOfficial,
+  LisReconciliation,
 } from './LazyComponents';
 
 /**
@@ -58,6 +59,14 @@ export const reportsRoutes: RouteObject[] = [
     element: (
       <ProtectedRoute roles={['admin', 'contabilidade', 'contador']}>
         <PersonnelRealVsOfficial />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/reports/lis-reconciliation',
+    element: (
+      <ProtectedRoute roles={['admin', 'contabilidade', 'financeiro', 'gestor_unidade']}>
+        <LisReconciliation />
       </ProtectedRoute>
     ),
   },

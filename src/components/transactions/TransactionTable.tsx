@@ -18,7 +18,13 @@ import {
   FileText,
   Image as ImageIcon,
   RefreshCw,
+  FlaskConical,
 } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 export interface TransactionTableProps {
   transactions: Transaction[];
@@ -104,6 +110,25 @@ const TransactionRow = memo(function TransactionRow({
   return (
     <TableRow>
       <TableCell>{safeFormatDate(tx.date)}</TableCell>
+      {/* LIS Code Column */}
+      <TableCell className="hidden sm:table-cell">
+        {tx.lis_protocol_id ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="outline" className="font-mono text-xs cursor-help">
+                <FlaskConical className="h-3 w-3 mr-1" />
+                {tx.lis_protocol_id}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Código LIS vinculado</p>
+              {tx.lis_source && <p className="text-xs text-muted-foreground">Origem: {tx.lis_source}</p>}
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )}
+      </TableCell>
       {isAdmin && <TableCell className="text-muted-foreground">{tx.unit?.name || '—'}</TableCell>}
       <TableCell>
         <Badge variant={tx.type === 'ENTRADA' ? 'default' : 'secondary'}>
@@ -181,6 +206,7 @@ export const TransactionTable = memo(function TransactionTable({
           <TableHeader>
             <TableRow>
               <TableHead>Data</TableHead>
+              <TableHead className="hidden sm:table-cell">Código LIS</TableHead>
               {isAdmin && <TableHead>Unidade</TableHead>}
               <TableHead>Tipo</TableHead>
               <TableHead>Valor</TableHead>
@@ -194,7 +220,7 @@ export const TransactionTable = memo(function TransactionTable({
           <TableBody>
             {transactions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={isAdmin ? 9 : 7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={isAdmin ? 10 : 8} className="text-center py-8 text-muted-foreground">
                   Nenhuma transação encontrada
                 </TableCell>
               </TableRow>

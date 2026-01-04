@@ -1891,6 +1891,70 @@ export type Database = {
           },
         ]
       }
+      lis_reconciliation_log: {
+        Row: {
+          created_at: string | null
+          date: string
+          id: string
+          lis_closure_item_id: string | null
+          lis_code: string
+          notes: string | null
+          reconciled_at: string | null
+          reconciled_by: string | null
+          status: string
+          transaction_id: string | null
+          unit_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          id?: string
+          lis_closure_item_id?: string | null
+          lis_code: string
+          notes?: string | null
+          reconciled_at?: string | null
+          reconciled_by?: string | null
+          status?: string
+          transaction_id?: string | null
+          unit_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          id?: string
+          lis_closure_item_id?: string | null
+          lis_code?: string
+          notes?: string | null
+          reconciled_at?: string | null
+          reconciled_by?: string | null
+          status?: string
+          transaction_id?: string | null
+          unit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lis_reconciliation_log_lis_closure_item_id_fkey"
+            columns: ["lis_closure_item_id"]
+            isOneToOne: false
+            referencedRelation: "lis_closure_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lis_reconciliation_log_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lis_reconciliation_log_unit_id_fkey"
+            columns: ["unit_id"]
+            isOneToOne: false
+            referencedRelation: "units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lis_users: {
         Row: {
           active: boolean | null
@@ -2905,6 +2969,7 @@ export type Database = {
           gross_amount: number | null
           id: string
           lis_protocol_id: string | null
+          lis_source: string | null
           partner_id: string | null
           payment_method: string
           rejection_reason: string | null
@@ -2940,6 +3005,7 @@ export type Database = {
           gross_amount?: number | null
           id?: string
           lis_protocol_id?: string | null
+          lis_source?: string | null
           partner_id?: string | null
           payment_method: string
           rejection_reason?: string | null
@@ -2975,6 +3041,7 @@ export type Database = {
           gross_amount?: number | null
           id?: string
           lis_protocol_id?: string | null
+          lis_source?: string | null
           partner_id?: string | null
           payment_method?: string
           rejection_reason?: string | null
