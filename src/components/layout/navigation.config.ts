@@ -90,7 +90,7 @@ export const navigationGroups: NavGroup[] = [
       { name: 'Convênios', href: '/billing/payers', icon: Handshake, roles: ['admin', 'contabilidade'] },
       { name: 'Resumo Faturamento', href: '/billing/summary', icon: FileBarChart, roles: ['admin', 'contabilidade'] },
       // Despesas (Contas a Pagar)
-      { name: 'Boletos', href: '/payables/boletos', icon: Barcode, roles: ['admin', 'contabilidade', 'gestor_unidade', 'financeiro'] },
+      { name: 'Boletos', href: '/payables/boletos', icon: Barcode, roles: ['admin', 'contabilidade', 'gestor_unidade', 'financeiro', 'secretaria'] },
       { name: 'NFs Fornecedor', href: '/payables/supplier-invoices', icon: FileInput, roles: ['admin', 'contabilidade', 'financeiro'] },
       { name: 'Guias Fiscais', href: '/payables/tax-documents', icon: Calculator, roles: ['admin', 'contabilidade', 'financeiro', 'contador'] },
     ],

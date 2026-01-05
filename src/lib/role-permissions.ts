@@ -46,6 +46,7 @@ export const ROLE_ROUTE_ACCESS: Record<AppRole, string[]> = {
     '/envelope-closing',
     '/import/daily-movement',
     '/pendencias',
+    '/payables/boletos',
   ],
   
   gestor_unidade: [
