@@ -411,9 +411,15 @@ export function AccountingKioskHome({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold">{formatCurrency(billingSummary?.invoicesTotal || 0)}</p>
+              <p className="text-2xl font-bold">
+                {formatCurrency(billingSummary?.invoicesTotal || competenceData?.receita_servicos || 0)}
+              </p>
               <p className="text-xs text-muted-foreground">
-                {billingSummary?.invoicesByPayer?.length || 0} convênios/prefeituras
+                {billingSummary?.invoicesByPayer?.length 
+                  ? `${billingSummary.invoicesByPayer.length} convênios/prefeituras`
+                  : competenceData?.receita_servicos 
+                    ? 'Valor informado pela contabilidade'
+                    : '0 convênios/prefeituras'}
               </p>
             </CardContent>
           </Card>

@@ -57,24 +57,59 @@ export function useAccountingCashMovement(
         throw queryError;
       }
 
-      // Agregar os valores de todos os fechamentos do período
-      const aggregated = (closures || []).reduce(
-        (acc, closure) => ({
-          money: acc.money + (closure.total_dinheiro || 0),
-          pix: acc.pix + (closure.total_pix || 0),
-          card: acc.card + (closure.total_cartao_liquido || 0),
-          cardFees: acc.cardFees + (closure.total_taxa_cartao || 0),
-          unpaid: acc.unpaid + (closure.total_nao_pago || 0),
-        }),
+      // Se há fechamentos LIS, usar esses dados
+      if (closures && closures.length > 0) {
+        const aggregated = closures.reduce(
+          (acc, closure) => ({
+            money: acc.money + (closure.total_dinheiro || 0),
+            pix: acc.pix + (closure.total_pix || 0),
+            card: acc.card + (closure.total_cartao_liquido || 0),
+            cardFees: acc.cardFees + (closure.total_taxa_cartao || 0),
+            unpaid: acc.unpaid + (closure.total_nao_pago || 0),
+          }),
+          { money: 0, pix: 0, card: 0, cardFees: 0, unpaid: 0 }
+        );
+
+        const total = aggregated.money + aggregated.pix + aggregated.card;
+
+        return {
+          ...aggregated,
+          total,
+          closuresCount: closures.length,
+        };
+      }
+
+      // Fallback: buscar de transactions quando não há lis_closures
+      const { data: transactions, error: txError } = await supabase
+        .from('transactions')
+        .select('amount, payment_method')
+        .eq('unit_id', unitId)
+        .eq('type', 'ENTRADA')
+        .eq('status', 'APROVADO')
+        .gte('date', startDate)
+        .lt('date', endDate);
+
+      if (txError) {
+        throw txError;
+      }
+
+      // Agregar por método de pagamento
+      const txAggregated = (transactions || []).reduce(
+        (acc, tx) => {
+          const amount = Number(tx.amount) || 0;
+          const method = tx.payment_method?.toUpperCase();
+          if (method === 'DINHEIRO') acc.money += amount;
+          else if (method === 'PIX') acc.pix += amount;
+          else if (method === 'CARTAO' || method === 'CARTÃO') acc.card += amount;
+          return acc;
+        },
         { money: 0, pix: 0, card: 0, cardFees: 0, unpaid: 0 }
       );
 
-      const total = aggregated.money + aggregated.pix + aggregated.card;
-
       return {
-        ...aggregated,
-        total,
-        closuresCount: closures?.length || 0,
+        ...txAggregated,
+        total: txAggregated.money + txAggregated.pix + txAggregated.card,
+        closuresCount: 0,
       };
     },
     enabled: !!unitId,
