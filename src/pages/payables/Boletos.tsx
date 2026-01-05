@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format, differenceInDays, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -47,6 +47,7 @@ import {
 } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { ScreenGuide } from '@/components/ui/ScreenGuide';
+import { useAuth } from '@/hooks/useAuth';
 
 import { BoletoUploadForm } from '@/components/payables/BoletoUploadForm';
 import { PayablesFiltersExtended } from '@/components/payables/PayablesFiltersExtended';
@@ -65,6 +66,9 @@ type PayableWithAccount = Payable & {
 };
 
 export default function BoletosPage() {
+  const { role, activeUnit } = useAuth();
+  const isSecretaria = role === 'secretaria';
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   // Filter states
@@ -74,6 +78,13 @@ export default function BoletosPage() {
   const [paymentAccountFilter, setPaymentAccountFilter] = useState('all');
   const [nfLinkFilter, setNfLinkFilter] = useState('all');
   const [showAll, setShowAll] = useState(false); // Toggle para mostrar todas despesas
+
+  // Forçar unidade para secretaria
+  useEffect(() => {
+    if (isSecretaria && activeUnit && unitIdFilter === 'all') {
+      setUnitIdFilter(activeUnit.id);
+    }
+  }, [isSecretaria, activeUnit, unitIdFilter]);
 
   // Detail modal state
   const [selectedPayable, setSelectedPayable] = useState<Payable | null>(null);
@@ -423,21 +434,44 @@ export default function BoletosPage() {
 
         {/* Filters */}
         <div className="space-y-3">
-          <PayablesFiltersExtended
-            periodDays={periodDays}
-            onPeriodDaysChange={setPeriodDays}
-            beneficiario={beneficiarioFilter}
-            onBeneficiarioChange={setBeneficiarioFilter}
-            unitId={unitIdFilter}
-            onUnitIdChange={setUnitIdFilter}
-            units={units}
-            paymentAccountId={paymentAccountFilter}
-            onPaymentAccountIdChange={setPaymentAccountFilter}
-            accounts={accounts}
-            nfLinkStatus={nfLinkFilter}
-            onNfLinkStatusChange={setNfLinkFilter}
-            onClear={handleClearFilters}
-          />
+          {isSecretaria && activeUnit ? (
+            <div className="flex flex-wrap gap-4 items-center">
+              <Badge variant="outline" className="text-sm py-1.5 px-3">
+                Unidade: {activeUnit.name}
+              </Badge>
+              <PayablesFiltersExtended
+                periodDays={periodDays}
+                onPeriodDaysChange={setPeriodDays}
+                beneficiario={beneficiarioFilter}
+                onBeneficiarioChange={setBeneficiarioFilter}
+                unitId={unitIdFilter}
+                onUnitIdChange={() => {}} // Não permite mudar
+                units={[]} // Esconde dropdown de unidades
+                paymentAccountId={paymentAccountFilter}
+                onPaymentAccountIdChange={setPaymentAccountFilter}
+                accounts={accounts}
+                nfLinkStatus={nfLinkFilter}
+                onNfLinkStatusChange={setNfLinkFilter}
+                onClear={handleClearFilters}
+              />
+            </div>
+          ) : (
+            <PayablesFiltersExtended
+              periodDays={periodDays}
+              onPeriodDaysChange={setPeriodDays}
+              beneficiario={beneficiarioFilter}
+              onBeneficiarioChange={setBeneficiarioFilter}
+              unitId={unitIdFilter}
+              onUnitIdChange={setUnitIdFilter}
+              units={units}
+              paymentAccountId={paymentAccountFilter}
+              onPaymentAccountIdChange={setPaymentAccountFilter}
+              accounts={accounts}
+              nfLinkStatus={nfLinkFilter}
+              onNfLinkStatusChange={setNfLinkFilter}
+              onClear={handleClearFilters}
+            />
+          )}
           
           {/* Toggle para mostrar todas despesas */}
           <div className="flex items-center gap-2 px-1">
