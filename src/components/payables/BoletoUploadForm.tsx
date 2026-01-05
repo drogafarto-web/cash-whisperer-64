@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
-import { Upload, Barcode, Loader2, Wand2, FileText, Plus, AlertCircle, Check, Clock, Receipt, FileWarning } from 'lucide-react';
+import { Upload, Barcode, Loader2, Wand2, FileText, Plus, AlertCircle, Check, Clock, Receipt, FileWarning, FileCheck } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -107,6 +107,7 @@ export function BoletoUploadForm({
   const [showExemptionForm, setShowExemptionForm] = useState(false);
   const [exemptionReason, setExemptionReason] = useState('');
   const [boletoTipo, setBoletoTipo] = useState<BoletoTipo>('compra');
+  const [nfInSameDocument, setNfInSameDocument] = useState(false);
 
   const { processFile, isProcessing } = useBoletoOcr();
   const createPayable = useCreatePayable();
@@ -283,10 +284,15 @@ export function BoletoUploadForm({
       // Determine nf_vinculacao_status based on type and invoice link
       let nfVinculacaoStatus: 'nao_requer' | 'pendente' | 'vinculado' = 'nao_requer';
       let nfExemptionReason: string | undefined = undefined;
+      let nfInSameDoc = false;
       
       if (boletoTipo === 'compra') {
         if (data.supplier_invoice_id) {
           nfVinculacaoStatus = 'vinculado';
+        } else if (nfInSameDocument) {
+          // NF is in the same document - mark as vinculado with flag
+          nfVinculacaoStatus = 'vinculado';
+          nfInSameDoc = true;
         } else {
           // If no NF linked for 'compra', require justification
           if (!showExemptionForm) {
@@ -319,6 +325,7 @@ export function BoletoUploadForm({
         ocrConfidence: ocrConfidence ?? undefined,
         nfVinculacaoStatus,
         nfExemptionReason,
+        nfInSameDocument: nfInSameDoc,
       });
 
       onSuccess?.();
@@ -330,7 +337,7 @@ export function BoletoUploadForm({
   const selectedInvoiceId = form.watch('supplier_invoice_id');
   const selectedInvoice = supplierInvoices.find(inv => inv.id === selectedInvoiceId);
   const showNfSection = boletoTipo === 'compra';
-  const hasNoNfLinked = showNfSection && !selectedInvoiceId;
+  const hasNoNfLinked = showNfSection && !selectedInvoiceId && !nfInSameDocument;
 
   return (
     <div className="space-y-6">
@@ -567,6 +574,35 @@ export function BoletoUploadForm({
                   <Check className="h-4 w-4 text-primary" />
                   NF {selectedInvoice.document_number} - {selectedInvoice.supplier_name}
                 </p>
+              </div>
+            )}
+
+            {/* Option to mark NF as in same document */}
+            {!selectedInvoiceId && (
+              <div 
+                className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                  nfInSameDocument 
+                    ? 'bg-green-500/10 border-green-500' 
+                    : 'bg-muted/30 hover:bg-muted/50'
+                }`}
+                onClick={() => setNfInSameDocument(!nfInSameDocument)}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`h-5 w-5 rounded border-2 flex items-center justify-center ${
+                    nfInSameDocument ? 'bg-green-500 border-green-500' : 'border-muted-foreground'
+                  }`}>
+                    {nfInSameDocument && <Check className="h-3 w-3 text-white" />}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium flex items-center gap-2">
+                      <FileCheck className="h-4 w-4" />
+                      A NF já está anexada ao documento
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Marque se o PDF do boleto já inclui a Nota Fiscal (ex: NFS-e)
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
 

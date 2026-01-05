@@ -301,6 +301,7 @@ export default function BoletosPage() {
   // Get NF link status badge
   const getNfLinkBadge = (payable: PayableWithAccount) => {
     const status = payable.nf_vinculacao_status;
+    const nfInSameDocument = (payable as any).nf_in_same_document;
     
     if (status === 'pendente') {
       return (
@@ -314,7 +315,7 @@ export default function BoletosPage() {
       return (
         <Badge variant="outline" className="border-green-500 text-green-600 bg-green-500/10 text-xs gap-1">
           <FileCheck className="h-3 w-3" />
-          NF Vinculada
+          {nfInSameDocument ? 'NF no Documento' : 'NF Vinculada'}
         </Badge>
       );
     }

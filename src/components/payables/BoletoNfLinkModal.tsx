@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { FileText, Link, Plus, Search } from 'lucide-react';
+import { FileText, Link, Plus, Search, FileCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/lib/formats';
 import { toast } from 'sonner';
@@ -97,6 +97,29 @@ export function BoletoNfLinkModal({
     },
     onError: (error: Error) => {
       toast.error('Erro ao vincular boleto: ' + error.message);
+    },
+  });
+
+  // Mark NF as in same document mutation
+  const markNfInDocumentMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('payables')
+        .update({
+          nf_vinculacao_status: 'vinculado',
+          nf_in_same_document: true,
+        })
+        .eq('id', payableId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('NF marcada como anexada ao documento');
+      queryClient.invalidateQueries({ queryKey: ['payables'] });
+      onOpenChange(false);
+    },
+    onError: (error: Error) => {
+      toast.error('Erro ao atualizar: ' + error.message);
     },
   });
 
@@ -236,6 +259,25 @@ export function BoletoNfLinkModal({
               </div>
             )}
           </ScrollArea>
+        </div>
+
+        <Separator />
+
+        {/* Option to mark NF as in same document */}
+        <div className="p-3 rounded-lg border bg-muted/30 space-y-2">
+          <p className="text-sm font-medium">O documento já contém a NF?</p>
+          <p className="text-xs text-muted-foreground">
+            Se o PDF do boleto já inclui a Nota Fiscal (ex: NFS-e), marque aqui.
+          </p>
+          <Button
+            variant="secondary"
+            onClick={() => markNfInDocumentMutation.mutate()}
+            disabled={markNfInDocumentMutation.isPending}
+            className="w-full"
+          >
+            <FileCheck className="h-4 w-4 mr-2" />
+            A NF já está anexada ao documento
+          </Button>
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
