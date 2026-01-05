@@ -13,7 +13,7 @@ import {
  * Rotas de Contas a Pagar (Despesas)
  * Roles: financeiro, contabilidade, gestor_unidade, admin
  */
-const payablesRoles = ['admin', 'financeiro', 'contabilidade', 'gestor_unidade'] as const;
+const payablesRoles = ['admin', 'financeiro', 'contabilidade', 'gestor_unidade', 'secretaria'] as const;
 
 export const payablesRoutes: RouteObject[] = [
   {
