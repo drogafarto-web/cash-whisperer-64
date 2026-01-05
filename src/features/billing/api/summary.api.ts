@@ -21,15 +21,19 @@ export async function fetchBillingSummary(
   const { data: invoices, error: invoicesError } = await invoicesQuery;
   if (invoicesError) throw invoicesError;
 
-  // Buscar total de caixa (transações do LIS)
+  // Calcular range de datas para o mês
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+  // Buscar total de caixa (transações de entrada)
   let transactionsQuery = supabase
     .from('transactions')
     .select('amount, payment_method')
     .eq('type', 'ENTRADA')
     .eq('status', 'APROVADO')
-    .eq('competencia_ano', year)
-    .eq('competencia_mes', month)
-    .not('lis_protocol_id', 'is', null);
+    .gte('date', startDate)
+    .lte('date', endDate);
 
   if (unitId) {
     transactionsQuery = transactionsQuery.eq('unit_id', unitId);
