@@ -25,11 +25,25 @@ import {
   BarChart3,
   Rocket,
   Banknote,
+  Trash2,
 } from 'lucide-react';
+import { useState } from 'react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { useAuth } from '@/hooks/useAuth';
 import { Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { useCompetenceData, useLabSubmission, useLabDocuments, useCompetenceDocuments } from '@/hooks/useAccountingCompetence';
+import { useCompetenceData, useLabSubmission, useLabDocuments, useCompetenceDocuments, useDeleteCompetenceData } from '@/hooks/useAccountingCompetence';
 import { useBillingSummary } from '@/features/billing';
 import { useAccountingCashMovement } from '@/hooks/useAccountingCashMovement';
 import { TodayActivityCard } from '@/components/shared/TodayActivityCard';
@@ -87,9 +101,16 @@ export function AccountingKioskHome({
   isAccountingRole = true,
 }: AccountingKioskHomeProps) {
   const navigate = useNavigate();
+  const { isAdmin, isContabilidade } = useAuth();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  
+  const canDeleteCompetenceData = isAdmin || isContabilidade;
+  
   const ano = competence.getFullYear();
   const mes = competence.getMonth() + 1;
   const monthParam = `${ano}-${String(mes).padStart(2, '0')}`;
+  
+  const deleteCompetenceData = useDeleteCompetenceData();
   
   const { data: competenceData, isLoading: loadingData } = useCompetenceData(unitId, ano, mes);
   const { data: submission, isLoading: loadingSubmission } = useLabSubmission(unitId, ano, mes);
@@ -316,7 +337,60 @@ export function AccountingKioskHome({
               📋 Contabilidade Informa
             </h2>
           </div>
-          <StatusBadge status={competenceData?.status || 'pendente'} />
+          <div className="flex items-center gap-2">
+            <StatusBadge status={competenceData?.status || 'pendente'} />
+            {canDeleteCompetenceData && competenceData && (
+              <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+                <AlertDialogTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    title="Limpar dados manuais"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2">
+                      <Trash2 className="h-5 w-5 text-destructive" />
+                      Limpar Dados Manuais?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription className="text-left space-y-3">
+                      <p>
+                        Isso removerá todos os dados informados manualmente para <strong>{format(competence, "MMMM 'de' yyyy", { locale: ptBR })}</strong> - <strong>{unitName}</strong>:
+                      </p>
+                      <ul className="list-disc pl-4 space-y-1 text-sm">
+                        <li>Folha: {formatCurrency(competenceData.total_folha || 0)}</li>
+                        <li>DAS: {formatCurrency(competenceData.das_valor || 0)}</li>
+                        <li>DARF: {formatCurrency(competenceData.darf_valor || 0)}</li>
+                        <li>GPS: {formatCurrency(competenceData.gps_valor || 0)}</li>
+                        <li>ISS: {formatCurrency(competenceData.iss_valor || 0)}</li>
+                        <li>Receita Serviços: {formatCurrency(competenceData.receita_servicos || 0)}</li>
+                        <li>Receita Outras: {formatCurrency(competenceData.receita_outras || 0)}</li>
+                      </ul>
+                      <p className="text-destructive font-medium">Esta ação não pode ser desfeita.</p>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() => {
+                        if (unitId) {
+                          deleteCompetenceData.mutate({ unitId, ano, mes });
+                        }
+                        setShowDeleteConfirm(false);
+                      }}
+                    >
+                      Confirmar Exclusão
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
         </div>
         
         {/* Grid com 2 colunas - apenas Folha e Impostos (dados da contabilidade) */}

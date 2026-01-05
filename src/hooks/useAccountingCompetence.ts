@@ -519,3 +519,45 @@ export function useMarkDocumentsSynced() {
     },
   });
 }
+
+// ========================================
+// DELETE COMPETENCE DATA (cleanup manual entries)
+// ========================================
+export function useDeleteCompetenceData() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ unitId, ano, mes }: { unitId: string; ano: number; mes: number }) => {
+      const { error } = await supabase
+        .from('accounting_competence_data')
+        .delete()
+        .eq('unit_id', unitId)
+        .eq('ano', ano)
+        .eq('mes', mes);
+      
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      // Invalidate all related queries
+      queryClient.invalidateQueries({ 
+        queryKey: ['accounting-competence-data', variables.unitId, variables.ano, variables.mes] 
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['accounting-aggregated-folha', variables.unitId, variables.ano, variables.mes] 
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['accounting-aggregated-impostos', variables.unitId, variables.ano, variables.mes] 
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['accounting-aggregated-receita', variables.unitId, variables.ano, variables.mes] 
+      });
+      queryClient.invalidateQueries({ 
+        queryKey: ['accounting-dashboard', variables.ano, variables.mes] 
+      });
+      toast.success('Dados de competência removidos');
+    },
+    onError: (error) => {
+      toast.error('Erro ao remover dados: ' + error.message);
+    },
+  });
+}
