@@ -33,8 +33,8 @@ const currentYear = new Date().getFullYear();
 const currentMonth = new Date().getMonth() + 1;
 
 export default function Invoices() {
-  const [selectedYear, setSelectedYear] = useState<number>(currentYear);
-  const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth);
+  const [selectedYear, setSelectedYear] = useState<string>('all');
+  const [selectedMonth, setSelectedMonth] = useState<string>('all');
   const [selectedPayer, setSelectedPayer] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [showUploadDialog, setShowUploadDialog] = useState(false);
@@ -42,8 +42,8 @@ export default function Invoices() {
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
 
   const { data: invoices = [], isLoading } = useInvoices({
-    competenceYear: selectedYear,
-    competenceMonth: selectedMonth,
+    competenceYear: selectedYear !== 'all' ? Number(selectedYear) : undefined,
+    competenceMonth: selectedMonth !== 'all' ? Number(selectedMonth) : undefined,
     payerId: selectedPayer !== 'all' ? selectedPayer : undefined,
     status: selectedStatus !== 'all' ? selectedStatus : undefined,
   });
@@ -164,11 +164,12 @@ export default function Invoices() {
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-4">
-              <Select value={selectedMonth.toString()} onValueChange={(v) => setSelectedMonth(Number(v))}>
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
                 <SelectTrigger className="w-[150px]">
                   <SelectValue placeholder="Mês" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="all">Todos os meses</SelectItem>
                   {MONTHS.map((m) => (
                     <SelectItem key={m.value} value={m.value.toString()}>
                       {m.label}
@@ -177,11 +178,12 @@ export default function Invoices() {
                 </SelectContent>
               </Select>
 
-              <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(Number(v))}>
+              <Select value={selectedYear} onValueChange={setSelectedYear}>
                 <SelectTrigger className="w-[120px]">
                   <SelectValue placeholder="Ano" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
                   {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
                     <SelectItem key={y} value={y.toString()}>
                       {y}
