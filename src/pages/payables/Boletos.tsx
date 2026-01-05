@@ -98,9 +98,11 @@ export default function BoletosPage() {
   // AI Error state
   const [aiError, setAiError] = useState<{ message: string; context?: Record<string, any> } | null>(null);
 
-  // Fetch data with API filters
+  // Fetch data with API filters - força unidade para secretaria
   const { data: allPayables = [], isLoading } = usePayablesWithPaymentData({
-    unitId: unitIdFilter !== 'all' ? unitIdFilter : undefined,
+    unitId: isSecretaria 
+      ? (activeUnit?.id || 'none') // Força unidade do atendente; 'none' não retorna nada enquanto carrega
+      : (unitIdFilter !== 'all' ? unitIdFilter : undefined),
     paymentAccountId: paymentAccountFilter !== 'all' ? paymentAccountFilter : undefined,
     periodDays: periodDays !== 'all' ? parseInt(periodDays) : undefined,
     showAll,
@@ -303,7 +305,10 @@ export default function BoletosPage() {
   const handleClearFilters = () => {
     setPeriodDays('all');
     setBeneficiarioFilter('');
-    setUnitIdFilter('all');
+    // Não reseta unidade para secretaria
+    if (!isSecretaria) {
+      setUnitIdFilter('all');
+    }
     setPaymentAccountFilter('all');
     setNfLinkFilter('all');
     setShowAll(false);
