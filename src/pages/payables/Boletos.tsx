@@ -589,13 +589,54 @@ export default function BoletosPage() {
                       {/* Tipo */}
                       <TableCell>{getPaymentTypeBadge(payable)}</TableCell>
 
-                      {/* NF Status - Coluna dedicada com botão de vincular */}
+                      {/* NF Status - Coluna dedicada */}
                       <TableCell>
                         {payable.supplier_invoice_id ? (
-                          <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs gap-1">
-                            <FileCheck className="h-3 w-3" />
-                            Vinculada
-                          </Badge>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs gap-1 text-green-600 border-green-300 hover:bg-green-50"
+                                onClick={() => {
+                                  const invoice = supplierInvoices.find(i => i.id === payable.supplier_invoice_id);
+                                  if (invoice) {
+                                    toast.info(`NF ${invoice.document_number} - ${invoice.supplier_name}`);
+                                  }
+                                }}
+                              >
+                                <FileCheck className="h-3 w-3" />
+                                Ver NF
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {(() => {
+                                const invoice = supplierInvoices.find(i => i.id === payable.supplier_invoice_id);
+                                return invoice ? `NF ${invoice.document_number} - ${invoice.supplier_name}` : 'NF vinculada';
+                              })()}
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (payable as any).nf_in_same_document ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs gap-1 text-green-600 border-green-300 hover:bg-green-50"
+                                onClick={() => {
+                                  if (payable.file_path) {
+                                    window.open(payable.file_path, '_blank');
+                                  } else {
+                                    toast.info('Documento não disponível para visualização');
+                                  }
+                                }}
+                              >
+                                <Eye className="h-3 w-3" />
+                                Ver Doc
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>NF anexada ao documento do boleto</TooltipContent>
+                          </Tooltip>
                         ) : payable.nf_vinculacao_status === 'pendente' ? (
                           <Button
                             variant="outline"
@@ -689,22 +730,6 @@ export default function BoletosPage() {
                       {/* Ações */}
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          {/* Link NF button - only for payables without linked invoice */}
-                          {!payable.supplier_invoice_id && payable.nf_vinculacao_status === 'pendente' && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                                  onClick={() => setPayableToLink(payable)}
-                                >
-                                  <LinkIcon className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Vincular NF</TooltipContent>
-                            </Tooltip>
-                          )}
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
