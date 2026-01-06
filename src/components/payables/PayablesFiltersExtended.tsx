@@ -1,4 +1,4 @@
-import { Clock, Search, X, FileText } from 'lucide-react';
+import { Clock, Search, X, FileText, CheckCircle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +28,9 @@ interface PayablesFiltersExtendedProps {
   // NF link status filter
   nfLinkStatus?: string;
   onNfLinkStatusChange?: (value: string) => void;
+  // Status filter
+  statusFilter?: string;
+  onStatusFilterChange?: (value: string) => void;
   // Clear
   onClear: () => void;
 }
@@ -45,6 +48,8 @@ export function PayablesFiltersExtended({
   accounts,
   nfLinkStatus,
   onNfLinkStatusChange,
+  statusFilter,
+  onStatusFilterChange,
   onClear,
 }: PayablesFiltersExtendedProps) {
   const hasFilters =
@@ -52,10 +57,27 @@ export function PayablesFiltersExtended({
     beneficiario || 
     (unitId && unitId !== 'all') || 
     (paymentAccountId && paymentAccountId !== 'all') ||
-    (nfLinkStatus && nfLinkStatus !== 'all');
+    (nfLinkStatus && nfLinkStatus !== 'all') ||
+    (statusFilter && statusFilter !== 'pendentes');
 
   return (
     <div className="flex flex-wrap items-center gap-3 p-4 bg-muted/50 rounded-lg">
+      {/* Status Filter */}
+      {onStatusFilterChange && (
+        <Select value={statusFilter || 'pendentes'} onValueChange={onStatusFilterChange}>
+          <SelectTrigger className="w-[150px]">
+            <CheckCircle className="mr-2 h-4 w-4" />
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="pendentes">Pendentes</SelectItem>
+            <SelectItem value="PAGO">Pagos</SelectItem>
+            <SelectItem value="VENCIDO">Vencidos</SelectItem>
+            <SelectItem value="all">Todos</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
+
       {/* Period Quick Select */}
       <Select value={periodDays} onValueChange={onPeriodDaysChange}>
         <SelectTrigger className="w-[180px]">
