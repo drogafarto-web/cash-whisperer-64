@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { format, differenceInDays, startOfDay } from 'date-fns';
+import { format, differenceInDays, startOfDay, subMonths, addMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   Barcode,
@@ -17,6 +17,10 @@ import {
   FileCheck,
   FileWarning,
   ListFilter,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle2,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
@@ -45,6 +49,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { supabase } from '@/integrations/supabase/client';
 import { ScreenGuide } from '@/components/ui/ScreenGuide';
 import { useAuth } from '@/hooks/useAuth';
@@ -63,6 +75,7 @@ import type { Payable } from '@/types/payables';
 
 type PayableWithAccount = Payable & {
   accounts?: { id: string; name: string; institution?: string } | null;
+  categories?: { id: string; name: string } | null;
 };
 
 export default function BoletosPage() {
@@ -72,12 +85,14 @@ export default function BoletosPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   // Filter states
+  const [statusFilter, setStatusFilter] = useState<string>('pendentes');
+  const [monthFilter, setMonthFilter] = useState<Date>(new Date());
   const [periodDays, setPeriodDays] = useState<string>('all');
   const [beneficiarioFilter, setBeneficiarioFilter] = useState('');
   const [unitIdFilter, setUnitIdFilter] = useState('all');
   const [paymentAccountFilter, setPaymentAccountFilter] = useState('all');
   const [nfLinkFilter, setNfLinkFilter] = useState('all');
-  const [showAll, setShowAll] = useState(false); // Toggle para mostrar todas despesas
+  const [showAll, setShowAll] = useState(false);
 
   // Forçar unidade para secretaria
   useEffect(() => {
@@ -98,14 +113,25 @@ export default function BoletosPage() {
   // AI Error state
   const [aiError, setAiError] = useState<{ message: string; context?: Record<string, any> } | null>(null);
 
-  // Fetch data with API filters - força unidade para secretaria
+  // Determine API status filter
+  const apiStatus = useMemo(() => {
+    if (statusFilter === 'pendentes') return undefined; // Default behavior
+    if (statusFilter === 'PAGO') return 'PAGO' as const;
+    if (statusFilter === 'VENCIDO') return 'VENCIDO' as const;
+    if (statusFilter === 'all') return 'all' as const;
+    return undefined;
+  }, [statusFilter]);
+
+  // Fetch data with API filters
   const { data: allPayables = [], isLoading } = usePayablesWithPaymentData({
     unitId: isSecretaria 
-      ? (activeUnit?.id || 'none') // Força unidade do atendente; 'none' não retorna nada enquanto carrega
+      ? (activeUnit?.id || 'none')
       : (unitIdFilter !== 'all' ? unitIdFilter : undefined),
     paymentAccountId: paymentAccountFilter !== 'all' ? paymentAccountFilter : undefined,
-    periodDays: periodDays !== 'all' ? parseInt(periodDays) : undefined,
-    showAll,
+    periodDays: statusFilter !== 'PAGO' && periodDays !== 'all' ? parseInt(periodDays) : undefined,
+    showAll: showAll || statusFilter === 'PAGO',
+    status: apiStatus,
+    monthYear: statusFilter === 'PAGO' ? format(monthFilter, 'yyyy-MM') : undefined,
   });
 
   const deletePayable = useDeletePayable();
@@ -165,15 +191,14 @@ export default function BoletosPage() {
     return result;
   }, [allPayables, beneficiarioFilter, nfLinkFilter]);
 
-  // Summary calculations
+  // Summary calculations for pending
   const today = startOfDay(new Date());
-  const summary = useMemo(() => {
-    let vencidos = 0,
-      vencidosValor = 0;
-    let hojeAmanha = 0,
-      hojeAmanhaValor = 0;
-    let semana = 0,
-      semanaValor = 0;
+  const summaryPending = useMemo(() => {
+    if (statusFilter === 'PAGO') return null;
+    
+    let vencidos = 0, vencidosValor = 0;
+    let hojeAmanha = 0, hojeAmanhaValor = 0;
+    let semana = 0, semanaValor = 0;
     let pendentesNf = 0;
 
     filteredPayables.forEach((p) => {
@@ -197,11 +222,30 @@ export default function BoletosPage() {
     });
 
     return { vencidos, vencidosValor, hojeAmanha, hojeAmanhaValor, semana, semanaValor, pendentesNf };
-  }, [filteredPayables, today]);
+  }, [filteredPayables, today, statusFilter]);
+
+  // Summary for paid payables
+  const summaryPaid = useMemo(() => {
+    if (statusFilter !== 'PAGO') return null;
+    
+    const total = filteredPayables.reduce((sum, p) => sum + (p.paid_amount || p.valor), 0);
+    return {
+      count: filteredPayables.length,
+      total,
+    };
+  }, [filteredPayables, statusFilter]);
 
   // Get urgency badge for due date
-  const getUrgencyBadge = (vencimento: string) => {
-    const vencimentoDate = startOfDay(new Date(vencimento));
+  const getUrgencyBadge = (payable: PayableWithAccount) => {
+    if (payable.status === 'PAGO') {
+      return (
+        <Badge className="bg-green-500 hover:bg-green-600 text-xs">
+          Pago
+        </Badge>
+      );
+    }
+    
+    const vencimentoDate = startOfDay(new Date(payable.vencimento));
     const diff = differenceInDays(vencimentoDate, today);
 
     if (diff < 0) {
@@ -254,7 +298,6 @@ export default function BoletosPage() {
     if (payable.accounts?.name) {
       const name = payable.accounts.name;
       const institution = payable.accounts.institution;
-      // Take first 2-3 words or abbreviation
       const abbrev = name.split(' ').slice(0, 2).join(' ');
       return institution ? `${abbrev} (${institution})` : abbrev;
     }
@@ -305,13 +348,14 @@ export default function BoletosPage() {
   const handleClearFilters = () => {
     setPeriodDays('all');
     setBeneficiarioFilter('');
-    // Não reseta unidade para secretaria
     if (!isSecretaria) {
       setUnitIdFilter('all');
     }
     setPaymentAccountFilter('all');
     setNfLinkFilter('all');
     setShowAll(false);
+    setStatusFilter('pendentes');
+    setMonthFilter(new Date());
   };
 
   // Get NF link status badge
@@ -338,39 +382,52 @@ export default function BoletosPage() {
     return null;
   };
 
+  // Export simple list to Excel
   const exportToExcel = () => {
     const dataToExport = filteredPayables.map((p) => ({
       Beneficiário: p.beneficiario || '',
       CNPJ: p.beneficiario_cnpj || '',
       Valor: p.valor,
       Vencimento: format(new Date(p.vencimento), 'dd/MM/yyyy'),
+      Status: p.status,
+      'Pago em': p.paid_at ? format(new Date(p.paid_at), 'dd/MM/yyyy') : '',
+      'Valor Pago': p.paid_amount || '',
       'Linha Digitável': p.linha_digitavel || '',
       'Código de Barras': p.codigo_barras || '',
       'Chave PIX': p.pix_key || '',
       Conta: (p as PayableWithAccount).accounts?.name || '',
+      Categoria: (p as PayableWithAccount).categories?.name || '',
       Descrição: p.description || '',
     }));
 
     const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Pagamentos');
-    XLSX.writeFile(wb, `pagamentos-pendentes-${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    const fileName = statusFilter === 'PAGO' 
+      ? `pagamentos-pagos-${format(monthFilter, 'yyyy-MM')}.xlsx`
+      : `pagamentos-pendentes-${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+    XLSX.writeFile(wb, fileName);
   };
 
+  // Export simple list to PDF
   const exportToPDF = () => {
     const doc = new jsPDF();
     const data = filteredPayables;
 
     doc.setFontSize(16);
-    doc.text('Pagamentos Pendentes', 20, 20);
+    const title = statusFilter === 'PAGO' 
+      ? `Pagamentos Pagos - ${format(monthFilter, 'MMMM yyyy', { locale: ptBR })}`
+      : 'Pagamentos Pendentes';
+    doc.text(title, 20, 20);
 
     doc.setFontSize(10);
     doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, 20, 28);
     doc.text(`Total: ${data.length} pagamentos`, 20, 34);
+    const totalValue = statusFilter === 'PAGO'
+      ? data.reduce((sum, p) => sum + (p.paid_amount || p.valor), 0)
+      : data.reduce((sum, p) => sum + p.valor, 0);
     doc.text(
-      `Valor total: ${data
-        .reduce((sum, p) => sum + p.valor, 0)
-        .toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
+      `Valor total: ${totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
       20,
       40
     );
@@ -384,19 +441,85 @@ export default function BoletosPage() {
       doc.setFontSize(10);
       doc.text(`${i + 1}. ${p.beneficiario || 'Sem beneficiário'}`, 20, y);
       doc.setFontSize(9);
+      const valorDisplay = statusFilter === 'PAGO' ? (p.paid_amount || p.valor) : p.valor;
+      const dateLabel = statusFilter === 'PAGO' ? 'Pago em' : 'Venc';
+      const dateValue = statusFilter === 'PAGO' && p.paid_at 
+        ? format(new Date(p.paid_at), 'dd/MM/yyyy')
+        : format(new Date(p.vencimento), 'dd/MM/yyyy');
       doc.text(
-        `${p.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} | Venc: ${format(new Date(p.vencimento), 'dd/MM/yyyy')}`,
+        `${valorDisplay.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} | ${dateLabel}: ${dateValue}`,
         25,
         y + 5
       );
-      if (p.linha_digitavel) {
+      if (p.linha_digitavel && statusFilter !== 'PAGO') {
         doc.text(`Linha: ${p.linha_digitavel}`, 25, y + 10);
         y += 5;
       }
       y += 14;
     });
 
-    doc.save(`pagamentos-pendentes-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    const fileName = statusFilter === 'PAGO'
+      ? `pagamentos-pagos-${format(monthFilter, 'yyyy-MM')}.pdf`
+      : `pagamentos-pendentes-${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+    doc.save(fileName);
+  };
+
+  // Export monthly report grouped
+  const exportMonthlyReport = (groupBy: 'categoria' | 'beneficiario') => {
+    if (statusFilter !== 'PAGO') {
+      toast.error('Selecione "Pagos" no filtro de status para gerar relatório mensal');
+      return;
+    }
+
+    const data = filteredPayables;
+    const monthLabel = format(monthFilter, 'MMMM yyyy', { locale: ptBR });
+    
+    // Group data
+    const groups: Record<string, PayableWithAccount[]> = {};
+    data.forEach((p) => {
+      const key = groupBy === 'categoria' 
+        ? ((p as PayableWithAccount).categories?.name || 'Sem Categoria')
+        : (p.beneficiario || 'Sem Beneficiário');
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(p);
+    });
+
+    // Create Excel with grouped data
+    const wb = XLSX.utils.book_new();
+    
+    // Summary sheet
+    const summaryData = Object.entries(groups).map(([name, items]) => ({
+      [groupBy === 'categoria' ? 'Categoria' : 'Beneficiário']: name,
+      'Quantidade': items.length,
+      'Valor Total': items.reduce((sum, p) => sum + (p.paid_amount || p.valor), 0),
+    }));
+    summaryData.push({
+      [groupBy === 'categoria' ? 'Categoria' : 'Beneficiário']: 'TOTAL',
+      'Quantidade': data.length,
+      'Valor Total': data.reduce((sum, p) => sum + (p.paid_amount || p.valor), 0),
+    });
+    const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Resumo');
+
+    // Detail sheet
+    const detailData = data.map((p) => ({
+      [groupBy === 'categoria' ? 'Categoria' : 'Beneficiário']: groupBy === 'categoria'
+        ? ((p as PayableWithAccount).categories?.name || 'Sem Categoria')
+        : (p.beneficiario || 'Sem Beneficiário'),
+      'Beneficiário': p.beneficiario || '',
+      'Categoria': (p as PayableWithAccount).categories?.name || '',
+      'Valor': p.paid_amount || p.valor,
+      'Data Pagamento': p.paid_at ? format(new Date(p.paid_at), 'dd/MM/yyyy') : '',
+      'Vencimento': format(new Date(p.vencimento), 'dd/MM/yyyy'),
+      'Conta': (p as PayableWithAccount).accounts?.name || '',
+      'Descrição': p.description || '',
+    })).sort((a, b) => a[groupBy === 'categoria' ? 'Categoria' : 'Beneficiário']
+      .localeCompare(b[groupBy === 'categoria' ? 'Categoria' : 'Beneficiário']));
+    const wsDetail = XLSX.utils.json_to_sheet(detailData);
+    XLSX.utils.book_append_sheet(wb, wsDetail, 'Detalhes');
+
+    XLSX.writeFile(wb, `relatorio-pagamentos-${groupBy}-${format(monthFilter, 'yyyy-MM')}.xlsx`);
+    toast.success('Relatório exportado com sucesso!');
   };
 
   return (
@@ -404,20 +527,48 @@ export default function BoletosPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Pagamentos Pendentes</h1>
+            <h1 className="text-2xl font-bold">
+              {statusFilter === 'PAGO' ? 'Pagamentos Realizados' : 'Pagamentos Pendentes'}
+            </h1>
             <p className="text-muted-foreground">
-              Copie os dados e pague rapidamente no app do banco
+              {statusFilter === 'PAGO' 
+                ? `Histórico de pagamentos - ${format(monthFilter, 'MMMM yyyy', { locale: ptBR })}`
+                : 'Copie os dados e pague rapidamente no app do banco'}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={exportToExcel}>
-              <FileSpreadsheet className="h-4 w-4 mr-1" />
-              Excel
-            </Button>
-            <Button variant="outline" size="sm" onClick={exportToPDF}>
-              <FileText className="h-4 w-4 mr-1" />
-              PDF
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Download className="h-4 w-4 mr-1" />
+                  Exportar
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={exportToExcel}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  Lista Simples (Excel)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportToPDF}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Lista Simples (PDF)
+                </DropdownMenuItem>
+                {statusFilter === 'PAGO' && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>Relatório Mensal</DropdownMenuLabel>
+                    <DropdownMenuItem onClick={() => exportMonthlyReport('categoria')}>
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />
+                      Por Categoria (Excel)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => exportMonthlyReport('beneficiario')}>
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />
+                      Por Beneficiário (Excel)
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button onClick={() => setIsDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Novo Pagamento
@@ -427,13 +578,15 @@ export default function BoletosPage() {
 
         {/* Micro-onboarding */}
         <ScreenGuide
-          purpose="Painel de pagamentos diário. Veja boletos e PIX pendentes, copie os dados e pague no banco."
+          purpose="Painel de pagamentos. Visualize pendentes ou histórico de pagos, exporte relatórios mensais."
           steps={[
-            'Encontre pagamentos vencidos (vermelho) ou próximos (laranja/amarelo).',
-            "Clique em 'Copiar' para copiar linha digitável ou chave PIX.",
-            "Após pagar, clique no ✓ para marcar como pago.",
-          ]}
-          storageKey="boletos-v2-guide"
+            'Use o filtro de Status para alternar entre Pendentes e Pagos.',
+            statusFilter === 'PAGO' 
+              ? 'Navegue entre meses e exporte relatórios agrupados por categoria ou beneficiário.'
+              : "Clique em 'Copiar' para copiar linha digitável ou chave PIX.",
+            statusFilter !== 'PAGO' ? "Após pagar, clique no ✓ para marcar como pago." : '',
+          ].filter(Boolean)}
+          storageKey="boletos-v3-guide"
           className="mb-2"
         />
 
@@ -450,13 +603,15 @@ export default function BoletosPage() {
                 beneficiario={beneficiarioFilter}
                 onBeneficiarioChange={setBeneficiarioFilter}
                 unitId={unitIdFilter}
-                onUnitIdChange={() => {}} // Não permite mudar
-                units={[]} // Esconde dropdown de unidades
+                onUnitIdChange={() => {}}
+                units={[]}
                 paymentAccountId={paymentAccountFilter}
                 onPaymentAccountIdChange={setPaymentAccountFilter}
                 accounts={accounts}
                 nfLinkStatus={nfLinkFilter}
                 onNfLinkStatusChange={setNfLinkFilter}
+                statusFilter={statusFilter}
+                onStatusFilterChange={setStatusFilter}
                 onClear={handleClearFilters}
               />
             </div>
@@ -474,95 +629,160 @@ export default function BoletosPage() {
               accounts={accounts}
               nfLinkStatus={nfLinkFilter}
               onNfLinkStatusChange={setNfLinkFilter}
+              statusFilter={statusFilter}
+              onStatusFilterChange={setStatusFilter}
               onClear={handleClearFilters}
             />
           )}
           
-          {/* Toggle para mostrar todas despesas */}
-          <div className="flex items-center gap-2 px-1">
-            <Button
-              variant={showAll ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setShowAll(!showAll)}
-              className="gap-2"
-            >
-              <ListFilter className="h-4 w-4" />
-              {showAll ? 'Todas as despesas' : 'Apenas com dados de pagamento'}
-            </Button>
-            {showAll && (
-              <span className="text-xs text-muted-foreground">
-                Exibindo despesas mesmo sem código de barras, PIX ou linha digitável
+          {/* Month selector for paid payables */}
+          {statusFilter === 'PAGO' && (
+            <div className="flex items-center gap-2 px-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setMonthFilter(subMonths(monthFilter, 1))}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="font-medium min-w-[140px] text-center">
+                {format(monthFilter, 'MMMM yyyy', { locale: ptBR })}
               </span>
-            )}
-          </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setMonthFilter(addMonths(monthFilter, 1))}
+                disabled={monthFilter >= startOfDay(new Date())}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+          
+          {/* Toggle para mostrar todas despesas - only for pending */}
+          {statusFilter !== 'PAGO' && (
+            <div className="flex items-center gap-2 px-1">
+              <Button
+                variant={showAll ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setShowAll(!showAll)}
+                className="gap-2"
+              >
+                <ListFilter className="h-4 w-4" />
+                {showAll ? 'Todas as despesas' : 'Apenas com dados de pagamento'}
+              </Button>
+              {showAll && (
+                <span className="text-xs text-muted-foreground">
+                  Exibindo despesas mesmo sem código de barras, PIX ou linha digitável
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="border-destructive/50">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-destructive flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-destructive" />
-                Vencidos
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-destructive">{summary.vencidos}</div>
-              <p className="text-sm text-muted-foreground">
-                {summary.vencidosValor.toLocaleString('pt-BR', {
-                  style: 'currency',
-                  currency: 'BRL',
-                })}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="border-orange-500/50">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-orange-600 flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-orange-500" />
-                Hoje / Amanhã
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{summary.hojeAmanha}</div>
-              <p className="text-sm text-muted-foreground">
-                {summary.hojeAmanhaValor.toLocaleString('pt-BR', {
-                  style: 'currency',
-                  currency: 'BRL',
-                })}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="border-yellow-500/50">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-yellow-600 flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-yellow-500" />
-                Esta Semana
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-yellow-600">{summary.semana}</div>
-              <p className="text-sm text-muted-foreground">
-                {summary.semanaValor.toLocaleString('pt-BR', {
-                  style: 'currency',
-                  currency: 'BRL',
-                })}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className={summary.pendentesNf > 0 ? 'border-amber-500/50' : ''}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-amber-600 flex items-center gap-2">
-                <FileWarning className="h-4 w-4" />
-                Sem NF Vinculada
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-amber-600">{summary.pendentesNf}</div>
-              <p className="text-sm text-muted-foreground">boletos de compra</p>
-            </CardContent>
-          </Card>
-        </div>
+        {statusFilter === 'PAGO' && summaryPaid ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card className="border-green-500/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-green-600 flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Pagos no Mês
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">{summaryPaid.count}</div>
+                <p className="text-sm text-muted-foreground">
+                  {summaryPaid.total.toLocaleString('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL',
+                  })}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Período
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-lg font-medium">
+                  {format(monthFilter, 'MMMM yyyy', { locale: ptBR })}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Exporte relatório agrupado por categoria ou beneficiário
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        ) : summaryPending && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card className="border-destructive/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-destructive flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-destructive" />
+                  Vencidos
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-destructive">{summaryPending.vencidos}</div>
+                <p className="text-sm text-muted-foreground">
+                  {summaryPending.vencidosValor.toLocaleString('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL',
+                  })}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="border-orange-500/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-orange-600 flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-orange-500" />
+                  Hoje / Amanhã
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-orange-600">{summaryPending.hojeAmanha}</div>
+                <p className="text-sm text-muted-foreground">
+                  {summaryPending.hojeAmanhaValor.toLocaleString('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL',
+                  })}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="border-yellow-500/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-yellow-600 flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-yellow-500" />
+                  Esta Semana
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-yellow-600">{summaryPending.semana}</div>
+                <p className="text-sm text-muted-foreground">
+                  {summaryPending.semanaValor.toLocaleString('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL',
+                  })}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className={summaryPending.pendentesNf > 0 ? 'border-amber-500/50' : ''}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-amber-600 flex items-center gap-2">
+                  <FileWarning className="h-4 w-4" />
+                  Sem NF Vinculada
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-amber-600">{summaryPending.pendentesNf}</div>
+                <p className="text-sm text-muted-foreground">boletos de compra</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Main Table */}
         <Card>
@@ -570,14 +790,21 @@ export default function BoletosPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[130px]">Vencimento</TableHead>
+                  <TableHead className="w-[130px]">
+                    {statusFilter === 'PAGO' ? 'Pago em' : 'Vencimento'}
+                  </TableHead>
                   <TableHead>Beneficiário</TableHead>
                   <TableHead>Descrição</TableHead>
                   <TableHead className="text-right">Valor</TableHead>
                   <TableHead className="w-[100px]">Tipo</TableHead>
                   <TableHead className="w-[120px]">NF</TableHead>
                   <TableHead className="w-[140px]">Conta</TableHead>
-                  <TableHead className="w-[220px]">Dados p/ Pagamento</TableHead>
+                  {statusFilter !== 'PAGO' && (
+                    <TableHead className="w-[220px]">Dados p/ Pagamento</TableHead>
+                  )}
+                  {statusFilter === 'PAGO' && (
+                    <TableHead className="w-[120px]">Categoria</TableHead>
+                  )}
                   <TableHead className="text-right w-[100px]">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -591,19 +818,23 @@ export default function BoletosPage() {
                 ) : filteredPayables.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                      Nenhum pagamento pendente encontrado
+                      {statusFilter === 'PAGO' 
+                        ? `Nenhum pagamento encontrado em ${format(monthFilter, 'MMMM yyyy', { locale: ptBR })}`
+                        : 'Nenhum pagamento pendente encontrado'}
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredPayables.map((payable) => (
                     <TableRow key={payable.id}>
-                      {/* Vencimento */}
+                      {/* Date */}
                       <TableCell>
                         <div className="flex flex-col gap-1">
                           <span className="font-medium">
-                            {format(new Date(payable.vencimento), 'dd/MM/yyyy', { locale: ptBR })}
+                            {statusFilter === 'PAGO' && payable.paid_at
+                              ? format(new Date(payable.paid_at), 'dd/MM/yyyy', { locale: ptBR })
+                              : format(new Date(payable.vencimento), 'dd/MM/yyyy', { locale: ptBR })}
                           </span>
-                          {getUrgencyBadge(payable.vencimento)}
+                          {getUrgencyBadge(payable)}
                         </div>
                       </TableCell>
 
@@ -619,16 +850,17 @@ export default function BoletosPage() {
 
                       {/* Valor */}
                       <TableCell className="text-right font-medium">
-                        {payable.valor.toLocaleString('pt-BR', {
-                          style: 'currency',
-                          currency: 'BRL',
-                        })}
+                        {(statusFilter === 'PAGO' ? (payable.paid_amount || payable.valor) : payable.valor)
+                          .toLocaleString('pt-BR', {
+                            style: 'currency',
+                            currency: 'BRL',
+                          })}
                       </TableCell>
 
                       {/* Tipo */}
                       <TableCell>{getPaymentTypeBadge(payable)}</TableCell>
 
-                      {/* NF Status - Coluna dedicada */}
+                      {/* NF Status */}
                       <TableCell>
                         {payable.supplier_invoice_id ? (
                           <Tooltip>
@@ -698,90 +930,101 @@ export default function BoletosPage() {
                         {getAccountAbbreviation(payable)}
                       </TableCell>
 
-                      {/* Dados para Pagamento - Copy Buttons */}
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {payable.linha_digitavel && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 text-xs gap-1"
-                                  onClick={() =>
-                                    copyToClipboard(payable.linha_digitavel!, 'Linha digitável')
-                                  }
-                                >
-                                  <Copy className="h-3 w-3" />
-                                  Linha
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p className="text-xs max-w-xs break-all">
-                                  {payable.linha_digitavel}
-                                </p>
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
-                          {payable.codigo_barras && !payable.linha_digitavel && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 text-xs gap-1"
-                                  onClick={() =>
-                                    copyToClipboard(payable.codigo_barras!, 'Código de barras')
-                                  }
-                                >
-                                  <Copy className="h-3 w-3" />
-                                  Cód
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p className="text-xs max-w-xs break-all">
-                                  {payable.codigo_barras}
-                                </p>
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
-                          {payable.pix_key && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 text-xs gap-1"
-                                  onClick={() => copyToClipboard(payable.pix_key!, 'Chave PIX')}
-                                >
-                                  <Copy className="h-3 w-3" />
-                                  PIX ({getPixKeyLabel(payable.pix_key)})
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p className="text-xs">{payable.pix_key}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
-                        </div>
-                      </TableCell>
+                      {/* Dados para Pagamento - Only for pending */}
+                      {statusFilter !== 'PAGO' && (
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {payable.linha_digitavel && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs gap-1"
+                                    onClick={() =>
+                                      copyToClipboard(payable.linha_digitavel!, 'Linha digitável')
+                                    }
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                    Linha
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="text-xs max-w-xs break-all">
+                                    {payable.linha_digitavel}
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                            {payable.codigo_barras && !payable.linha_digitavel && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs gap-1"
+                                    onClick={() =>
+                                      copyToClipboard(payable.codigo_barras!, 'Código de barras')
+                                    }
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                    Cód
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="text-xs max-w-xs break-all">
+                                    {payable.codigo_barras}
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                            {payable.pix_key && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs gap-1"
+                                    onClick={() => copyToClipboard(payable.pix_key!, 'Chave PIX')}
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                    PIX ({getPixKeyLabel(payable.pix_key)})
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="text-xs">{payable.pix_key}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
+                        </TableCell>
+                      )}
+
+                      {/* Categoria - Only for paid */}
+                      {statusFilter === 'PAGO' && (
+                        <TableCell className="text-sm text-muted-foreground">
+                          {(payable as PayableWithAccount).categories?.name || '—'}
+                        </TableCell>
+                      )}
 
                       {/* Ações */}
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                onClick={() => setPayableToMarkPaid(payable)}
-                              >
-                                <Check className="h-4 w-4" />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Marcar como pago</TooltipContent>
-                          </Tooltip>
+                          {statusFilter !== 'PAGO' && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                  onClick={() => setPayableToMarkPaid(payable)}
+                                >
+                                  <Check className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Marcar como pago</TooltipContent>
+                            </Tooltip>
+                          )}
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button

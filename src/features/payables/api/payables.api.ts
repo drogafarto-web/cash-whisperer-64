@@ -452,15 +452,33 @@ export async function fetchPayablesWithPaymentData(filters?: {
   paymentAccountId?: string;
   periodDays?: number; // 7, 30, or undefined for all
   showAll?: boolean; // If true, show all payables regardless of payment data
+  status?: 'PENDENTE' | 'PAGO' | 'VENCIDO' | 'all'; // Status filter
+  monthYear?: string; // Format "2026-01" for filtering by month (used for paid payables)
 }) {
   let query = supabase
     .from('payables')
-    .select('*, accounts:payment_bank_account_id(id, name, institution)')
-    .in('status', [PAYABLE_STATUS.PENDENTE, PAYABLE_STATUS.VENCIDO])
+    .select('*, accounts:payment_bank_account_id(id, name, institution), categories:category_id(id, name)')
     .order('created_at', { ascending: false });
 
-  // Only filter by payment data if showAll is not true
-  if (!filters?.showAll) {
+  // Status filter
+  if (filters?.status && filters.status !== 'all') {
+    query = query.eq('status', filters.status);
+  } else if (!filters?.status) {
+    // Default behavior: pending + overdue
+    query = query.in('status', [PAYABLE_STATUS.PENDENTE, PAYABLE_STATUS.VENCIDO]);
+  }
+
+  // Month filter (for paid payables)
+  if (filters?.monthYear) {
+    const [year, month] = filters.monthYear.split('-').map(Number);
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const endDate = `${year}-${String(month).padStart(2, '0')}-${lastDay}`;
+    query = query.gte('paid_at', startDate).lte('paid_at', endDate + 'T23:59:59');
+  }
+
+  // Only filter by payment data if showAll is not true and not filtering paid
+  if (!filters?.showAll && filters?.status !== 'PAGO') {
     query = query.or('linha_digitavel.neq.null,codigo_barras.neq.null,pix_key.neq.null');
   }
 
@@ -472,7 +490,7 @@ export async function fetchPayablesWithPaymentData(filters?: {
     query = query.eq('payment_bank_account_id', filters.paymentAccountId);
   }
 
-  if (filters?.periodDays) {
+  if (filters?.periodDays && !filters?.monthYear) {
     const endDate = new Date();
     endDate.setDate(endDate.getDate() + filters.periodDays);
     query = query.lte('vencimento', endDate.toISOString().split('T')[0]);
@@ -481,7 +499,10 @@ export async function fetchPayablesWithPaymentData(filters?: {
   const { data, error } = await query;
 
   if (error) throw error;
-  return data as (Payable & { accounts?: { id: string; name: string; institution?: string } | null })[];
+  return data as (Payable & { 
+    accounts?: { id: string; name: string; institution?: string } | null;
+    categories?: { id: string; name: string } | null;
+  })[];
 }
 
 // Mark payable as paid with additional options

@@ -273,6 +273,8 @@ export function usePayablesWithPaymentData(filters?: {
   paymentAccountId?: string;
   periodDays?: number;
   showAll?: boolean;
+  status?: 'PENDENTE' | 'PAGO' | 'VENCIDO' | 'all';
+  monthYear?: string;
 }) {
   return useQuery({
     queryKey: [QUERY_KEY, 'with-payment-data', filters],
