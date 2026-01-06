@@ -724,6 +724,239 @@ export default function BoletosPage() {
     toast.success('Relatório gerencial exportado!');
   };
 
+  // Export gerencial PDF for paid payables
+  const exportPDFPagosGerencial = (groupBy: 'categoria' | 'beneficiario') => {
+    const doc = new jsPDF();
+    const data = filteredPayables;
+    const mesRef = monthFilter;
+    
+    // Group data
+    const groups: Record<string, PayableWithAccount[]> = {};
+    data.forEach((p) => {
+      const key = groupBy === 'categoria' 
+        ? ((p as PayableWithAccount).categories?.name || 'Sem Categoria')
+        : normalizeFornecedor(p.beneficiario || 'Sem Beneficiário', 40);
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(p as PayableWithAccount);
+    });
+
+    // Sort groups by total value
+    const sortedGroups = Object.entries(groups)
+      .map(([name, items]) => ({
+        name,
+        items,
+        total: items.reduce((s, p) => s + (p.paid_amount || p.valor), 0),
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    // Calculate statistics
+    const totalGeral = data.reduce((s, p) => s + (p.paid_amount || p.valor), 0);
+    const maiorPagamento = data.length > 0 
+      ? data.reduce((max, p) => 
+          (p.paid_amount || p.valor) > (max.paid_amount || max.valor) ? p : max
+        )
+      : null;
+
+    // Calculate most used account
+    const accountCounts: Record<string, { count: number; name: string }> = {};
+    data.forEach(p => {
+      const acc = (p as PayableWithAccount).accounts;
+      if (acc?.name) {
+        if (!accountCounts[acc.id]) accountCounts[acc.id] = { count: 0, name: acc.name };
+        accountCounts[acc.id].count++;
+      }
+    });
+    const contaMaisUsada = Object.values(accountCounts).sort((a, b) => b.count - a.count)[0];
+
+    let y = 20;
+    const pageWidth = doc.internal.pageSize.width;
+    const margin = 15;
+    const contentWidth = pageWidth - 2 * margin;
+
+    // Color palette for groups (cycling through blues/greens)
+    const colors: [number, number, number][] = [
+      [59, 130, 246],   // Blue
+      [16, 185, 129],   // Green
+      [245, 158, 11],   // Amber
+      [139, 92, 246],   // Purple
+      [236, 72, 153],   // Pink
+      [20, 184, 166],   // Teal
+      [249, 115, 22],   // Orange
+      [99, 102, 241],   // Indigo
+    ];
+
+    // Helper: Draw section header with colored background
+    const drawSectionHeader = (
+      yPos: number, 
+      color: [number, number, number], 
+      title: string, 
+      count: number, 
+      total: number
+    ): number => {
+      if (yPos > 250) {
+        doc.addPage();
+        yPos = 20;
+      }
+      doc.setFillColor(color[0], color[1], color[2]);
+      doc.rect(margin, yPos, contentWidth, 8, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${title} (${count} ${count === 1 ? 'pagamento' : 'pagamentos'} - ${formatCurrency(total)})`, margin + 3, yPos + 5.5);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont('helvetica', 'normal');
+      return yPos + 12;
+    };
+
+    // Helper: Draw table with data
+    const drawTable = (
+      yPos: number, 
+      headers: string[], 
+      rows: string[][], 
+      colWidths: number[]
+    ): number => {
+      const rowHeight = 6;
+      const fontSize = 8;
+      
+      // Draw header
+      doc.setFillColor(240, 240, 240);
+      doc.rect(margin, yPos, contentWidth, rowHeight, 'F');
+      doc.setFontSize(fontSize);
+      doc.setFont('helvetica', 'bold');
+      let xPos = margin + 2;
+      headers.forEach((header, i) => {
+        doc.text(header, xPos, yPos + 4);
+        xPos += colWidths[i];
+      });
+      yPos += rowHeight;
+      
+      // Draw rows
+      doc.setFont('helvetica', 'normal');
+      rows.forEach((row) => {
+        if (yPos > 275) {
+          doc.addPage();
+          yPos = 20;
+        }
+        xPos = margin + 2;
+        row.forEach((cell, i) => {
+          const text = cell.length > 35 ? cell.substring(0, 32) + '...' : cell;
+          doc.text(text, xPos, yPos + 4);
+          xPos += colWidths[i];
+        });
+        // Draw line under row
+        doc.setDrawColor(220, 220, 220);
+        doc.line(margin, yPos + rowHeight - 0.5, margin + contentWidth, yPos + rowHeight - 0.5);
+        yPos += rowHeight;
+      });
+      
+      return yPos + 4;
+    };
+
+    // === HEADER ===
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RELATÓRIO DE PAGAMENTOS REALIZADOS', margin, y);
+    y += 7;
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Período: ${format(mesRef, "MMMM 'de' yyyy", { locale: ptBR })}`, margin, y);
+    doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy 'às' HH:mm")}`, margin + 80, y);
+    y += 12;
+
+    // === EXECUTIVE SUMMARY BOX ===
+    doc.setDrawColor(100, 100, 100);
+    doc.setFillColor(250, 250, 250);
+    doc.roundedRect(margin, y, contentWidth, 48, 2, 2, 'FD');
+    
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RESUMO EXECUTIVO', margin + 5, y + 7);
+    
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    const col1x = margin + 5;
+    const col2x = margin + contentWidth / 2;
+    
+    doc.text(`Total de pagamentos: ${data.length}`, col1x, y + 15);
+    doc.text(`Valor total pago: ${formatCurrency(totalGeral)}`, col2x, y + 15);
+    
+    // Category/Beneficiary breakdown (top 4)
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Por ${groupBy === 'categoria' ? 'categoria' : 'beneficiário'}:`, col1x, y + 23);
+    doc.setFont('helvetica', 'normal');
+    
+    const top4 = sortedGroups.slice(0, 4);
+    let summaryY = y + 29;
+    top4.forEach((group, i) => {
+      const percent = totalGeral > 0 ? ((group.total / totalGeral) * 100).toFixed(1) : '0';
+      const colX = i % 2 === 0 ? col1x : col2x;
+      if (i === 2) summaryY += 6;
+      doc.setFillColor(colors[i % colors.length][0], colors[i % colors.length][1], colors[i % colors.length][2]);
+      doc.circle(colX + 2, summaryY - 1.5, 1.5, 'F');
+      doc.text(`${group.name.substring(0, 20)}: ${formatCurrency(group.total)} (${percent}%)`, colX + 6, summaryY);
+    });
+    
+    // Larger payment and most used account
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(8);
+    if (maiorPagamento) {
+      doc.text(`Maior pagamento: ${normalizeFornecedor(maiorPagamento.beneficiario || '', 25)} - ${formatCurrency(maiorPagamento.paid_amount || maiorPagamento.valor)}`, col1x, y + 44);
+    }
+    if (contaMaisUsada) {
+      doc.text(`Conta principal: ${contaMaisUsada.name} (${contaMaisUsada.count} pagamentos)`, col2x, y + 44);
+    }
+    
+    y += 56;
+
+    // === GROUPED SECTIONS ===
+    sortedGroups.forEach((group, i) => {
+      y = drawSectionHeader(y, colors[i % colors.length], group.name.toUpperCase(), group.items.length, group.total);
+      
+      const colHeaders = groupBy === 'categoria' 
+        ? ['Beneficiário', 'Valor', 'Data Pgto', 'Conta']
+        : ['Descrição', 'Valor', 'Data Pgto', 'Categoria'];
+      
+      const colWidths = groupBy === 'categoria' 
+        ? [70, 35, 35, 40]
+        : [70, 35, 35, 40];
+      
+      const rows = group.items
+        .sort((a, b) => (b.paid_amount || b.valor) - (a.paid_amount || a.valor))
+        .map(p => {
+          const paidDate = p.paid_at ? format(parseISO(p.paid_at), 'dd/MM/yyyy') : '—';
+          if (groupBy === 'categoria') {
+            return [
+              normalizeFornecedor(p.beneficiario || '', 30),
+              formatCurrency(p.paid_amount || p.valor),
+              paidDate,
+              p.accounts?.name?.substring(0, 15) || '—'
+            ];
+          } else {
+            return [
+              p.description?.substring(0, 30) || 'Pagamento',
+              formatCurrency(p.paid_amount || p.valor),
+              paidDate,
+              p.categories?.name?.substring(0, 15) || '—'
+            ];
+          }
+        });
+      
+      y = drawTable(y, colHeaders, rows, colWidths);
+      
+      // Subtotal
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Subtotal: ${formatCurrency(group.total)}`, margin + contentWidth - 45, y - 2);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+    });
+
+    doc.save(`relatorio-pagos-${groupBy}-${format(mesRef, 'yyyy-MM')}.pdf`);
+    toast.success('Relatório gerencial exportado!');
+  };
+
   // Export monthly report grouped
   const exportMonthlyReport = (groupBy: 'categoria' | 'beneficiario') => {
     if (statusFilter !== 'PAGO') {
@@ -827,14 +1060,24 @@ export default function BoletosPage() {
                 {statusFilter === 'PAGO' && (
                   <>
                     <DropdownMenuSeparator />
-                    <DropdownMenuLabel>Relatório Mensal</DropdownMenuLabel>
+                    <DropdownMenuLabel>Relatório Gerencial (PDF)</DropdownMenuLabel>
+                    <DropdownMenuItem onClick={() => exportPDFPagosGerencial('categoria')}>
+                      <BarChart3 className="h-4 w-4 mr-2" />
+                      PDF por Categoria
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => exportPDFPagosGerencial('beneficiario')}>
+                      <BarChart3 className="h-4 w-4 mr-2" />
+                      PDF por Beneficiário
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>Relatório Mensal (Excel)</DropdownMenuLabel>
                     <DropdownMenuItem onClick={() => exportMonthlyReport('categoria')}>
                       <FileSpreadsheet className="h-4 w-4 mr-2" />
-                      Por Categoria (Excel)
+                      Excel por Categoria
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => exportMonthlyReport('beneficiario')}>
                       <FileSpreadsheet className="h-4 w-4 mr-2" />
-                      Por Beneficiário (Excel)
+                      Excel por Beneficiário
                     </DropdownMenuItem>
                   </>
                 )}
