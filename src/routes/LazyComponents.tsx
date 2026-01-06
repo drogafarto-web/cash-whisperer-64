@@ -59,6 +59,7 @@ export const CashflowProjection = lazy(() => import('@/pages/reports/CashflowPro
 export const LisClosuresReport = lazy(() => import('@/pages/reports/LisClosuresReport'));
 export const PersonnelRealVsOfficial = lazy(() => import('@/pages/reports/PersonnelRealVsOfficial'));
 export const LisReconciliation = lazy(() => import('@/pages/reports/LisReconciliation'));
+export const EnvelopeConferencia = lazy(() => import('@/pages/reports/EnvelopeConferencia'));
 
 // ============================================
 // SETTINGS (Configurações)

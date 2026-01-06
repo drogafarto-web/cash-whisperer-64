@@ -8,6 +8,7 @@ import {
   LisClosuresReport,
   PersonnelRealVsOfficial,
   LisReconciliation,
+  EnvelopeConferencia,
 } from './LazyComponents';
 
 /**
@@ -67,6 +68,14 @@ export const reportsRoutes: RouteObject[] = [
     element: (
       <ProtectedRoute roles={['admin', 'contabilidade', 'financeiro', 'gestor_unidade']}>
         <LisReconciliation />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/reports/envelope-conferencia',
+    element: (
+      <ProtectedRoute roles={['admin', 'contabilidade', 'gestor_unidade', 'financeiro']}>
+        <EnvelopeConferencia />
       </ProtectedRoute>
     ),
   },

@@ -19,6 +19,7 @@ import {
   History,
   MonitorSmartphone,
   Shield,
+  Package,
 } from 'lucide-react';
 import { AppRole } from '@/types/database';
 
@@ -34,7 +35,7 @@ export interface NavGroup {
   name: string;
   icon: React.ElementType;
   items: NavItem[];
-  badgeKey?: 'caixaUnidades' | 'lucratividade' | 'riscoEstrategia' | 'tributacao';
+  badgeKey?: 'caixaUnidades' | 'lucratividade' | 'riscoEstrategia' | 'tributacao' | 'envelopesPendentes';
 }
 
 // Tooltips explicativos para cada badge
@@ -43,6 +44,7 @@ export const BADGE_TOOLTIPS: Record<string, string> = {
   lucratividade: 'categoria(s) sem grupo tributário definido',
   riscoEstrategia: 'alerta(s) de risco ativo(s)',
   tributacao: 'unidade(s) sem configuração tributária',
+  envelopesPendentes: 'envelope(s) aguardando conferência',
 };
 
 // Labels amigáveis para os papéis
@@ -74,6 +76,7 @@ export const navigationGroups: NavGroup[] = [
       { name: 'Quiosque', href: '/reception-panel', icon: MonitorSmartphone, roles: ['admin', 'secretaria', 'gestor_unidade'] },
       { name: 'Lançamentos', href: '/transactions', icon: Receipt, roles: ['admin', 'secretaria', 'contabilidade', 'gestor_unidade', 'financeiro'] },
       { name: 'Pendências', href: '/pendencias', icon: AlertCircle, roles: ['admin', 'contabilidade', 'gestor_unidade'] },
+      { name: 'Conf. Envelopes', href: '/reports/envelope-conferencia', icon: Package, roles: ['admin', 'contabilidade', 'gestor_unidade', 'financeiro'] },
     ],
   },
 
