@@ -11,6 +11,8 @@ export interface BadgeCounts {
   tributacao: number;         // Config tributária incompleta
   pixPendentes: number;       // Códigos PIX pendentes
   cartaoPendentes: number;    // Códigos Cartão pendentes
+  envelopesPendentes: number; // Envelopes aguardando conferência
+  envelopesComDiferenca: number; // Envelopes com diferença
 }
 
 export function useBadgeCounts() {
@@ -31,6 +33,7 @@ export function useBadgeCounts() {
         categoriesResult,
         transactionsResult,
         taxConfigsResult,
+        envelopesResult,
       ] = await Promise.all([
         supabase.from('units').select('*', { count: 'exact', head: true }),
         supabase.from('cash_closings').select('unit_id', { count: 'exact', head: true }).eq('date', today),
@@ -38,6 +41,7 @@ export function useBadgeCounts() {
         supabase.from('transactions').select(`amount, type, category:categories!inner(entra_fator_r)`)
           .gte('date', startDate).lte('date', endDate).eq('status', 'APROVADA').is('deleted_at', null),
         supabase.from('tax_config').select('*', { count: 'exact', head: true }),
+        supabase.from('cash_envelopes').select('id, difference, status').in('status', ['PENDENTE', 'EMITIDO']),
       ]);
 
       // 1. Unidades sem fechamento de caixa hoje
@@ -97,6 +101,12 @@ export function useBadgeCounts() {
         }
       }
 
+      // 6. Contagem de envelopes pendentes
+      const envelopesPendentes = envelopesResult.data?.length || 0;
+      const envelopesComDiferenca = envelopesResult.data?.filter(
+        (e) => e.difference && e.difference !== 0
+      ).length || 0;
+
       return {
         caixaUnidades,
         lucratividade,
@@ -104,6 +114,8 @@ export function useBadgeCounts() {
         tributacao,
         pixPendentes,
         cartaoPendentes,
+        envelopesPendentes,
+        envelopesComDiferenca,
       };
     },
     staleTime: 1000 * 60 * 5, // 5 minutos
