@@ -35,3 +35,42 @@ export function formatCurrency(value: number): string {
     currency: 'BRL',
   }).format(value);
 }
+
+// Normaliza nome de fornecedor para relatórios
+export function normalizeFornecedor(nome: string, maxLength = 40): string {
+  if (!nome) return 'Sem Fornecedor';
+  
+  let normalized = nome
+    .replace(/\s*-\s*/g, ' ') // "DB - " -> "DB "
+    .replace(/\s+LTDA\.?$/gi, '')
+    .replace(/\s+ME$/gi, '')
+    .replace(/\s+EPP$/gi, '')
+    .replace(/\s+EIRELI$/gi, '')
+    .replace(/\s+S\.?A\.?$/gi, '')
+    .replace(/\s+SOCIEDADE\s+SIMPLES$/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  // Capitalizar adequadamente (Title Case)
+  normalized = normalized
+    .toLowerCase()
+    .split(' ')
+    .map(word => {
+      // Palavras que devem permanecer minúsculas
+      if (['de', 'da', 'do', 'das', 'dos', 'e', 'em'].includes(word)) {
+        return word;
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+  
+  // Primeira letra sempre maiúscula
+  normalized = normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  
+  // Truncar se muito longo
+  if (normalized.length > maxLength) {
+    normalized = normalized.substring(0, maxLength - 3) + '...';
+  }
+  
+  return normalized;
+}

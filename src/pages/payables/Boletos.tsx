@@ -1,11 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { format, differenceInDays, startOfDay, subMonths, addMonths } from 'date-fns';
+import { format, differenceInDays, startOfDay, subMonths, addMonths, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   Barcode,
   Plus,
   FileSpreadsheet,
+  BarChart3,
   FileText,
   Copy,
   Check,
@@ -72,6 +73,7 @@ import {
   useMarkPayableAsPaidWithAccount,
 } from '@/features/payables';
 import type { Payable } from '@/types/payables';
+import { formatCurrency, normalizeFornecedor } from '@/lib/formats';
 
 type PayableWithAccount = Payable & {
   accounts?: { id: string; name: string; institution?: string } | null;
@@ -464,6 +466,264 @@ export default function BoletosPage() {
     doc.save(fileName);
   };
 
+  // Export gerencial PDF with executive summary and status sections
+  const exportPDFGerencial = () => {
+    const doc = new jsPDF();
+    const data = filteredPayables;
+    const hoje = startOfDay(new Date());
+    
+    // Categorize by due date status
+    const vencidos = data.filter(p => differenceInDays(parseISO(p.vencimento), hoje) < 0);
+    const urgentes7dias = data.filter(p => {
+      const diff = differenceInDays(parseISO(p.vencimento), hoje);
+      return diff >= 0 && diff <= 7;
+    });
+    const proximos30dias = data.filter(p => {
+      const diff = differenceInDays(parseISO(p.vencimento), hoje);
+      return diff > 7 && diff <= 30;
+    });
+    const futuros = data.filter(p => differenceInDays(parseISO(p.vencimento), hoje) > 30);
+
+    // Calculate totals
+    const totalVencidos = vencidos.reduce((s, p) => s + p.valor, 0);
+    const totalUrgentes = urgentes7dias.reduce((s, p) => s + p.valor, 0);
+    const totalProximos = proximos30dias.reduce((s, p) => s + p.valor, 0);
+    const totalFuturos = futuros.reduce((s, p) => s + p.valor, 0);
+    const totalGeral = data.reduce((s, p) => s + p.valor, 0);
+
+    // Find largest creditor
+    const creditorTotals: Record<string, number> = {};
+    data.forEach(p => {
+      const nome = normalizeFornecedor(p.beneficiario || 'Desconhecido', 50);
+      creditorTotals[nome] = (creditorTotals[nome] || 0) + p.valor;
+    });
+    const maiorCredor = Object.entries(creditorTotals).sort((a, b) => b[1] - a[1])[0];
+
+    let y = 20;
+    const pageWidth = doc.internal.pageSize.width;
+    const margin = 15;
+    const contentWidth = pageWidth - 2 * margin;
+
+    // Helper: Draw section header with colored background
+    const drawSectionHeader = (
+      yPos: number, 
+      color: [number, number, number], 
+      title: string, 
+      count: number, 
+      total: number
+    ): number => {
+      if (yPos > 250) {
+        doc.addPage();
+        yPos = 20;
+      }
+      doc.setFillColor(color[0], color[1], color[2]);
+      doc.rect(margin, yPos, contentWidth, 8, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${title} (${count} ${count === 1 ? 'título' : 'títulos'} - ${formatCurrency(total)})`, margin + 3, yPos + 5.5);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont('helvetica', 'normal');
+      return yPos + 12;
+    };
+
+    // Helper: Draw table with data
+    const drawTable = (
+      yPos: number, 
+      headers: string[], 
+      rows: string[][], 
+      colWidths: number[]
+    ): number => {
+      const rowHeight = 6;
+      const fontSize = 8;
+      
+      // Draw header
+      doc.setFillColor(240, 240, 240);
+      doc.rect(margin, yPos, contentWidth, rowHeight, 'F');
+      doc.setFontSize(fontSize);
+      doc.setFont('helvetica', 'bold');
+      let xPos = margin + 2;
+      headers.forEach((header, i) => {
+        doc.text(header, xPos, yPos + 4);
+        xPos += colWidths[i];
+      });
+      yPos += rowHeight;
+      
+      // Draw rows
+      doc.setFont('helvetica', 'normal');
+      rows.forEach((row) => {
+        if (yPos > 275) {
+          doc.addPage();
+          yPos = 20;
+        }
+        xPos = margin + 2;
+        row.forEach((cell, i) => {
+          const text = cell.length > 35 ? cell.substring(0, 32) + '...' : cell;
+          doc.text(text, xPos, yPos + 4);
+          xPos += colWidths[i];
+        });
+        // Draw line under row
+        doc.setDrawColor(220, 220, 220);
+        doc.line(margin, yPos + rowHeight - 0.5, margin + contentWidth, yPos + rowHeight - 0.5);
+        yPos += rowHeight;
+      });
+      
+      return yPos + 4;
+    };
+
+    // === HEADER ===
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RELATÓRIO DE PAGAMENTOS PENDENTES', margin, y);
+    y += 7;
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Gerado em: ${format(new Date(), "dd/MM/yyyy 'às' HH:mm")}`, margin, y);
+    y += 12;
+
+    // === EXECUTIVE SUMMARY BOX ===
+    doc.setDrawColor(100, 100, 100);
+    doc.setFillColor(250, 250, 250);
+    doc.roundedRect(margin, y, contentWidth, 42, 2, 2, 'FD');
+    
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('RESUMO EXECUTIVO', margin + 5, y + 7);
+    
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    const col1x = margin + 5;
+    const col2x = margin + contentWidth / 2;
+    
+    doc.text(`Total de títulos: ${data.length}`, col1x, y + 15);
+    doc.text(`Valor total: ${formatCurrency(totalGeral)}`, col2x, y + 15);
+    
+    // Status summary with colored bullets
+    doc.setFillColor(220, 53, 69);
+    doc.circle(col1x + 2, y + 22, 1.5, 'F');
+    doc.text(`Vencidos: ${vencidos.length} (${formatCurrency(totalVencidos)})`, col1x + 6, y + 23);
+    
+    doc.setFillColor(255, 152, 0);
+    doc.circle(col2x + 2, y + 22, 1.5, 'F');
+    doc.text(`Urgentes (7d): ${urgentes7dias.length} (${formatCurrency(totalUrgentes)})`, col2x + 6, y + 23);
+    
+    doc.setFillColor(255, 193, 7);
+    doc.circle(col1x + 2, y + 30, 1.5, 'F');
+    doc.text(`Próximos 30d: ${proximos30dias.length} (${formatCurrency(totalProximos)})`, col1x + 6, y + 31);
+    
+    doc.setFillColor(40, 167, 69);
+    doc.circle(col2x + 2, y + 30, 1.5, 'F');
+    doc.text(`Futuros: ${futuros.length} (${formatCurrency(totalFuturos)})`, col2x + 6, y + 31);
+    
+    if (maiorCredor) {
+      doc.setFont('helvetica', 'italic');
+      doc.text(`Maior credor: ${maiorCredor[0]} - ${formatCurrency(maiorCredor[1])}`, col1x, y + 39);
+    }
+    
+    y += 50;
+
+    // === OVERDUE SECTION ===
+    if (vencidos.length > 0) {
+      y = drawSectionHeader(y, [220, 53, 69], 'PAGAMENTOS VENCIDOS', vencidos.length, totalVencidos);
+      const vencidosRows = vencidos
+        .sort((a, b) => differenceInDays(parseISO(a.vencimento), parseISO(b.vencimento)))
+        .map(p => [
+          normalizeFornecedor(p.beneficiario || '', 32),
+          formatCurrency(p.valor),
+          format(parseISO(p.vencimento), 'dd/MM/yyyy'),
+          `${Math.abs(differenceInDays(parseISO(p.vencimento), hoje))} dias`
+        ]);
+      y = drawTable(y, ['Fornecedor', 'Valor', 'Vencimento', 'Atraso'], vencidosRows, [75, 35, 35, 35]);
+    }
+
+    // === URGENT 7 DAYS SECTION ===
+    if (urgentes7dias.length > 0) {
+      y = drawSectionHeader(y, [255, 152, 0], 'VENCEM NOS PRÓXIMOS 7 DIAS', urgentes7dias.length, totalUrgentes);
+      const urgentesRows = urgentes7dias
+        .sort((a, b) => differenceInDays(parseISO(a.vencimento), parseISO(b.vencimento)))
+        .map(p => [
+          normalizeFornecedor(p.beneficiario || '', 35),
+          formatCurrency(p.valor),
+          format(parseISO(p.vencimento), 'dd/MM/yyyy')
+        ]);
+      y = drawTable(y, ['Fornecedor', 'Valor', 'Vencimento'], urgentesRows, [85, 45, 50]);
+    }
+
+    // === NEXT 30 DAYS SECTION ===
+    if (proximos30dias.length > 0) {
+      y = drawSectionHeader(y, [255, 193, 7], 'VENCEM EM 8-30 DIAS', proximos30dias.length, totalProximos);
+      const proximosRows = proximos30dias
+        .sort((a, b) => differenceInDays(parseISO(a.vencimento), parseISO(b.vencimento)))
+        .map(p => [
+          normalizeFornecedor(p.beneficiario || '', 35),
+          formatCurrency(p.valor),
+          format(parseISO(p.vencimento), 'dd/MM/yyyy')
+        ]);
+      y = drawTable(y, ['Fornecedor', 'Valor', 'Vencimento'], proximosRows, [85, 45, 50]);
+    }
+
+    // === FUTURE SECTION ===
+    if (futuros.length > 0) {
+      y = drawSectionHeader(y, [40, 167, 69], 'VENCIMENTOS FUTUROS (> 30 DIAS)', futuros.length, totalFuturos);
+      const futurosRows = futuros
+        .sort((a, b) => differenceInDays(parseISO(a.vencimento), parseISO(b.vencimento)))
+        .map(p => [
+          normalizeFornecedor(p.beneficiario || '', 35),
+          formatCurrency(p.valor),
+          format(parseISO(p.vencimento), 'dd/MM/yyyy')
+        ]);
+      y = drawTable(y, ['Fornecedor', 'Valor', 'Vencimento'], futurosRows, [85, 45, 50]);
+    }
+
+    // === PAYMENT DATA ANNEX (new page) ===
+    const payablesWithPaymentData = data.filter(p => p.linha_digitavel || p.pix_key);
+    if (payablesWithPaymentData.length > 0) {
+      doc.addPage();
+      y = 20;
+      
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('ANEXO: DADOS PARA PAGAMENTO', margin, y);
+      y += 8;
+      
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 100, 100);
+      doc.text('Linhas digitáveis e chaves PIX para cópia', margin, y);
+      doc.setTextColor(0, 0, 0);
+      y += 8;
+      
+      payablesWithPaymentData.forEach((p, i) => {
+        if (y > 270) {
+          doc.addPage();
+          y = 20;
+        }
+        
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${i + 1}. ${normalizeFornecedor(p.beneficiario || '', 45)} - ${formatCurrency(p.valor)}`, margin, y);
+        y += 5;
+        
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        if (p.linha_digitavel) {
+          doc.text(`   Linha: ${p.linha_digitavel}`, margin, y);
+          y += 4;
+        }
+        if (p.pix_key) {
+          doc.text(`   PIX (${getPixKeyLabel(p.pix_key)}): ${p.pix_key}`, margin, y);
+          y += 4;
+        }
+        y += 3;
+      });
+    }
+
+    doc.save(`relatorio-gerencial-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    toast.success('Relatório gerencial exportado!');
+  };
+
   // Export monthly report grouped
   const exportMonthlyReport = (groupBy: 'categoria' | 'beneficiario') => {
     if (statusFilter !== 'PAGO') {
@@ -545,14 +805,25 @@ export default function BoletosPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Listas Simples</DropdownMenuLabel>
                 <DropdownMenuItem onClick={exportToExcel}>
                   <FileSpreadsheet className="h-4 w-4 mr-2" />
-                  Lista Simples (Excel)
+                  Excel (dados completos)
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={exportToPDF}>
                   <FileText className="h-4 w-4 mr-2" />
-                  Lista Simples (PDF)
+                  PDF Simples
                 </DropdownMenuItem>
+                {statusFilter !== 'PAGO' && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>Relatório Gerencial</DropdownMenuLabel>
+                    <DropdownMenuItem onClick={exportPDFGerencial}>
+                      <BarChart3 className="h-4 w-4 mr-2" />
+                      PDF Gerencial (recomendado)
+                    </DropdownMenuItem>
+                  </>
+                )}
                 {statusFilter === 'PAGO' && (
                   <>
                     <DropdownMenuSeparator />
