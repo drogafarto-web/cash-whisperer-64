@@ -41,16 +41,36 @@ import { EnvelopeDetailModal } from '@/components/cash-closing/EnvelopeDetailMod
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 
+// Gerar lista de meses disponíveis (últimos 12 meses a partir de Jan/2026)
+function gerarMesesDisponiveis() {
+  const meses = [];
+  const agora = new Date();
+  for (let i = 0; i < 12; i++) {
+    const date = new Date(agora.getFullYear(), agora.getMonth() - i, 1);
+    // Ignorar meses antes de Janeiro 2026
+    if (date >= new Date(2026, 0, 1)) {
+      meses.push({
+        value: format(date, 'yyyy-MM'),
+        label: format(date, "MMMM 'de' yyyy", { locale: ptBR }),
+      });
+    }
+  }
+  return meses;
+}
+
 export default function EnvelopeConferencia() {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
   
-  const [statusFilter, setStatusFilter] = useState<'PENDENTE' | 'EMITIDO' | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<'PENDENTE' | 'EMITIDO' | 'CONFERIDO' | 'all'>('all');
+  const [mesReferencia, setMesReferencia] = useState<string>(format(new Date(), 'yyyy-MM'));
   const [unitFilter, setUnitFilter] = useState<string>('all');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [quickConferenciaEnvelope, setQuickConferenciaEnvelope] = useState<EnvelopeForConferencia | null>(null);
   const [detailEnvelope, setDetailEnvelope] = useState<any>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+
+  const mesesDisponiveis = useMemo(() => gerarMesesDisponiveis(), []);
 
   const {
     envelopes,
@@ -63,8 +83,12 @@ export default function EnvelopeConferencia() {
     refetch,
   } = useEnvelopeConferencia({
     status: statusFilter,
+    mesReferencia,
     unitId: unitFilter === 'all' ? undefined : unitFilter,
   });
+
+  // Verificar se está no modo histórico (conferidos)
+  const isHistoricoMode = statusFilter === 'CONFERIDO';
 
   // Buscar unidades para filtro
   const { data: units = [] } = useQuery({
@@ -260,12 +284,28 @@ export default function EnvelopeConferencia() {
           <CardHeader>
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <CardTitle>Envelopes Pendentes</CardTitle>
+                <CardTitle>
+                  {isHistoricoMode ? 'Histórico de Envelopes Conferidos' : 'Envelopes Pendentes'}
+                </CardTitle>
                 <CardDescription>
-                  Selecione envelopes para conferir em lote
+                  {isHistoricoMode 
+                    ? 'Consulta de envelopes já verificados' 
+                    : 'Selecione envelopes para conferir em lote'}
                 </CardDescription>
               </div>
               <div className="flex flex-wrap gap-2">
+                <Select value={mesReferencia} onValueChange={setMesReferencia}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Mês" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {mesesDisponiveis.map((mes) => (
+                      <SelectItem key={mes.value} value={mes.value}>
+                        {mes.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {isAdmin && (
                   <Select value={unitFilter} onValueChange={setUnitFilter}>
                     <SelectTrigger className="w-[180px]">
@@ -286,33 +326,36 @@ export default function EnvelopeConferencia() {
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos Status</SelectItem>
+                    <SelectItem value="all">Todos Pendentes</SelectItem>
                     <SelectItem value="PENDENTE">Pendente</SelectItem>
                     <SelectItem value="EMITIDO">Emitido</SelectItem>
+                    <SelectItem value="CONFERIDO">Conferido</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            {/* Ações em Lote */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  checked={selectedIds.size === envelopesSemDiferenca.length && envelopesSemDiferenca.length > 0}
-                  onCheckedChange={handleSelectAll}
-                  disabled={envelopesSemDiferenca.length === 0}
-                />
-                <span className="text-sm text-muted-foreground">Selecionar todos</span>
+            {/* Ações em Lote - Ocultar no modo histórico */}
+            {!isHistoricoMode && (
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={selectedIds.size === envelopesSemDiferenca.length && envelopesSemDiferenca.length > 0}
+                    onCheckedChange={handleSelectAll}
+                    disabled={envelopesSemDiferenca.length === 0}
+                  />
+                  <span className="text-sm text-muted-foreground">Selecionar todos</span>
+                </div>
+                <Button
+                  onClick={handleConferirSelecionados}
+                  disabled={selectedIds.size === 0 || isConferindo}
+                >
+                  <Check className="h-4 w-4 mr-2" />
+                  Conferir Selecionados ({selectedIds.size})
+                </Button>
               </div>
-              <Button
-                onClick={handleConferirSelecionados}
-                disabled={selectedIds.size === 0 || isConferindo}
-              >
-                <Check className="h-4 w-4 mr-2" />
-                Conferir Selecionados ({selectedIds.size})
-              </Button>
-            </div>
+            )}
 
             {/* Tabela */}
             {isLoading ? (
@@ -331,8 +374,9 @@ export default function EnvelopeConferencia() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-12"></TableHead>
+                      {!isHistoricoMode && <TableHead className="w-12"></TableHead>}
                       <TableHead>Data/Hora</TableHead>
+                      {isHistoricoMode && <TableHead>Conferido em</TableHead>}
                       <TableHead>Unidade</TableHead>
                       <TableHead className="text-right">Esperado</TableHead>
                       <TableHead className="text-right">Contado</TableHead>
@@ -346,16 +390,23 @@ export default function EnvelopeConferencia() {
                       const hasDiff = envelope.difference && envelope.difference !== 0;
                       return (
                         <TableRow key={envelope.id} className={hasDiff ? 'bg-destructive/5' : ''}>
-                          <TableCell>
-                            <Checkbox
-                              checked={selectedIds.has(envelope.id)}
-                              onCheckedChange={(checked) => handleSelectOne(envelope.id, !!checked)}
-                              disabled={hasDiff}
-                            />
-                          </TableCell>
+                          {!isHistoricoMode && (
+                            <TableCell>
+                              <Checkbox
+                                checked={selectedIds.has(envelope.id)}
+                                onCheckedChange={(checked) => handleSelectOne(envelope.id, !!checked)}
+                                disabled={hasDiff}
+                              />
+                            </TableCell>
+                          )}
                           <TableCell className="font-medium">
                             {formatDateTime(envelope.created_at)}
                           </TableCell>
+                          {isHistoricoMode && (
+                            <TableCell className="text-muted-foreground">
+                              {envelope.conferido_at ? formatDateTime(envelope.conferido_at) : '-'}
+                            </TableCell>
+                          )}
                           <TableCell>
                             <Badge variant="outline">{envelope.unit_code}</Badge>
                           </TableCell>
@@ -371,7 +422,7 @@ export default function EnvelopeConferencia() {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <Badge variant={envelope.status === 'EMITIDO' ? 'default' : 'secondary'}>
+                            <Badge variant={envelope.status === 'CONFERIDO' ? 'default' : envelope.status === 'EMITIDO' ? 'default' : 'secondary'}>
                               {envelope.status}
                             </Badge>
                           </TableCell>
@@ -384,14 +435,16 @@ export default function EnvelopeConferencia() {
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setQuickConferenciaEnvelope(envelope)}
-                                disabled={isConferindo}
-                              >
-                                <Check className="h-4 w-4" />
-                              </Button>
+                              {!isHistoricoMode && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => setQuickConferenciaEnvelope(envelope)}
+                                  disabled={isConferindo}
+                                >
+                                  <Check className="h-4 w-4" />
+                                </Button>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>

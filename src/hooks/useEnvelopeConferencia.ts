@@ -6,7 +6,8 @@ import { format, startOfDay, endOfDay } from 'date-fns';
 
 export interface EnvelopeConferenciaFilters {
   unitId?: string;
-  status?: 'PENDENTE' | 'EMITIDO' | 'all';
+  status?: 'PENDENTE' | 'EMITIDO' | 'CONFERIDO' | 'all';
+  mesReferencia?: string; // formato: '2026-01'
   startDate?: Date;
   endDate?: Date;
   onlyWithDifference?: boolean;
@@ -15,6 +16,7 @@ export interface EnvelopeConferenciaFilters {
 export interface EnvelopeForConferencia {
   id: string;
   created_at: string;
+  conferido_at: string | null;
   unit_id: string | null;
   unit_name: string;
   unit_code: string;
@@ -50,6 +52,7 @@ export function useEnvelopeConferencia(filters: EnvelopeConferenciaFilters = {})
         .select(`
           id,
           created_at,
+          conferido_at,
           unit_id,
           expected_cash,
           counted_cash,
@@ -63,12 +66,27 @@ export function useEnvelopeConferencia(filters: EnvelopeConferenciaFilters = {})
         `)
         .order('created_at', { ascending: false });
 
-      // Filtro por status - SEMPRE excluir CONFERIDO
-      if (filters.status && filters.status !== 'all') {
+      // Filtro por status
+      if (filters.status === 'CONFERIDO') {
+        query = query.eq('status', 'CONFERIDO');
+      } else if (filters.status && filters.status !== 'all') {
         query = query.eq('status', filters.status);
       } else {
-        // Mostrar apenas pendentes e emitidos (nunca conferidos)
+        // 'all' = apenas pendentes e emitidos
         query = query.in('status', ['PENDENTE', 'EMITIDO']);
+      }
+
+      // Filtro por mês de referência (ignora dezembro 2025 por padrão)
+      if (filters.mesReferencia) {
+        const [year, month] = filters.mesReferencia.split('-').map(Number);
+        const startOfMonth = new Date(year, month - 1, 1);
+        const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
+        query = query
+          .gte('created_at', startOfMonth.toISOString())
+          .lte('created_at', endOfMonth.toISOString());
+      } else {
+        // Data mínima padrão: Janeiro 2026 (ignora dados de teste)
+        query = query.gte('created_at', '2026-01-01T00:00:00.000Z');
       }
 
       // Filtro por unidade
@@ -119,6 +137,7 @@ export function useEnvelopeConferencia(filters: EnvelopeConferenciaFilters = {})
       return (data || []).map((envelope: any) => ({
         id: envelope.id,
         created_at: envelope.created_at,
+        conferido_at: envelope.conferido_at,
         unit_id: envelope.unit_id,
         unit_name: envelope.units?.name || 'Unidade',
         unit_code: envelope.units?.code || '??',
