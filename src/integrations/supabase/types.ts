@@ -2145,6 +2145,7 @@ export type Database = {
           parte_relacionada_tipo: string | null
           payment_bank_account_id: string | null
           pix_key: string | null
+          pix_tipo: string | null
           status: string
           supplier_invoice_id: string | null
           tipo: string
@@ -2190,6 +2191,7 @@ export type Database = {
           parte_relacionada_tipo?: string | null
           payment_bank_account_id?: string | null
           pix_key?: string | null
+          pix_tipo?: string | null
           status?: string
           supplier_invoice_id?: string | null
           tipo?: string
@@ -2235,6 +2237,7 @@ export type Database = {
           parte_relacionada_tipo?: string | null
           payment_bank_account_id?: string | null
           pix_key?: string | null
+          pix_tipo?: string | null
           status?: string
           supplier_invoice_id?: string | null
           tipo?: string
