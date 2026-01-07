@@ -904,6 +904,7 @@ export type Database = {
           cash_total: number
           closure_id: string | null
           conferencia_checkbox: boolean
+          conferido_at: string | null
           counted_cash: number | null
           created_at: string
           created_by: string | null
@@ -923,6 +924,7 @@ export type Database = {
           cash_total?: number
           closure_id?: string | null
           conferencia_checkbox?: boolean
+          conferido_at?: string | null
           counted_cash?: number | null
           created_at?: string
           created_by?: string | null
@@ -942,6 +944,7 @@ export type Database = {
           cash_total?: number
           closure_id?: string | null
           conferencia_checkbox?: boolean
+          conferido_at?: string | null
           counted_cash?: number | null
           created_at?: string
           created_by?: string | null
