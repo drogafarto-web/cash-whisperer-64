@@ -85,8 +85,8 @@ export function useEnvelopeConferencia(filters: EnvelopeConferenciaFilters = {})
           .gte('created_at', startOfMonth.toISOString())
           .lte('created_at', endOfMonth.toISOString());
       } else {
-        // Data mínima padrão: Janeiro 2026 (ignora dados de teste)
-        query = query.gte('created_at', '2026-01-01T00:00:00.000Z');
+        // Data mínima padrão: Fevereiro 2026 (ignora dados de teste de Jan/2026)
+        query = query.gte('created_at', '2026-02-01T00:00:00.000Z');
       }
 
       // Filtro por unidade

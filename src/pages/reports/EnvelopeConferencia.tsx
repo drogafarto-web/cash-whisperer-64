@@ -41,14 +41,14 @@ import { EnvelopeDetailModal } from '@/components/cash-closing/EnvelopeDetailMod
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 
-// Gerar lista de meses disponíveis (últimos 12 meses a partir de Jan/2026)
+// Gerar lista de meses disponíveis (a partir de Fev/2026 - ignora Jan/2026 por ser teste)
 function gerarMesesDisponiveis() {
   const meses = [];
   const agora = new Date();
   for (let i = 0; i < 12; i++) {
     const date = new Date(agora.getFullYear(), agora.getMonth() - i, 1);
-    // Ignorar meses antes de Janeiro 2026
-    if (date >= new Date(2026, 0, 1)) {
+    // Ignorar meses antes de Fevereiro 2026 (Jan/2026 era teste)
+    if (date >= new Date(2026, 1, 1)) {
       meses.push({
         value: format(date, 'yyyy-MM'),
         label: format(date, "MMMM 'de' yyyy", { locale: ptBR }),
