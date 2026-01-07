@@ -133,7 +133,7 @@ export function useEnvelopeConferencia(filters: EnvelopeConferenciaFilters = {})
         created_by_name: envelope.created_by ? creatorsMap[envelope.created_by] || null : null,
       }));
     },
-    staleTime: 1000 * 60, // 1 minuto
+    staleTime: 1000 * 5, // 5 segundos para refresh mais rápido
   });
 
   // Query para estatísticas
@@ -143,7 +143,7 @@ export function useEnvelopeConferencia(filters: EnvelopeConferenciaFilters = {})
       const today = format(new Date(), 'yyyy-MM-dd');
       
       // Query base
-      let baseQuery = supabase.from('cash_envelopes').select('*');
+      let baseQuery = supabase.from('cash_envelopes').select('id, status, expected_cash, counted_cash, difference, conferido_at');
       if (!isAdmin && unit?.id) {
         baseQuery = baseQuery.eq('unit_id', unit.id);
       }
@@ -159,7 +159,7 @@ export function useEnvelopeConferencia(filters: EnvelopeConferenciaFilters = {})
       const pendentes = envelopes.filter(e => e.status === 'PENDENTE' || e.status === 'EMITIDO');
       const comDiferenca = pendentes.filter(e => e.difference && e.difference !== 0);
       const conferidosHoje = envelopes.filter(
-        e => e.status === 'CONFERIDO' && e.created_at?.startsWith(today)
+        e => e.status === 'CONFERIDO' && e.conferido_at?.startsWith(today)
       );
 
       const valorPendente = pendentes.reduce((sum, e) => sum + (e.expected_cash || 0), 0);
@@ -173,7 +173,7 @@ export function useEnvelopeConferencia(filters: EnvelopeConferenciaFilters = {})
         diferencaTotal,
       };
     },
-    staleTime: 1000 * 60, // 1 minuto
+    staleTime: 1000 * 5, // 5 segundos para refresh mais rápido
   });
 
   // Mutation para conferir envelope
@@ -184,6 +184,7 @@ export function useEnvelopeConferencia(filters: EnvelopeConferenciaFilters = {})
         .update({
           status: 'CONFERIDO',
           conferencia_checkbox: true,
+          conferido_at: new Date().toISOString(),
         })
         .eq('id', envelopeId)
         .select()
@@ -214,6 +215,7 @@ export function useEnvelopeConferencia(filters: EnvelopeConferenciaFilters = {})
         .update({
           status: 'CONFERIDO',
           conferencia_checkbox: true,
+          conferido_at: new Date().toISOString(),
         })
         .in('id', envelopeIds)
         .select();
@@ -243,7 +245,11 @@ export function useEnvelopeConferencia(filters: EnvelopeConferenciaFilters = {})
     conferir: conferirMutation.mutate,
     conferirMultiplos: conferirMultiplosMutation.mutate,
     isConferindo: conferirMutation.isPending || conferirMultiplosMutation.isPending,
-    refetch: () => {
+    refetch: async () => {
+      // Invalidar cache antes de refetch para garantir dados frescos
+      await queryClient.invalidateQueries({ queryKey: ['envelopes-conferencia'] });
+      await queryClient.invalidateQueries({ queryKey: ['envelopes-stats'] });
+      await queryClient.invalidateQueries({ queryKey: ['cash-envelopes'] });
       envelopesQuery.refetch();
       statsQuery.refetch();
     },
