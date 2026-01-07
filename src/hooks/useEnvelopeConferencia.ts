@@ -63,11 +63,11 @@ export function useEnvelopeConferencia(filters: EnvelopeConferenciaFilters = {})
         `)
         .order('created_at', { ascending: false });
 
-      // Filtro por status
+      // Filtro por status - SEMPRE excluir CONFERIDO
       if (filters.status && filters.status !== 'all') {
         query = query.eq('status', filters.status);
-      } else if (!filters.status) {
-        // Por padrão, mostrar apenas pendentes e emitidos
+      } else {
+        // Mostrar apenas pendentes e emitidos (nunca conferidos)
         query = query.in('status', ['PENDENTE', 'EMITIDO']);
       }
 
@@ -179,50 +179,58 @@ export function useEnvelopeConferencia(filters: EnvelopeConferenciaFilters = {})
   // Mutation para conferir envelope
   const conferirMutation = useMutation({
     mutationFn: async ({ envelopeId, observacao }: { envelopeId: string; observacao?: string }) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('cash_envelopes')
         .update({
           status: 'CONFERIDO',
           conferencia_checkbox: true,
         })
-        .eq('id', envelopeId);
+        .eq('id', envelopeId)
+        .select()
+        .single();
 
       if (error) throw error;
+      return data;
     },
     onSuccess: () => {
+      // Invalidar e refetch imediato
       queryClient.invalidateQueries({ queryKey: ['envelopes-conferencia'] });
       queryClient.invalidateQueries({ queryKey: ['envelopes-stats'] });
       queryClient.invalidateQueries({ queryKey: ['badge-counts'] });
+      queryClient.invalidateQueries({ queryKey: ['cash-envelopes'] });
       toast.success('Envelope conferido com sucesso!');
     },
     onError: (error: Error) => {
       console.error('Erro ao conferir envelope:', error);
-      toast.error('Erro ao conferir envelope');
+      toast.error('Erro ao conferir envelope: ' + error.message);
     },
   });
 
   // Mutation para conferir múltiplos envelopes
   const conferirMultiplosMutation = useMutation({
     mutationFn: async (envelopeIds: string[]) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('cash_envelopes')
         .update({
           status: 'CONFERIDO',
           conferencia_checkbox: true,
         })
-        .in('id', envelopeIds);
+        .in('id', envelopeIds)
+        .select();
 
       if (error) throw error;
+      return data;
     },
     onSuccess: (_, envelopeIds) => {
       queryClient.invalidateQueries({ queryKey: ['envelopes-conferencia'] });
       queryClient.invalidateQueries({ queryKey: ['envelopes-stats'] });
       queryClient.invalidateQueries({ queryKey: ['badge-counts'] });
+      queryClient.invalidateQueries({ queryKey: ['cash-envelopes'] });
       toast.success(`${envelopeIds.length} envelope(s) conferido(s) com sucesso!`);
     },
     onError: (error: Error) => {
       console.error('Erro ao conferir envelopes:', error);
-      toast.error('Erro ao conferir envelopes');
+      toast.error('Erro ao conferir envelopes: ' + error.message);
     },
   });
 
