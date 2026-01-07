@@ -108,3 +108,11 @@ export async function upsertInvoice(invoice: Partial<Invoice> & { id?: string })
     return data;
   }
 }
+
+export async function deleteInvoice(id: string) {
+  const { error } = await supabase
+    .from('invoices')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}

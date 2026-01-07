@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { FileText, Upload, Plus, Eye, Edit, Check, X, Download } from 'lucide-react';
+import { FileText, Upload, Edit, Check, Trash2 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +9,9 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useInvoices, usePayers, useInvoiceMutation } from '@/features/billing';
+import { useDeleteInvoiceMutation } from '@/features/billing/hooks/useInvoiceMutation';
 import InvoiceUploadForm from '@/components/billing/InvoiceUploadForm';
 import InvoiceForm from '@/components/billing/InvoiceForm';
 import { Invoice } from '@/types/billing';
@@ -40,6 +42,7 @@ export default function Invoices() {
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [showFormDialog, setShowFormDialog] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [deletingInvoice, setDeletingInvoice] = useState<Invoice | null>(null);
 
   const { data: invoices = [], isLoading } = useInvoices({
     competenceYear: selectedYear !== 'all' ? Number(selectedYear) : undefined,
@@ -50,6 +53,7 @@ export default function Invoices() {
 
   const { data: payers = [] } = usePayers();
   const invoiceMutation = useInvoiceMutation();
+  const deleteMutation = useDeleteInvoiceMutation();
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -101,6 +105,13 @@ export default function Invoices() {
   const handleFormClose = () => {
     setShowFormDialog(false);
     setEditingInvoice(null);
+  };
+
+  const handleDelete = async () => {
+    if (deletingInvoice) {
+      await deleteMutation.mutateAsync(deletingInvoice.id);
+      setDeletingInvoice(null);
+    }
   };
 
   return (
@@ -292,6 +303,15 @@ export default function Invoices() {
                               <Check className="h-4 w-4" />
                             </Button>
                           )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setDeletingInvoice(invoice)}
+                            title="Excluir"
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -328,6 +348,28 @@ export default function Invoices() {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deletingInvoice} onOpenChange={() => setDeletingInvoice(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir nota fiscal?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A nota fiscal <strong>{deletingInvoice?.document_number}</strong> de{' '}
+              <strong>{deletingInvoice?.customer_name}</strong> será excluída permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
