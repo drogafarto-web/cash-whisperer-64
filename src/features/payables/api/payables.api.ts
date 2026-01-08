@@ -165,8 +165,30 @@ export async function markPayableAsPaid(
   paidMethod: string,
   transactionId?: string
 ) {
+  // 1) Verificar status atual para garantir idempotência
+  const { data: existing, error: fetchError } = await supabase
+    .from('payables')
+    .select('id, status, paid_at, paid_amount, matched_transaction_id')
+    .eq('id', id)
+    .single();
+
+  if (fetchError) throw fetchError;
+
+  // Se já está pago, retornar sem alterar (idempotente)
+  if (existing?.status === PAYABLE_STATUS.PAGO) {
+    console.info(`Payable ${id} já estava pago em ${existing.paid_at}. Ignorando requisição duplicada.`);
+    // Buscar o registro completo para retornar
+    const { data: fullPayable } = await supabase
+      .from('payables')
+      .select('*')
+      .eq('id', id)
+      .single();
+    return fullPayable as Payable;
+  }
+
   const paidAt = new Date().toISOString();
   
+  // 2) Atualizar apenas se não estiver pago (condição de segurança)
   const { data, error } = await supabase
     .from('payables')
     .update({
@@ -178,13 +200,25 @@ export async function markPayableAsPaid(
       updated_at: paidAt,
     })
     .eq('id', id)
+    .neq('status', PAYABLE_STATUS.PAGO) // Condição extra para evitar race condition
     .select()
     .single();
 
+  // Se nenhum registro foi atualizado, significa que foi pago por outra requisição
+  if (error?.code === 'PGRST116') {
+    // No rows returned - provavelmente já foi pago por outra requisição
+    const { data: refreshed } = await supabase
+      .from('payables')
+      .select('*')
+      .eq('id', id)
+      .single();
+    return refreshed as Payable;
+  }
+
   if (error) throw error;
 
-  // Se não tinha transaction vinculada, criar uma nova para o fluxo de caixa
-  if (!transactionId && data) {
+  // 3) Criar transaction apenas se acabou de ser marcado como pago e não tinha vinculada
+  if (!transactionId && data && !(data as Payable).matched_transaction_id) {
     await createTransactionFromPayable(data as Payable, paidAt);
   }
 
@@ -527,18 +561,38 @@ export async function fetchPayablesWithPaymentData(filters?: {
   return result;
 }
 
-// Mark payable as paid with additional options
+// Mark payable as paid with additional options (idempotent)
 export async function markPayableAsPaidWithAccount(
   id: string,
   paidAmount: number,
   paidMethod: string,
   paidAt: string,
   paymentAccountId?: string
-) {
+): Promise<{ payable: Payable; alreadyPaid: boolean }> {
   // Verificar autenticação antes de prosseguir
   const { data: { user } } = await supabase.auth.getUser();
   if (!user?.id) {
     throw new Error('Usuário não autenticado. Faça login e tente novamente.');
+  }
+
+  // 1) Verificar status atual para garantir idempotência
+  const { data: existing, error: fetchError } = await supabase
+    .from('payables')
+    .select('id, status, paid_at, paid_amount, matched_transaction_id')
+    .eq('id', id)
+    .single();
+
+  if (fetchError) throw fetchError;
+
+  // Se já está pago, retornar sem alterar (idempotente)
+  if (existing?.status === PAYABLE_STATUS.PAGO) {
+    console.info(`Payable ${id} já estava pago em ${existing.paid_at}. Ignorando requisição duplicada.`);
+    const { data: fullPayable } = await supabase
+      .from('payables')
+      .select('*')
+      .eq('id', id)
+      .single();
+    return { payable: fullPayable as Payable, alreadyPaid: true };
   }
 
   const updateData: Record<string, unknown> = {
@@ -553,19 +607,31 @@ export async function markPayableAsPaidWithAccount(
     updateData.payment_bank_account_id = paymentAccountId;
   }
 
+  // 2) Atualizar apenas se não estiver pago (condição de segurança)
   const { data, error } = await supabase
     .from('payables')
     .update(updateData)
     .eq('id', id)
+    .neq('status', PAYABLE_STATUS.PAGO) // Condição extra para evitar race condition
     .select()
     .single();
 
+  // Se nenhum registro foi atualizado, significa que foi pago por outra requisição
+  if (error?.code === 'PGRST116') {
+    const { data: refreshed } = await supabase
+      .from('payables')
+      .select('*')
+      .eq('id', id)
+      .single();
+    return { payable: refreshed as Payable, alreadyPaid: true };
+  }
+
   if (error) throw error;
 
-  // Criar transaction para o fluxo de caixa (se não tiver vinculada)
+  // 3) Criar transaction apenas se acabou de ser marcado como pago e não tinha vinculada
   if (data && !(data as Payable).matched_transaction_id) {
     await createTransactionFromPayable(data as Payable, paidAt, paymentAccountId);
   }
 
-  return data as Payable;
+  return { payable: data as Payable, alreadyPaid: false };
 }

@@ -302,9 +302,15 @@ export function useMarkPayableAsPaidWithAccount() {
       paidAt: string;
       paymentAccountId?: string;
     }) => markPayableAsPaidWithAccount(id, paidAmount, paidMethod, paidAt, paymentAccountId),
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEY] });
-      toast.success('Pagamento registrado', { description: 'O boleto foi marcado como pago.' });
+      if (result.alreadyPaid) {
+        toast.info('Pagamento já registrado', { 
+          description: `Este boleto já estava marcado como pago em ${new Date(result.payable.paid_at!).toLocaleDateString('pt-BR')}.` 
+        });
+      } else {
+        toast.success('Pagamento registrado', { description: 'O boleto foi marcado como pago.' });
+      }
     },
     onError: (error: any) => {
       let description = error.message;

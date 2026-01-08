@@ -380,8 +380,24 @@ export default function BoletosPage() {
         paymentAccountId,
       },
       {
-        onSuccess: () => {
+        onSuccess: (result) => {
           setPayableToMarkPaid(null);
+          
+          // Se foi pago agora (não era já pago), navegar para ver o registro
+          if (!result.alreadyPaid) {
+            // Mudar para filtro PAGO no mês atual com highlight
+            const paidDate = new Date(paidAt);
+            setStatusFilter('PAGO');
+            setMonthFilter(paidDate);
+            setShowAll(false);
+            setBeneficiarioFilter('');
+            setNfLinkFilter('all');
+            
+            // Adicionar highlight na URL
+            const newParams = new URLSearchParams();
+            newParams.set('highlight', payableId);
+            setSearchParams(newParams, { replace: true });
+          }
         },
       }
     );
