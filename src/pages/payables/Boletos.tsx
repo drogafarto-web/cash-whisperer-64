@@ -1583,7 +1583,7 @@ export default function BoletosPage() {
                       {/* Ações */}
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          {statusFilter !== 'PAGO' && (
+                          {payable.status !== 'PAGO' && (
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <Button
