@@ -90,15 +90,25 @@ export default function BoletosPage() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  // Filter states - when highlight is present, show all records
-  const [statusFilter, setStatusFilter] = useState<string>(highlightId ? 'all' : 'pendentes');
+  // Filter states
+  const [statusFilter, setStatusFilter] = useState<string>('pendentes');
   const [monthFilter, setMonthFilter] = useState<Date>(new Date());
   const [periodDays, setPeriodDays] = useState<string>('all');
   const [beneficiarioFilter, setBeneficiarioFilter] = useState('');
   const [unitIdFilter, setUnitIdFilter] = useState('all');
   const [paymentAccountFilter, setPaymentAccountFilter] = useState('all');
   const [nfLinkFilter, setNfLinkFilter] = useState('all');
-  const [showAll, setShowAll] = useState(highlightId ? true : false);
+  const [showAll, setShowAll] = useState(false);
+  
+  // When highlightId is present, force filters to show all records
+  useEffect(() => {
+    if (highlightId) {
+      setShowAll(true);
+      setStatusFilter('all');
+      setBeneficiarioFilter('');
+      setNfLinkFilter('all');
+    }
+  }, [highlightId]);
 
   // Forçar unidade para secretaria
   useEffect(() => {
@@ -141,17 +151,30 @@ export default function BoletosPage() {
     highlightId: highlightId || undefined,
   });
 
-  // Scroll to highlighted row and clear highlight param after delay
+  // Check if highlighted record was found
+  const highlightedRecordFound = useMemo(() => {
+    if (!highlightId) return true;
+    return allPayables.some(p => p.id === highlightId);
+  }, [highlightId, allPayables]);
+
+  // Scroll to highlighted row when found
   useEffect(() => {
-    if (highlightId && highlightRowRef.current) {
+    if (highlightId && highlightRowRef.current && highlightedRecordFound) {
       highlightRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // Remove highlight param after 3 seconds
+    }
+  }, [highlightId, highlightedRecordFound]);
+
+  // Clear highlight after successful scroll (only remove highlight param, keep other params)
+  useEffect(() => {
+    if (highlightId && highlightedRecordFound && highlightRowRef.current) {
       const timeout = setTimeout(() => {
-        setSearchParams({}, { replace: true });
-      }, 3000);
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete('highlight');
+        setSearchParams(newParams, { replace: true });
+      }, 5000);
       return () => clearTimeout(timeout);
     }
-  }, [highlightId, allPayables, setSearchParams]);
+  }, [highlightId, highlightedRecordFound, searchParams, setSearchParams]);
 
   const deletePayable = useDeletePayable();
   const markAsPaidMutation = useMarkPayableAsPaidWithAccount();
@@ -1120,6 +1143,21 @@ export default function BoletosPage() {
           storageKey="boletos-v3-guide"
           className="mb-2"
         />
+
+        {/* Alert when highlighted record not found */}
+        {highlightId && !isLoading && !highlightedRecordFound && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 flex items-start gap-3">
+            <FileWarning className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-amber-800">
+                Não foi possível exibir o registro destacado
+              </p>
+              <p className="text-sm text-amber-700 mt-1">
+                Motivos comuns: unidade diferente da selecionada, permissões de acesso ou registro removido.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="space-y-3">
