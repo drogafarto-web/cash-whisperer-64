@@ -1,5 +1,6 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { format, differenceInDays, startOfDay, subMonths, addMonths, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -83,18 +84,21 @@ type PayableWithAccount = Payable & {
 export default function BoletosPage() {
   const { role, activeUnit } = useAuth();
   const isSecretaria = role === 'secretaria';
+  const [searchParams, setSearchParams] = useSearchParams();
+  const highlightId = searchParams.get('highlight');
+  const highlightRowRef = useRef<HTMLTableRowElement>(null);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  // Filter states
-  const [statusFilter, setStatusFilter] = useState<string>('pendentes');
+  // Filter states - when highlight is present, show all records
+  const [statusFilter, setStatusFilter] = useState<string>(highlightId ? 'all' : 'pendentes');
   const [monthFilter, setMonthFilter] = useState<Date>(new Date());
   const [periodDays, setPeriodDays] = useState<string>('all');
   const [beneficiarioFilter, setBeneficiarioFilter] = useState('');
   const [unitIdFilter, setUnitIdFilter] = useState('all');
   const [paymentAccountFilter, setPaymentAccountFilter] = useState('all');
   const [nfLinkFilter, setNfLinkFilter] = useState('all');
-  const [showAll, setShowAll] = useState(false);
+  const [showAll, setShowAll] = useState(highlightId ? true : false);
 
   // Forçar unidade para secretaria
   useEffect(() => {
@@ -135,6 +139,18 @@ export default function BoletosPage() {
     status: apiStatus,
     monthYear: statusFilter === 'PAGO' ? format(monthFilter, 'yyyy-MM') : undefined,
   });
+
+  // Scroll to highlighted row and clear highlight param after delay
+  useEffect(() => {
+    if (highlightId && highlightRowRef.current) {
+      highlightRowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Remove highlight param after 3 seconds
+      const timeout = setTimeout(() => {
+        setSearchParams({}, { replace: true });
+      }, 3000);
+      return () => clearTimeout(timeout);
+    }
+  }, [highlightId, allPayables, setSearchParams]);
 
   const deletePayable = useDeletePayable();
   const markAsPaidMutation = useMarkPayableAsPaidWithAccount();
@@ -1339,7 +1355,11 @@ export default function BoletosPage() {
                   </TableRow>
                 ) : (
                   filteredPayables.map((payable) => (
-                    <TableRow key={payable.id}>
+                    <TableRow 
+                      key={payable.id}
+                      ref={payable.id === highlightId ? highlightRowRef : undefined}
+                      className={payable.id === highlightId ? 'bg-primary/10 ring-2 ring-primary ring-inset animate-pulse' : ''}
+                    >
                       {/* Date */}
                       <TableCell>
                         <div className="flex flex-col gap-1">
