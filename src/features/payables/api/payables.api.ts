@@ -454,6 +454,7 @@ export async function fetchPayablesWithPaymentData(filters?: {
   showAll?: boolean; // If true, show all payables regardless of payment data
   status?: 'PENDENTE' | 'PAGO' | 'VENCIDO' | 'all'; // Status filter
   monthYear?: string; // Format "2026-01" for filtering by month (used for paid payables)
+  highlightId?: string; // ID to ensure is included in results even without payment data
 }) {
   let query = supabase
     .from('payables')
@@ -499,10 +500,31 @@ export async function fetchPayablesWithPaymentData(filters?: {
   const { data, error } = await query;
 
   if (error) throw error;
-  return data as (Payable & { 
+
+  type PayableWithRelations = Payable & { 
     accounts?: { id: string; name: string; institution?: string } | null;
     categories?: { id: string; name: string } | null;
-  })[];
+  };
+
+  let result = data as PayableWithRelations[];
+
+  // If highlightId is provided and not in results, fetch it separately
+  if (filters?.highlightId) {
+    const found = result.find(p => p.id === filters.highlightId);
+    if (!found) {
+      const { data: highlighted, error: highlightError } = await supabase
+        .from('payables')
+        .select('*, accounts:payment_bank_account_id(id, name, institution), categories:category_id(id, name)')
+        .eq('id', filters.highlightId)
+        .maybeSingle();
+
+      if (!highlightError && highlighted) {
+        result = [highlighted as PayableWithRelations, ...result];
+      }
+    }
+  }
+
+  return result;
 }
 
 // Mark payable as paid with additional options

@@ -138,6 +138,7 @@ export default function BoletosPage() {
     showAll: showAll || statusFilter === 'PAGO',
     status: apiStatus,
     monthYear: statusFilter === 'PAGO' ? format(monthFilter, 'yyyy-MM') : undefined,
+    highlightId: highlightId || undefined,
   });
 
   // Scroll to highlighted row and clear highlight param after delay

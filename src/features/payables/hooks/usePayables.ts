@@ -275,6 +275,7 @@ export function usePayablesWithPaymentData(filters?: {
   showAll?: boolean;
   status?: 'PENDENTE' | 'PAGO' | 'VENCIDO' | 'all';
   monthYear?: string;
+  highlightId?: string;
 }) {
   return useQuery({
     queryKey: [QUERY_KEY, 'with-payment-data', filters],
