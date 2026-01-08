@@ -337,9 +337,9 @@ export function AccountingSendDocuments({ unitId, unitName, competence, onBack }
 
   const handleViewRecord = (type: 'invoice' | 'payable', id: string) => {
     if (type === 'invoice') {
-      navigate('/billing/invoices');
+      navigate(`/billing/invoices?highlight=${id}`);
     } else {
-      navigate('/payables/boletos');
+      navigate(`/payables/boletos?highlight=${id}`);
     }
   };
 
