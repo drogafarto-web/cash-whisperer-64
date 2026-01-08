@@ -110,6 +110,13 @@ export default function BoletosPage() {
     }
   }, [highlightId]);
 
+  // Quando status for "all" (Todos), forçar showAll = true para exibir despesas sem dados de pagamento
+  useEffect(() => {
+    if (statusFilter === 'all') {
+      setShowAll(true);
+    }
+  }, [statusFilter]);
+
   // Forçar unidade para secretaria
   useEffect(() => {
     if (isSecretaria && activeUnit && unitIdFilter === 'all') {
